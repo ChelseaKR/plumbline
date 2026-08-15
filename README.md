@@ -23,10 +23,16 @@ third party could defend:
 
 ## Status
 
-Pre-release (`0.1.0.dev0`). Built from a functional
-specification, started 2026-08-15, implemented with AI agents (Claude Code),
-reviewed and directed by a human. See `DESIGN.md` for the architecture, all
-recorded design decisions, and the roadmap. License: Apache-2.0.
+Pre-release (`0.1.0.dev0`). Every capability in the functional specification
+is implemented: thirteen scoring suites, per-suite confidence intervals and
+minimum detectable effect, baseline regression comparison, and a pinned
+fail-closed CI gate. 172 tests, standard library only, offline.
+
+Built from a functional specification, started 2026-08-15, implemented with AI
+agents (Claude Code), reviewed and directed by a human. `DESIGN.md` carries
+the architecture, every design decision the specification left open, and an
+acceptance record of commands actually run against a clean checkout. License:
+Apache-2.0.
 
 ## Quick start
 
@@ -105,17 +111,22 @@ without leaving a trace:
 
 ```sh
 # 1. Plant a number the sources do not support.
-sed -i '' 's/850 dollars/900 dollars/' datasets/riverbend-demo/responses.jsonl
+python3 - <<'EOF'
+import pathlib
+p = pathlib.Path("datasets/riverbend-demo/responses.jsonl")
+p.write_text(p.read_text().replace("850 dollars", "900 dollars"))
+EOF
 
 # 2. First run: integrity refusal, nothing scored, exit code 3.
-PYTHONPATH=src python3 -m plumbline audit --config examples/riverbend.toml --out audits
+PYTHONPATH=src python3 -m plumbline gate --config examples/riverbend.toml --out audits
 echo $?   # 3
 
 # 3. "Regenerate" legitimately — the hash change is the trace.
 PYTHONPATH=src python3 -m plumbline seal datasets/riverbend-demo
+#    dataset: 1c14ef2522da -> 44f59018fbe4
 
 # 4. Second run: three independent checks catch the planted fact, exit code 1.
-PYTHONPATH=src python3 -m plumbline audit --config examples/riverbend.toml --out audits
+PYTHONPATH=src python3 -m plumbline gate --config examples/riverbend.toml --out audits
 echo $?   # 1
 
 # 5. Restore the demo bundle.
@@ -127,8 +138,8 @@ floors when they do:
 
 | Suite | Score | Floor | Verdict | Why |
 |---|---|---|---|---|
-| `accuracy` | 0.8680 | 0.75 | **FAIL** | the planted number is on a load-bearing item |
-| `groundedness` | 0.8166 | 0.70 | **FAIL** | 900 appears in no source |
+| `accuracy` | 0.8680 | 0.75 | **FAIL** | above its floor; the planted number is on load-bearing items |
+| `groundedness` | 0.8166 | 0.70 | **FAIL** | above its floor; 900 appears in no source |
 | `cross_language` | 0.6250 | 1.00 | **FAIL** | English now says 900, Spanish still says 850 |
 
 That is the whole argument for the design. A pooled average absorbs one
@@ -231,11 +242,21 @@ A report that only showed the scores would hide that. Suites whose score is
 not a sample statistic say so and print `n/a` with the reason, rather than an
 interval that looks like evidence. See `DESIGN.md` for the methods and every constant.
 
-## What is not implemented yet (see DESIGN.md roadmap)
+## What is not implemented
 
-Pin-file gate integration for consuming repos; live-target adapters;
-optional model-based judges. Every suite in the specification's taxonomy is
-implemented.
+Two things, both deliberate and both on the roadmap in `DESIGN.md`:
+
+- **Live-target adapters.** Plumbline grades recorded transcripts. Something
+  else has to produce `responses.jsonl` by talking to the system under test;
+  the bundle format separates items from responses precisely so an adapter can
+  slot in without changing anything that is scored.
+- **Model-based judges.** The default judge is lexical, which is what makes
+  the harness deterministic and keyless. A model judge would be optional,
+  clearly separated, and flagged in every report that used one — a report that
+  hid which judge produced it would not be a report worth defending.
+
+Every suite in the specification's taxonomy is implemented, and every suite is
+exercised by the bundled demo.
 
 ## Non-goals
 

@@ -48,7 +48,10 @@ only for optional, clearly separated components (e.g., model-based judges).
 | **suite** | A pluggable scorer producing a score in [0,1], with a declared floor and a pass/fail verdict. |
 | **judge** | The comparison engine suites delegate to. Default: `lexical` (deterministic). |
 | **seal** | Computing/refreshing the bundle's checksum manifest. The only legitimate way to change evidence, and it always leaves a trace (the hash changes). |
-| **audit** | One full run: integrity check → validation → enabled suites → report. |
+| **audit** | One full run: integrity check → validation → enabled suites → report → baseline comparison. |
+| **baseline** | A short committed record distilled from a previous report: provenance plus one line per suite. The bar a repository is holding. |
+| **pin** | The one file in a consuming repository naming the exact harness commit that gates it. Read by both local tooling and CI. |
+| **hard failure** | An item that fails a load-bearing check, failing its suite regardless of the pooled average. |
 
 ## Evidence bundle format (v1)
 
@@ -142,7 +145,7 @@ A suite implements: `id`, `evaluate(bundle, judge) -> SuiteResult` where
 FAIL if **any enabled suite** fails. Enabling a suite that is not implemented is
 a configuration error (fail closed), never a skip.
 
-### Implemented in milestone 1
+### The thirteen suites
 
 | Suite id | Measures | Default floor | Why this floor |
 |---|---|---|---|
@@ -200,9 +203,11 @@ level down.
 
 ### Skeletons (registered as unimplemented; enabling them is an error)
 
-`adversarial`, `fairness`, `representational_harms`, `accessibility`,
-`privacy`. Each skeleton module documents its intended measurement and its
-milestone.
+The list is empty: every suite in the specification's taxonomy is implemented.
+`skeletons.py` and the registry's refusal to enable an unimplemented suite stay
+in the codebase, because the next suite anyone adds should start there and
+because the refusal is the fail-closed rule applied to the plugin registry
+itself.
 
 ## Statistical honesty
 
@@ -408,7 +413,7 @@ Decisions recorded here:
 3 and 4 are deliberately distinct from 1 so CI can distinguish "the target got
 worse" from "the evidence is untrustworthy" from "the harness was misused".
 
-## CLI surface (milestone 1)
+## CLI surface
 
 ```
 plumbline validate <bundle>          # integrity check, item count, dataset id, warnings
@@ -501,37 +506,81 @@ says so on every line rather than letting a wall of 1.0000 imply otherwise.
 
 | Milestone | Delivers | Spec |
 |---|---|---|
-| **M1 (this build)** | Bundle format + sha256 integrity + refusal-to-score with exit 3; validate/seal/audit CLI; suite framework with `smoke`, `accuracy`, `refusal`; load-bearing per-item override; JSON+MD reports with full provenance; exit codes 0/1/3/4; synthetic demo bundle; tests; tamper-drill (integrity half) documented and verified. | R1, R2 (partial), R3 (per-item severity), R5, R7 |
+| **M1** | Bundle format + sha256 integrity + refusal-to-score with exit 3; validate/seal/audit CLI; suite framework with `smoke`, `accuracy`, `refusal`; load-bearing per-item override; JSON+MD reports with full provenance; exit codes 0/1/3/4; synthetic demo bundle; tests; tamper-drill (integrity half) documented and verified. **M1 complete.** | R1, R2 (partial), R3 (per-item severity), R5, R7 |
 | **M2** | ✅ Confidence intervals + minimum-detectable-effect per suite; ✅ `cross_language` suite with harsh scoring for numeric policy-fact disagreement, and the tamper drill now catching the planted fact by en/es disagreement (2026-08-15). ✅ `groundedness`, `citation_validity`, `citation_accuracy` suites on a bundled source corpus. **M2 complete.** | R3, R4 (CI/MDE), R2 |
 | **M3** | ✅ Stored-baseline regression comparison: names flipped suites, refuses numeric comparison across differing dataset or judge hashes and says so, and qualifies every surviving delta against that suite's MDE. ✅ `fairness` (pooled + disaggregated), `representational_harms`, `privacy`, `adversarial` suites. **M3 complete.** | R4 (regression), R2 |
 | **M4** | ✅ `accessibility` structural checks (language declaration, labels, live regions, heading order, computed contrast) and ✅ a `multilingual` fidelity suite the roadmap had not anticipated. Remaining: live-target adapters; optional model-based judges, flagged in reports. | R2 |
 | **M5** | ✅ Gate integration: `plumbline gate` CI entry point, a single pin file read by both local tooling and CI, run-time resolution (not a package dependency), and legible fail-closed behavior when the harness is unreachable. **M5 complete.** | R6 |
 
-## Milestone 1 acceptance record (verified 2026-08-15)
+## Acceptance record (verified 2026-08-15, clean checkout)
 
-Commands run and observed results, on this repository at this milestone:
+Every line below is an observed result from `git clone`-ing this repository
+into a temporary directory and running the commands offline, not a claim about
+what the code should do.
 
-- **Clean checkout, one command, offline**: `git clone` to a temp dir, then
-  `PYTHONPATH=src python3 -m plumbline audit --config examples/riverbend.toml
-  --out audits` → exit 0, verdict PASS, and `git status` clean afterward: the
-  freshly generated reports were byte-identical to the committed ones.
-- **Provenance**: committed `audits/3593a44da981438a/report.{json,md}` carry
-  run id, harness version `0.1.0.dev0`, seed `1729`, dataset hash
-  `129f0cf1bf06…`, judge config hash `a7c8a5ee…`, verdict first.
-- **Warning path**: the rb-004 unreviewed-translation warning printed on every
-  run (validate and audit, first run and re-runs) and never affected the exit
-  code.
-- **Tamper drill, milestone-1 half** (documented in README, run verbatim):
-  `sed` planted `900` over `850` in `responses.jsonl` → audit exited **3**
-  with "INTEGRITY REFUSAL … content mismatch: responses.jsonl", no report
-  written. `plumbline seal` regenerated checksums (bundle hash changed
-  `129f0cf1bf06` → `9f4c685d5902` — the trace) → audit exited **1**, overall
-  FAIL, accuracy pooled score 0.8061 **above** its 0.75 floor yet the suite
-  failed on `load_bearing_failures: ["rb-001"]` with `missing_numbers:
-  ["850"]` — the pooled-average-absorption defense working as specified. The
-  cross-language catch and regression naming halves of the drill are M2/M3.
-- **Tests**: `PYTHONPATH=src:tests python3 -m unittest discover -s tests` →
-  40 tests, OK.
+**Clean checkout, one documented command, offline, identical re-run.**
+`PYTHONPATH=src python3 -m plumbline gate --config examples/riverbend.toml
+--out audits` → exit **0**, `GATE: PASS`, 13 of 13 suites. `git status` was
+empty afterwards: the freshly generated reports were byte-identical to the
+committed ones.
+
+**Every enabled suite reports score, floor, verdict, CI and MDE.** All
+thirteen, in the committed report. Nine score a perfect 1.0000, with MDEs from
+0.115 to 0.750 — the demonstration bundle saying out loud what it cannot
+detect. `accessibility` reports `n/a` for both figures with the reason in the
+report: five fixed checks are a census, not a sample.
+
+**Reports carry the provenance block.** Committed
+`audits/1682f39507e03965/report.{json,md}`: run id `1682f39507e03965`, harness
+`0.1.0.dev0`, seed `1729`, dataset `1c14ef2522da`, judge config
+`ca2a9ce20387…`, verdict as the first key and the first heading.
+
+**Unreviewed-translation warning on every run, never fatal.** `rb-004` warns on
+`validate`, on `audit` and on `gate`, on first runs and re-runs, and the exit
+code stayed 0.
+
+**Tamper drill, end to end** (the README documents it verbatim and it is
+repeatable):
+
+| Step | Observed |
+|---|---|
+| Plant `900` over `850` in `responses.jsonl` | — |
+| First run | exit **3**, `INTEGRITY REFUSAL … content mismatch: responses.jsonl`, **no report written** |
+| `plumbline seal` | dataset hash `1c14ef2522da` → `44f59018fbe4` — the trace |
+| Second run | exit **1**, `GATE: FAIL`, 3 of 13 suites failed |
+
+The three that failed, and why they are the right three:
+
+| Suite | Score | Floor | Why it failed |
+|---|---|---|---|
+| `accuracy` | 0.8680 | 0.75 | **above its floor**; failed on load-bearing items rb-001, rb-014, rb-021 |
+| `groundedness` | 0.8166 | 0.70 | **above its floor**; 900 appears in no source |
+| `cross_language` | 0.6250 | 1.00 | en says 900, es still says 850 |
+
+And the regression block in the same report:
+
+```
+**Numeric comparison refused.**
+- the dataset hash differs: this run scored 44f59018fbe4, the baseline scored
+  1c14ef2522da. The evidence changed, so the scores are not comparable numbers.
+
+Overall verdict: PASS → FAIL.
+Suites whose verdict changed:
+- `accuracy`: PASS → FAIL
+- `cross_language`: PASS → FAIL
+- `groundedness`: PASS → FAIL
+```
+
+**With the harness unreachable, a consuming repo's gate fails rather than
+skips.** `tests/test_gate.py` runs `gate/plumbline-gate.sh` as a real
+subprocess against a pin naming a repository that does not exist: exit **4**,
+`cannot reach the pinned harness … FAILED before scoring`, and the output
+directory was never created. The same file covers a missing pin, a pin missing
+`config` or `ref`, a branch name where a commit hash is required, and an
+unknown pin key — all exit 4.
+
+**Tests**: `PYTHONPATH=src:tests python3 -m unittest discover -s tests` → **172
+tests, OK**, in about one second, offline, with no third-party packages.
 
 ## Decisions the spec left open (recorded)
 
@@ -568,3 +617,24 @@ Commands run and observed results, on this repository at this milestone:
     bookkeeping, not an answer, and leaving it in would leak tokens into
     overlap scores and digits into number extraction.
 14. **Empty population is a configuration error**, not a vacuous pass.
+15. **Fairness scores disparity, not level** — `1 - (best group mean - worst
+    group mean)`. The pooled mean is reported alongside it so the two are not
+    confused, and groups too small to mean anything are named and excluded
+    rather than quietly folded in.
+16. **The harms and privacy screens say in every report what a clean pass does
+    not prove.** They are deterministic pattern matches. A screen that lets a
+    reader believe the stronger claim is worse than no screen at all, and the
+    shipped word lists are demonstrations a real deployment replaces.
+17. **Accessibility contrast is computed, not accepted.** The interface
+    snapshot declares its colour pairs; Plumbline does the WCAG arithmetic. An
+    undeclared palette fails the check: unverified contrast is not passing
+    contrast.
+18. **A response the language profiles cannot place is a multilingual
+    failure**, not a pass. Unreadable evidence is not evidence of success. An
+    item in a language with no shipped profile is a configuration error.
+19. **A refused baseline comparison does not by itself fail the gate**;
+    `--require-comparable-baseline` is there for teams that want it to.
+20. **The demo bundle is versioned and re-sealed deliberately.** Extending it
+    changed the dataset hash, which invalidated the previous committed report
+    and baseline; both were regenerated in the same commit, which is exactly
+    the trace the design promises.
