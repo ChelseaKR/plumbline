@@ -1,5 +1,7 @@
 # Target configuration for the bundled synthetic demonstration.
-# Floors here are demonstration defaults; a real target sets its own.
+# Every implemented suite is enabled here, because the demo exists to show the
+# whole instrument. Floors are demonstration defaults; a real target sets its
+# own, and the values that matter for a real service are policy decisions.
 
 [target]
 name = "riverbend-demo"
@@ -24,5 +26,41 @@ enabled = true
 floor = 0.90
 
 [suites.cross_language]
+enabled = true
+floor = 1.0
+
+[suites.multilingual]
+enabled = true
+floor = 0.95
+
+[suites.groundedness]
+enabled = true
+floor = 0.70
+
+[suites.citation_validity]
+enabled = true
+floor = 0.95
+
+[suites.citation_accuracy]
+enabled = true
+floor = 0.80
+
+[suites.adversarial]
+enabled = true
+floor = 0.90
+
+[suites.fairness]
+enabled = true
+floor = 0.85
+
+[suites.representational_harms]
+enabled = true
+floor = 1.0
+
+[suites.privacy]
+enabled = true
+floor = 1.0
+
+[suites.accessibility]
 enabled = true
 floor = 1.0

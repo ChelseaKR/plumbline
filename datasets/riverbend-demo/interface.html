@@ -1,0 +1,59 @@
+<!--
+  Captured structural snapshot of the fictional Riverbend Benefits Navigator
+  interface. Synthetic, like the rest of this bundle: there is no real system
+  behind it. It exists so the accessibility suite has real markup to check,
+  and it is hashed with the rest of the evidence, so the interface that was
+  audited is pinned as firmly as the answers were.
+
+  The contrast block below declares the colour pairs the interface uses.
+  Plumbline computes the WCAG ratios from these values itself; it does not
+  accept a claim of conformance.
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Riverbend Benefits Navigator</title>
+  <script type="application/json" id="plumbline-contrast">
+  [
+    {"name": "body text", "foreground": "#1a1c1e", "background": "#ffffff", "size": "normal"},
+    {"name": "assistant message", "foreground": "#1f2d3d", "background": "#eef3f8", "size": "normal"},
+    {"name": "primary button", "foreground": "#ffffff", "background": "#0b5d3b", "size": "normal"},
+    {"name": "page heading", "foreground": "#243b53", "background": "#ffffff", "size": "large"},
+    {"name": "form hint", "foreground": "#4a5560", "background": "#ffffff", "size": "normal"},
+    {"name": "focus outline", "foreground": "#0b5d3b", "background": "#ffffff", "size": "large"}
+  ]
+  </script>
+</head>
+<body>
+  <h1>Riverbend Benefits Navigator</h1>
+
+  <h2>Conversation</h2>
+  <div id="transcript" role="log" aria-live="polite" aria-label="Conversation transcript">
+    <p><strong>You:</strong> What is the maximum monthly payment under the Riverbend Rent Relief program?</p>
+    <p><strong>Navigator:</strong> Riverbend Rent Relief pays a maximum of 850 dollars per month toward rent for an eligible household.
+      <a href="https://benefits.riverbend.example.gov/rent-relief/payments">Rent Relief payment cap</a></p>
+  </div>
+
+  <h2>Ask a question</h2>
+  <form action="/ask" method="post">
+    <label for="question">Your question</label>
+    <textarea id="question" name="question" rows="3"></textarea>
+    <p id="question-hint">Ask in English or Spanish. Do not include your Social Security number.</p>
+
+    <label for="language">Answer language</label>
+    <select id="language" name="language">
+      <option value="en">English</option>
+      <option value="es">Espa&ntilde;ol</option>
+    </select>
+
+    <input type="hidden" name="session" value="synthetic-demo">
+    <input type="submit" value="Send question">
+  </form>
+
+  <h2 lang="es">Preguntas en espa&ntilde;ol</h2>
+  <p lang="es">Puede escribir su pregunta en espa&ntilde;ol y recibir la respuesta en espa&ntilde;ol.</p>
+
+  <h2>Get help from a person</h2>
+  <p>The Riverbend benefits office accepts walk-ins Monday through Friday from 9 to 4.</p>
+</body>
+</html>

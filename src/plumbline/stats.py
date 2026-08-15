@@ -199,6 +199,35 @@ def _mean_stats(sample: list[float], *, seed: int, confidence: float,
                             "estimate, so any interval would be invented"},
         )
 
+    if len(set(sample)) == 1:
+        # Every unit scored identically. Resampling identical values yields
+        # an interval of zero width, which would read as certainty the sample
+        # has not earned. At an endpoint the sample is a run of successes (or
+        # failures) and Wilson is the right instrument; anywhere else there is
+        # genuinely no dispersion to reason from, and the report says so.
+        value = sample[0]
+        if value in (0.0, 1.0):
+            lower, upper = wilson_interval(round(value * n), n, confidence)
+            return Statistics(
+                ci={"lower": _round(lower), "upper": _round(upper),
+                    "confidence": confidence,
+                    "method": "wilson score interval (every unit scored "
+                              "identically at an endpoint)"},
+                mde=_round(rule_of_three(n)),
+                meta={"score_kind": KIND_MEAN, "n": n, "power": power,
+                      "resamples": None,
+                      "mde_method": "rule of three: no observed variation"},
+            )
+        return Statistics(
+            ci=None, mde=_round(rule_of_three(n)),
+            meta={"score_kind": KIND_MEAN, "n": n, "power": power,
+                  "resamples": None,
+                  "mde_method": "rule of three: no observed variation",
+                  "reason": "every unit scored identically, so there is no "
+                            "dispersion to resample and a bootstrap interval "
+                            "would be zero width"},
+        )
+
     def resample(rng: SplitMix64) -> list[float]:
         return [sample[rng.below(n)] for _ in range(n)]
 
@@ -206,21 +235,14 @@ def _mean_stats(sample: list[float], *, seed: int, confidence: float,
         lambda values: sum(values) / len(values), resample,
         seed=seed, resamples=resamples, confidence=confidence,
     )
-    degenerate = se <= 0.0
-    mde = mde_from_se(se, n, confidence=confidence, power=power)
     return Statistics(
         ci={"lower": _round(lower), "upper": _round(upper),
             "confidence": confidence, "method": "percentile bootstrap"},
-        mde=_round(mde),
+        mde=_round(mde_from_se(se, n, confidence=confidence, power=power)),
         meta={"score_kind": KIND_MEAN, "n": n, "power": power,
               "resamples": resamples,
-              "mde_method": (
-                  "rule of three: every unit scored identically, so the "
-                  "bootstrap standard error is zero"
-                  if degenerate else
-                  "two-sample normal approximation, equal n, on a bootstrap "
-                  "standard error"
-              )},
+              "mde_method": "two-sample normal approximation, equal n, on a "
+                            "bootstrap standard error"},
     )
 
 

@@ -128,6 +128,20 @@ class ComputeTests(unittest.TestCase):
             self.assertLess(spread, 0.01, f"{field} swings with the seed")
         self.assertLess(max(r.mde for r in runs) - min(r.mde for r in runs), 0.01)
 
+    def test_flawless_mean_sample_does_not_report_a_zero_width_interval(self):
+        stats = compute(score_kind=KIND_MEAN, sample=[1.0] * 18,
+                        strata=None, seed=1729)
+        self.assertLess(stats.ci["lower"], 1.0)
+        self.assertIn("wilson", stats.ci["method"])
+        self.assertAlmostEqual(stats.mde, round(3 / 18, 4))
+
+    def test_mean_sample_flat_off_the_endpoints_refuses_an_interval(self):
+        stats = compute(score_kind=KIND_MEAN, sample=[0.7] * 10,
+                        strata=None, seed=1729)
+        self.assertIsNone(stats.ci)
+        self.assertIn("no dispersion to resample", stats.meta["reason"])
+        self.assertAlmostEqual(stats.mde, 0.3)
+
     def test_mean_with_one_unit_refuses_an_interval(self):
         stats = compute(score_kind=KIND_MEAN, sample=[0.5], strata=None, seed=1)
         self.assertIsNone(stats.ci)

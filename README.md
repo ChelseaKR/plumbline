@@ -23,7 +23,7 @@ third party could defend:
 
 ## Status
 
-Pre-release (`0.1.0.dev0`), milestone 1 of 5. Built from a functional
+Pre-release (`0.1.0.dev0`). Built from a functional
 specification, started 2026-08-15, implemented with AI agents (Claude Code),
 reviewed and directed by a human. See `DESIGN.md` for the architecture, all
 recorded design decisions, and the roadmap. License: Apache-2.0.
@@ -76,7 +76,7 @@ echo $?   # 3
 # 3. "Regenerate" legitimately — the hash change is the trace.
 PYTHONPATH=src python3 -m plumbline seal datasets/riverbend-demo
 
-# 4. Second run: two independent checks catch the planted fact, exit code 1.
+# 4. Second run: three independent checks catch the planted fact, exit code 1.
 PYTHONPATH=src python3 -m plumbline audit --config examples/riverbend.toml --out audits
 echo $?   # 1
 
@@ -84,16 +84,19 @@ echo $?   # 1
 git checkout -- datasets/riverbend-demo
 ```
 
-Two things are worth watching on the second run. The `accuracy` suite scores
-**0.8061 — comfortably above its 0.75 floor** — and fails anyway, because the
-planted number is on an item flagged load-bearing. And `cross_language` fails
-because the English answer now says 900 while the Spanish answer still says
-850: the same fact, two languages, two numbers. Pooled averages absorb a single
-fabricated fact. A disagreeing pair does not.
+Three suites catch it on the second run, and two of them are above their
+floors when they do:
 
-Milestone 3 extends the drill further: the regression block will name the
-flipped suites while refusing numeric comparison against a baseline with a
-different dataset hash.
+| Suite | Score | Floor | Verdict | Why |
+|---|---|---|---|---|
+| `accuracy` | 0.8680 | 0.75 | **FAIL** | the planted number is on a load-bearing item |
+| `groundedness` | 0.8166 | 0.70 | **FAIL** | 900 appears in no source |
+| `cross_language` | 0.6250 | 1.00 | **FAIL** | English now says 900, Spanish still says 850 |
+
+That is the whole argument for the design. A pooled average absorbs one
+fabricated fact — both `accuracy` and `groundedness` are comfortably over
+their floors and fail on severity, not on score. And the same fact asked in
+two languages cannot be quietly wrong in one of them.
 
 ## What is implemented
 
@@ -108,8 +111,14 @@ different dataset hash.
   their numbers and on whether they refused, floor 1.00); `groundedness`,
   `citation_validity` and `citation_accuracy` (three questions about the same
   answer: is it supported by its sources, do the sources it cites exist, and
-  do *those* sources support it). Floors are per-target configuration; these
-  are demonstration defaults.
+  do *those* sources support it); `multilingual` (answered in the language it
+  was asked in, floor 0.95); `adversarial` (probes keep their expected
+  behavior and emit nothing forbidden, floor 0.90); `fairness` (the score is
+  the disparity between the best- and worst-served group, not the average,
+  floor 0.85); `representational_harms` and `privacy` (deterministic screens,
+  floor 1.00); `accessibility` (five structural checks on a captured
+  interface snapshot, with contrast ratios computed here, floor 1.00). Floors
+  are per-target configuration; these are demonstration defaults.
 - Enabling a suite the bundle cannot exercise is a configuration error, not a
   vacuous pass.
 - Reports: `report.json` + `report.md`, verdict first, full provenance block,
@@ -129,19 +138,19 @@ Every suite prints two figures beyond its score:
   that a same-sized future run could tell apart from noise, at 95% confidence
   and 80% power.
 
-The MDE is the figure that keeps a passing report honest. On the 12-item
-synthetic demo, suites scoring a perfect 1.0 report an MDE of **0.25** — the
-sample could not rule out a failure rate of one in four. A report that only
-showed the score would hide that. Suites whose score is not a sample statistic
-say so and print `n/a` with the reason, rather than an interval that looks like
-evidence. See `DESIGN.md` for the methods and every constant.
+The MDE is the figure that keeps a passing report honest. The bundled demo
+audit is thirteen suites of PASS, nine of them a perfect 1.0000 — and their
+MDEs run from 0.115 to 0.750. The 26-item sample could not rule out a failure
+rate of one in nine on its best-powered suite, or three in four on its worst.
+A report that only showed the scores would hide that. Suites whose score is
+not a sample statistic say so and print `n/a` with the reason, rather than an
+interval that looks like evidence. See `DESIGN.md` for the methods and every constant.
 
 ## What is not implemented yet (see DESIGN.md roadmap)
 
-Baseline regression comparison and fairness/harms/privacy/adversarial suites (M3);
-accessibility checks, live-target adapters, optional model-based judges (M4);
-pin-file gate integration for consuming repos (M5). Enabling any skeleton
-suite is an error today, not a skip.
+Baseline regression comparison; pin-file gate integration for consuming
+repos; live-target adapters and optional model-based judges. Every suite in
+the specification's taxonomy is implemented.
 
 ## Non-goals
 

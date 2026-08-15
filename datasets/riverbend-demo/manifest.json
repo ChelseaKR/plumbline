@@ -2,11 +2,13 @@
   "format": "plumbline-bundle",
   "format_version": 1,
   "name": "riverbend-demo",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "synthetic": true,
-  "description": "Synthetic demonstration bundle for the fictional Riverbend County Benefits Navigator. Demonstrates the instrument; not a benchmark.",
+  "description": "Synthetic demonstration bundle for the fictional Riverbend County Benefits Navigator. Exercises every Plumbline suite: bilingual paired facts, a source corpus with inline citations, adversarial probes, grouped phrasing registers, and a captured interface snapshot. Demonstrates the instrument; not a benchmark.",
   "files": {
     "items": "items.jsonl",
-    "responses": "responses.jsonl"
+    "responses": "responses.jsonl",
+    "sources": "sources.jsonl",
+    "interface": "interface.html"
   }
 }
