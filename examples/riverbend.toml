@@ -1,0 +1,24 @@
+# Target configuration for the bundled synthetic demonstration.
+# Floors here are demonstration defaults; a real target sets its own.
+
+[target]
+name = "riverbend-demo"
+
+[dataset]
+# Relative paths resolve against this file's directory.
+path = "../datasets/riverbend-demo"
+
+[judge]
+kind = "lexical"
+
+[suites.smoke]
+enabled = true
+floor = 1.0
+
+[suites.accuracy]
+enabled = true
+floor = 0.75
+
+[suites.refusal]
+enabled = true
+floor = 0.90

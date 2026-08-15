@@ -1,0 +1,12 @@
+{
+  "format": "plumbline-bundle",
+  "format_version": 1,
+  "name": "riverbend-demo",
+  "version": "1.0.0",
+  "synthetic": true,
+  "description": "Synthetic demonstration bundle for the fictional Riverbend County Benefits Navigator. Demonstrates the instrument; not a benchmark.",
+  "files": {
+    "items": "items.jsonl",
+    "responses": "responses.jsonl"
+  }
+}

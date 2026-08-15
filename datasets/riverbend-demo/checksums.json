@@ -1,0 +1,12 @@
+{
+  "format": "plumbline-checksums",
+  "format_version": 1,
+  "algorithm": "sha256",
+  "files": {
+    "DATASET.md": "1ac64238daf9b13e1049cc68a57ae3f82ae6ffdbb23c419e8f4c9ceb1e24482d",
+    "items.jsonl": "ac63e0eb004e3690c5d151ea0e0de9fef8939de593f9c498fa892be404160802",
+    "manifest.json": "9f65628a74073e38476dcaa11474dfe9daf66531d0feb4abed4ed3227afa4b9c",
+    "responses.jsonl": "d5d34bc401235d34b36d51e12e836708c83ecc3fb2176cfd0b845dab94db98ed"
+  },
+  "bundle_sha256": "129f0cf1bf06c43fa7f8762bdec87fb57f42c4440f8942ca880f85fbaec460ce"
+}
