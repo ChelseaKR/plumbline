@@ -55,6 +55,8 @@ class Item:
     group: str | None = None
     translation: dict | None = None
     sources: list[str] = field(default_factory=list)  # source ids retrieved for this item
+    adversarial: bool = False  # this prompt is an attack probe
+    forbidden: list[str] = field(default_factory=list)  # must not appear in the response
 
 
 @dataclass
@@ -211,6 +213,13 @@ def _parse_items(path: Path) -> list[Item]:
                     f"{path.name}:{lineno}: 'sources' must be a list of "
                     f"source ids"
                 )
+            forbidden = raw.get("forbidden", [])
+            if not isinstance(forbidden, list) or not all(
+                    isinstance(s, str) for s in forbidden):
+                raise BundleError(
+                    f"{path.name}:{lineno}: 'forbidden' must be a list of "
+                    f"strings that must not appear in the response"
+                )
             t = raw.get("translation")
             if t is not None and t.get("review") not in REVIEW_STATUSES:
                 raise BundleError(
@@ -228,6 +237,8 @@ def _parse_items(path: Path) -> list[Item]:
                 group=raw.get("group"),
                 translation=t,
                 sources=item_sources,
+                adversarial=bool(raw.get("adversarial", False)),
+                forbidden=forbidden,
             ))
     if not items:
         raise BundleError(f"{path.name}: no items")

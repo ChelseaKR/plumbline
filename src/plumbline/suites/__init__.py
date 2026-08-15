@@ -122,8 +122,12 @@ def _load_all() -> None:
     # Import side effects populate the registry exactly once.
     from . import (  # noqa: F401
         accuracy,
+        adversarial,
+        conduct,
         cross_language,
+        fairness,
         grounding,
+        multilingual,
         refusal,
         skeletons,
         smoke,
