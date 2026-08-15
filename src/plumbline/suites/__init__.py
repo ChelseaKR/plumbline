@@ -121,6 +121,7 @@ def get(suite_id: str) -> Suite:
 def _load_all() -> None:
     # Import side effects populate the registry exactly once.
     from . import (  # noqa: F401
+        accessibility,
         accuracy,
         adversarial,
         conduct,
