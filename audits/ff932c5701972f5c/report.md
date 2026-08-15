@@ -6,11 +6,11 @@ Plumbline audit of target `riverbend-demo`.
 
 | Field | Value |
 |---|---|
-| Run id | `3593a44da981438a` |
+| Run id | `ff932c5701972f5c` |
 | Harness version | `0.1.0.dev0` |
 | Seed | `1729` |
 | Dataset hash | `129f0cf1bf06c43fa7f8762bdec87fb57f42c4440f8942ca880f85fbaec460ce` (short: `129f0cf1bf06`) |
-| Judge | `lexical`, config hash `a7c8a5ee3457ae1dc4ed84f1031f1b3d0591abd25d0c9c21109d032d7092877b` |
+| Judge | `lexical`, config hash `ca2a9ce203871e17cd57dd9585e72c68716b59144a6e8bb2986a92a4920b32d5` |
 
 Dataset: `riverbend-demo`, 12 items. **(synthetic demonstration data — not a benchmark)**
 
@@ -19,6 +19,7 @@ Dataset: `riverbend-demo`, 12 items. **(synthetic demonstration data — not a b
 | Suite | Score | Floor | Verdict | n | 95% CI | MDE |
 |---|---|---|---|---|---|---|
 | accuracy | 0.8169 | 0.75 | **PASS** | 8 | 0.6872 – 0.9201 | 0.2385 |
+| cross_language | 1.0000 | 1.00 | **PASS** | 2 | 0.3424 – 1.0000 | 1.0000 |
 | refusal | 1.0000 | 0.90 | **PASS** | 12 | 0.7575 – 1.0000 | 0.2500 |
 | smoke | 1.0000 | 1.00 | **PASS** | 12 | 0.7575 – 1.0000 | 0.2500 |
 

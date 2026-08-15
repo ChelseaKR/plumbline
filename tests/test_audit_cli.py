@@ -16,7 +16,13 @@ from plumbline.cli import (
     main,
 )
 
-from helpers import answer_item, refuse_item, response, write_bundle
+from helpers import (
+    answer_item,
+    refuse_item,
+    response,
+    temporary_skeleton_suite,
+    write_bundle,
+)
 
 CONFIG_TEMPLATE = """\
 [target]
@@ -165,15 +171,29 @@ class CliTests(unittest.TestCase):
         self.assertEqual(code, EXIT_INTEGRITY_REFUSAL)
         self.assertIn("INTEGRITY REFUSAL", err)
 
-    def test_enabling_skeleton_suite_is_config_error(self):
+    def test_enabling_unimplemented_suite_is_config_error(self):
+        with temporary_skeleton_suite() as suite_id:
+            self.config_path.write_text(
+                self.config_path.read_text(encoding="utf-8")
+                + f"\n[suites.{suite_id}]\nenabled = true\n",
+                encoding="utf-8",
+            )
+            code, _, err = self._audit()
+        self.assertEqual(code, EXIT_CONFIG_ERROR)
+        self.assertIn("skeleton", err)
+
+    def test_suite_with_nothing_to_score_is_config_error_not_a_pass(self):
+        # The fixture bundle has no fact asked in two languages, so the
+        # cross-language suite has an empty population. Fail closed.
         self.config_path.write_text(
             self.config_path.read_text(encoding="utf-8")
             + "\n[suites.cross_language]\nenabled = true\n",
             encoding="utf-8",
         )
-        code, _, err = self._audit()
+        code, out, err = self._audit()
         self.assertEqual(code, EXIT_CONFIG_ERROR)
-        self.assertIn("skeleton", err)
+        self.assertIn("nothing for it to score", err)
+        self.assertNotIn("verdict", out)
 
     def test_unknown_suite_is_config_error(self):
         self.config_path.write_text(

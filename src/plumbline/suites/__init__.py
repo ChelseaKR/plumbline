@@ -18,6 +18,15 @@ PASS = "PASS"
 FAIL = "FAIL"
 
 
+class EmptyPopulationError(Exception):
+    """An enabled suite has nothing to score.
+
+    Fail closed: a suite with no population is not a pass and not a skip. It
+    means the target's configuration claims a property the evidence bundle
+    cannot test, and the run says so and stops (configuration error).
+    """
+
+
 @dataclass
 class SuiteResult:
     suite_id: str
@@ -63,6 +72,16 @@ class Suite:
     def verdict_for(score: float, floor: float) -> str:
         return PASS if score >= floor else FAIL
 
+    def require_population(self, units, requirement: str):
+        """Refuse to score nothing. Returns `units` when non-empty."""
+        if not units:
+            raise EmptyPopulationError(
+                f"suite '{self.id}' is enabled but this evidence bundle has "
+                f"nothing for it to score: {requirement}. A suite with no "
+                f"population is a configuration error, not a pass."
+            )
+        return units
+
 
 _REGISTRY: dict[str, type[Suite]] = {}
 
@@ -101,4 +120,10 @@ def get(suite_id: str) -> Suite:
 
 def _load_all() -> None:
     # Import side effects populate the registry exactly once.
-    from . import smoke, accuracy, refusal, skeletons  # noqa: F401
+    from . import (  # noqa: F401
+        accuracy,
+        cross_language,
+        refusal,
+        skeletons,
+        smoke,
+    )

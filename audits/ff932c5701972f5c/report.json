@@ -1,14 +1,14 @@
 {
   "verdict": "PASS",
   "provenance": {
-    "run_id": "3593a44da981438a",
+    "run_id": "ff932c5701972f5c",
     "harness": "plumbline",
     "harness_version": "0.1.0.dev0",
     "seed": 1729,
     "dataset_sha256": "129f0cf1bf06c43fa7f8762bdec87fb57f42c4440f8942ca880f85fbaec460ce",
     "dataset_id": "129f0cf1bf06",
     "judge_kind": "lexical",
-    "judge_config_sha256": "a7c8a5ee3457ae1dc4ed84f1031f1b3d0591abd25d0c9c21109d032d7092877b"
+    "judge_config_sha256": "ca2a9ce203871e17cd57dd9585e72c68716b59144a6e8bb2986a92a4920b32d5"
   },
   "target": "riverbend-demo",
   "dataset": {
@@ -81,6 +81,95 @@
         {
           "item": "rb-008",
           "score": 0.8667
+        }
+      ]
+    },
+    {
+      "suite": "cross_language",
+      "score": 1.0,
+      "floor": 1.0,
+      "verdict": "PASS",
+      "n": 2,
+      "ci": {
+        "lower": 0.3424,
+        "upper": 1.0,
+        "confidence": 0.95,
+        "method": "wilson score interval"
+      },
+      "mde": 1.0,
+      "hard_failures": [],
+      "stats": {
+        "score_kind": "proportion",
+        "n": 2,
+        "successes": 2,
+        "power": 0.8,
+        "mde_method": "rule of three: with no observed variation the normal approximation is unusable, so this is the smallest true failure rate the sample size could have ruled out",
+        "resamples": null
+      },
+      "details": {
+        "metric": "paired numeric and behavior agreement",
+        "facts_compared": [
+          "fact-deadline",
+          "fact-rent-cap"
+        ],
+        "single_language_facts": [
+          "fact-income-limit"
+        ],
+        "items_without_fact_id": [
+          "rb-005",
+          "rb-007",
+          "rb-008",
+          "rb-009",
+          "rb-010",
+          "rb-011",
+          "rb-012"
+        ],
+        "load_bearing_failures": [],
+        "severity_rule": "a numeric disagreement on a load-bearing fact fails this suite regardless of the pooled average",
+        "not_compared_note": "facts present in only one language and items with no fact_id are named here rather than silently dropped; they are outside this suite's population, not excused from it"
+      },
+      "items": [
+        {
+          "fact": "fact-deadline",
+          "pair": [
+            "rb-003",
+            "rb-004"
+          ],
+          "languages": [
+            "en",
+            "es"
+          ],
+          "score": 1.0,
+          "numbers": {
+            "en": [
+              "31",
+              "5"
+            ],
+            "es": [
+              "31",
+              "5"
+            ]
+          }
+        },
+        {
+          "fact": "fact-rent-cap",
+          "pair": [
+            "rb-001",
+            "rb-002"
+          ],
+          "languages": [
+            "en",
+            "es"
+          ],
+          "score": 1.0,
+          "numbers": {
+            "en": [
+              "850"
+            ],
+            "es": [
+              "850"
+            ]
+          }
         }
       ]
     },

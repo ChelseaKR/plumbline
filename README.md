@@ -76,8 +76,7 @@ echo $?   # 3
 # 3. "Regenerate" legitimately — the hash change is the trace.
 PYTHONPATH=src python3 -m plumbline seal datasets/riverbend-demo
 
-# 4. Second run: the planted fact fails its load-bearing check ->
-#    accuracy suite FAILs regardless of the pooled average, exit code 1.
+# 4. Second run: two independent checks catch the planted fact, exit code 1.
 PYTHONPATH=src python3 -m plumbline audit --config examples/riverbend.toml --out audits
 echo $?   # 1
 
@@ -85,9 +84,15 @@ echo $?   # 1
 git checkout -- datasets/riverbend-demo
 ```
 
-Milestones 2–3 extend this drill: the cross-language suite will catch the
-planted fact by en/es disagreement, and the regression block will name the
-flipped suite while refusing numeric comparison against a baseline with a
+Two things are worth watching on the second run. The `accuracy` suite scores
+**0.8061 — comfortably above its 0.75 floor** — and fails anyway, because the
+planted number is on an item flagged load-bearing. And `cross_language` fails
+because the English answer now says 900 while the Spanish answer still says
+850: the same fact, two languages, two numbers. Pooled averages absorb a single
+fabricated fact. A disagreeing pair does not.
+
+Milestone 3 extends the drill further: the regression block will name the
+flipped suites while refusing numeric comparison against a baseline with a
 different dataset hash.
 
 ## What is implemented (milestone 1)
@@ -99,8 +104,11 @@ different dataset hash.
 - Suites: `smoke` (target is testable at all, floor 1.00), `accuracy`
   (token-F1 with a load-bearing per-item override that can fail the suite
   regardless of the pooled average, floor 0.75), `refusal` (both directions,
-  floor 0.90). Floors are per-target configuration; these are demonstration
-  defaults.
+  floor 0.90), `cross_language` (paired facts must agree across languages on
+  their numbers and on whether they refused, floor 1.00). Floors are
+  per-target configuration; these are demonstration defaults.
+- Enabling a suite the bundle cannot exercise is a configuration error, not a
+  vacuous pass.
 - Reports: `report.json` + `report.md`, verdict first, full provenance block,
   byte-reproducible.
 - Unreviewed-translation warnings on every run — never fatal, never

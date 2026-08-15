@@ -19,6 +19,7 @@ from . import __version__
 from .audit import DEFAULT_SEED, run_audit
 from .bundle import BundleError, IntegrityError, load as load_bundle, seal as seal_bundle
 from .config import ConfigError, load_config
+from .suites import EmptyPopulationError
 
 EXIT_PASS = 0
 EXIT_SUITE_FAILURE = 1
@@ -110,7 +111,7 @@ def main(argv: list[str] | None = None) -> int:
               "re-seal the bundle with `plumbline seal` — the hash change is the trace.",
               file=sys.stderr)
         return EXIT_INTEGRITY_REFUSAL
-    except (ConfigError, BundleError, ValueError, KeyError) as e:
+    except (ConfigError, BundleError, EmptyPopulationError, ValueError, KeyError) as e:
         msg = e.args[0] if e.args else e
         print(f"CONFIGURATION ERROR: {msg}", file=sys.stderr)
         return EXIT_CONFIG_ERROR

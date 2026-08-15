@@ -2,10 +2,35 @@
 
 from __future__ import annotations
 
+import contextlib
 import json
 from pathlib import Path
 
+from plumbline import suites as suite_registry
 from plumbline.bundle import seal
+
+
+@contextlib.contextmanager
+def temporary_skeleton_suite(suite_id: str = "not_built_yet"):
+    """Register an unimplemented suite for the duration of a test.
+
+    The registry's refusal to enable an unimplemented suite is permanent
+    behavior, but the shipped skeleton list empties as suites land, so the
+    tests supply their own subject rather than depending on something staying
+    unbuilt.
+    """
+    suite_registry.available()  # force the registry to load
+
+    class NotBuiltYetSuite(suite_registry.Suite):
+        id = suite_id
+        implemented = False
+        planned_milestone = "never (test fixture)"
+
+    suite_registry.register(NotBuiltYetSuite)
+    try:
+        yield suite_id
+    finally:
+        suite_registry._REGISTRY.pop(suite_id, None)
 
 
 def write_bundle(

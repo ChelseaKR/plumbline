@@ -10,17 +10,6 @@ from . import Suite, register
 
 
 @register
-class CrossLanguageSuite(Suite):
-    """Cross-language agreement on facts: the same fact (shared fact_id) asked
-    in two languages must agree; disagreement on a numeric policy fact is
-    scored harshly. First-class fabrication detection."""
-    id = "cross_language"
-    default_floor = 0.90
-    implemented = False
-    planned_milestone = "milestone 2"
-
-
-@register
 class GroundednessSuite(Suite):
     """Answers supported by the sources they cite."""
     id = "groundedness"
