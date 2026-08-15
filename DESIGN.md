@@ -286,6 +286,32 @@ unreviewed translation so the warning path is exercised on every demo run.
 | **M4** | `accessibility` structural checks (language declaration, labels, live regions, heading order, contrast declarations); live-target adapters; optional model-based judges, flagged in reports. | R2 |
 | **M5** | Gate integration: single pin file read by both local tooling and CI, run-time resolution (not a package dependency), legible fail-closed behavior when the harness is unreachable. | R6 |
 
+## Milestone 1 acceptance record (verified 2026-08-15)
+
+Commands run and observed results, on this repository at this milestone:
+
+- **Clean checkout, one command, offline**: `git clone` to a temp dir, then
+  `PYTHONPATH=src python3 -m plumbline audit --config examples/riverbend.toml
+  --out audits` → exit 0, verdict PASS, and `git status` clean afterward: the
+  freshly generated reports were byte-identical to the committed ones.
+- **Provenance**: committed `audits/3593a44da981438a/report.{json,md}` carry
+  run id, harness version `0.1.0.dev0`, seed `1729`, dataset hash
+  `129f0cf1bf06…`, judge config hash `a7c8a5ee…`, verdict first.
+- **Warning path**: the rb-004 unreviewed-translation warning printed on every
+  run (validate and audit, first run and re-runs) and never affected the exit
+  code.
+- **Tamper drill, milestone-1 half** (documented in README, run verbatim):
+  `sed` planted `900` over `850` in `responses.jsonl` → audit exited **3**
+  with "INTEGRITY REFUSAL … content mismatch: responses.jsonl", no report
+  written. `plumbline seal` regenerated checksums (bundle hash changed
+  `129f0cf1bf06` → `9f4c685d5902` — the trace) → audit exited **1**, overall
+  FAIL, accuracy pooled score 0.8061 **above** its 0.75 floor yet the suite
+  failed on `load_bearing_failures: ["rb-001"]` with `missing_numbers:
+  ["850"]` — the pooled-average-absorption defense working as specified. The
+  cross-language catch and regression naming halves of the drill are M2/M3.
+- **Tests**: `PYTHONPATH=src:tests python3 -m unittest discover -s tests` →
+  40 tests, OK.
+
 ## Decisions the spec left open (recorded)
 
 1. **Stdlib-only Python** — see above.
