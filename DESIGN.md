@@ -334,6 +334,67 @@ human-readable report prints it.
 Warnings (e.g., unreviewed translations) appear in both report formats and on
 stderr on **every** run — never fatal, never suppressed.
 
+## Baseline regression comparison
+
+A **baseline** is a small committed record distilled from a previous report:
+its provenance block and one line per suite. It is a separate document rather
+than a copy of the report, so comparing does not nest reports inside reports,
+and so the thing a repository commits as "the bar we are holding" is short
+enough to read in a code review.
+
+```
+plumbline baseline --from audits/<run>/report.json --out baselines/<target>.json
+```
+
+A target names it once, in the same config the suites live in:
+
+```toml
+[baseline]
+path = "../baselines/riverbend-demo.json"
+```
+
+Two rules govern the comparison:
+
+1. **Verdict flips are always named** — PASS→FAIL, FAIL→PASS, suites added,
+   suites removed. These are categorical and stay meaningful whatever else
+   changed.
+2. **Numeric comparison is refused when the runs are not comparable.** If the
+   dataset hash or the judge configuration hash differs, the two scores came
+   from different evidence or a different instrument, and subtracting them
+   produces something that looks like a measurement and is not. The report
+   says which hash moved and what the two values were.
+
+That refusal is what closes the loop on the tamper drill. Editing evidence and
+re-sealing produces a runnable bundle again; it also changes the dataset hash,
+so every later comparison against the committed baseline announces that the
+evidence moved.
+
+Where comparison *is* possible, each moved suite is checked against **its own
+MDE**: a delta smaller than the suite's minimum detectable effect is reported
+as not distinguishable from noise. This is where R4's two halves meet — the
+statistics stop a team chasing a two-point wobble a 26-item sample could never
+have resolved.
+
+Decisions recorded here:
+
+- **Differing harness version, seed, or floors are caveats, not refusals.**
+  They are named in the report and they change how a reader should read a
+  verdict change, but they do not make the scores incomparable.
+- **A refused comparison does not by itself fail the gate.** The audit is
+  valid; the comparison is an additional lens, and the refusal is loud in both
+  report formats and on the terminal. Teams that want it strict pass
+  `--require-comparable-baseline`, which turns a refusal into the
+  configuration-error exit code.
+- **A requested baseline that cannot be loaded is a configuration error.** The
+  run was told to check against a bar and could not find it; carrying on
+  quietly would be a silent skip.
+- **The baseline is part of the run's identity.** Its digest goes into the run
+  id, so comparing against a different bar produces a different report at a
+  different path, and byte-reproducibility still holds.
+- **No filesystem paths in reports.** The comparison block names the baseline
+  by run id, dataset id and content hash — for the same reason reports carry
+  no timestamps.
+
 ## Exit codes
 
 | Code | Meaning |
@@ -353,7 +414,9 @@ worse" from "the evidence is untrustworthy" from "the harness was misused".
 plumbline validate <bundle>          # integrity check, item count, dataset id, warnings
 plumbline seal <bundle>              # (re)generate checksums.json
 plumbline audit --config <toml> [--out audits] [--seed N]
-plumbline version
+                [--baseline PATH] [--require-comparable-baseline]
+plumbline baseline --from <report.json> --out <path>
+plumbline --version
 ```
 
 One documented command (`plumbline audit --config …`) runs the full audit from a
@@ -393,8 +456,8 @@ says so on every line rather than letting a wall of 1.0000 imply otherwise.
 |---|---|---|
 | **M1 (this build)** | Bundle format + sha256 integrity + refusal-to-score with exit 3; validate/seal/audit CLI; suite framework with `smoke`, `accuracy`, `refusal`; load-bearing per-item override; JSON+MD reports with full provenance; exit codes 0/1/3/4; synthetic demo bundle; tests; tamper-drill (integrity half) documented and verified. | R1, R2 (partial), R3 (per-item severity), R5, R7 |
 | **M2** | ✅ Confidence intervals + minimum-detectable-effect per suite; ✅ `cross_language` suite with harsh scoring for numeric policy-fact disagreement, and the tamper drill now catching the planted fact by en/es disagreement (2026-08-15). ✅ `groundedness`, `citation_validity`, `citation_accuracy` suites on a bundled source corpus. **M2 complete.** | R3, R4 (CI/MDE), R2 |
-| **M3** | Stored-baseline regression comparison: names flipped suites, refuses numeric comparison across differing dataset hashes and says so; `fairness` (pooled + disaggregated), `representational_harms`, `privacy`, `adversarial` suites. | R4 (regression), R2 |
-| **M4** | `accessibility` structural checks (language declaration, labels, live regions, heading order, contrast declarations); live-target adapters; optional model-based judges, flagged in reports. | R2 |
+| **M3** | ✅ Stored-baseline regression comparison: names flipped suites, refuses numeric comparison across differing dataset or judge hashes and says so, and qualifies every surviving delta against that suite's MDE. ✅ `fairness` (pooled + disaggregated), `representational_harms`, `privacy`, `adversarial` suites. **M3 complete.** | R4 (regression), R2 |
+| **M4** | ✅ `accessibility` structural checks (language declaration, labels, live regions, heading order, computed contrast) and ✅ a `multilingual` fidelity suite the roadmap had not anticipated. Remaining: live-target adapters; optional model-based judges, flagged in reports. | R2 |
 | **M5** | Gate integration: single pin file read by both local tooling and CI, run-time resolution (not a package dependency), legible fail-closed behavior when the harness is unreachable. | R6 |
 
 ## Milestone 1 acceptance record (verified 2026-08-15)

@@ -6,10 +6,10 @@ Plumbline audit of target `riverbend-demo`.
 
 | Field | Value |
 |---|---|
-| Run id | `28d7d007dfd97963` |
+| Run id | `1682f39507e03965` |
 | Harness version | `0.1.0.dev0` |
 | Seed | `1729` |
-| Dataset hash | `4d85195589f1580404628e43cb3fda0a9ba1ef221e64c94590c9fe2df1b83832` (short: `4d85195589f1`) |
+| Dataset hash | `1c14ef2522dae65254c3acd895358eef65e43993c7d915d80d7edff51cf723a7` (short: `1c14ef2522da`) |
 | Judge | `lexical`, config hash `ca2a9ce203871e17cd57dd9585e72c68716b59144a6e8bb2986a92a4920b32d5` |
 
 Dataset: `riverbend-demo`, 26 items. **(synthetic demonstration data — not a benchmark)**
@@ -37,6 +37,14 @@ Overall verdict fails if any enabled suite fails.
 **MDE** is the smallest true drop in a score that a same-sized future run could tell apart from noise (95% confidence, 80% power). A regression smaller than a suite's MDE would not be detectable at this sample size, whatever the score says.
 
 - `accessibility` reports no interval: the checks are an exhaustive census, not a sample: there is no sampling error to report, and a wider checklist would not narrow one.
+
+## Regression against baseline
+
+Baseline run `fc1aea8a350a11f7`, dataset `1c14ef2522da`, harness `0.1.0.dev0`.
+
+No suite verdict changed.
+
+No suite score moved.
 
 ## Warnings
 

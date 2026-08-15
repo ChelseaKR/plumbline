@@ -1,17 +1,320 @@
-"""Baseline regression comparison (milestone 3 skeleton).
+"""Baseline regression comparison.
 
-Planned behavior:
+A baseline is a small, committed record distilled from a previous report: its
+provenance and one line per suite. It is a separate document rather than a
+copy of the report so that comparing does not nest reports inside reports, and
+so that the thing a repository commits as "the bar we are holding" is short
+enough to read in a code review.
 
-- A stored baseline is a prior committed report.json.
-- Comparison names every suite whose verdict changed since the baseline.
-- If the baseline's dataset hash differs from the current run's, the harness
-  REFUSES numeric comparison and says so explicitly in the report — comparing
-  incomparable runs is worse than not comparing. Verdict-flip naming still
-  notes the incomparability.
+Two rules govern the comparison, and the second one is the point:
+
+1. **Verdict flips are always named.** PASS to FAIL, FAIL to PASS, a suite
+   that appeared, a suite that vanished. These are categorical and remain
+   meaningful whatever else changed.
+2. **Numeric comparison is refused when the runs are not comparable.** If the
+   dataset hash or the judge configuration hash differs, the two scores were
+   produced by different instruments against different evidence, and
+   subtracting them produces a number that looks like a measurement and is
+   not. The harness says so, in the report, instead.
+
+That refusal is the whole reason the tamper drill works. Editing evidence and
+re-sealing gives you a green-looking run; it also changes the dataset hash, so
+every subsequent comparison against the committed baseline announces that the
+evidence moved.
+
+Where a comparison *is* possible, each moved suite is checked against its own
+minimum detectable effect: a drop smaller than the MDE is reported as not
+distinguishable from noise, so nobody chases a two-point wobble a 26-item
+sample could never have resolved.
 """
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
 
-def compare(current_report: dict, baseline_report: dict) -> dict:
-    raise NotImplementedError("planned for milestone 3; see DESIGN.md roadmap")
+from .hashing import canonical_json, sha256_text
+
+BASELINE_FORMAT = "plumbline-baseline"
+BASELINE_FORMAT_VERSION = 1
+
+
+class BaselineError(Exception):
+    """The baseline file is missing or unusable (configuration error)."""
+
+
+def build_baseline(report: dict) -> dict:
+    """Distil a report into the record a repository commits as its bar."""
+    provenance = report["provenance"]
+    return {
+        "format": BASELINE_FORMAT,
+        "format_version": BASELINE_FORMAT_VERSION,
+        "source_run_id": provenance["run_id"],
+        "harness_version": provenance["harness_version"],
+        "seed": provenance["seed"],
+        "dataset_sha256": provenance["dataset_sha256"],
+        "dataset_id": provenance["dataset_id"],
+        "judge_config_sha256": provenance["judge_config_sha256"],
+        "target": report.get("target"),
+        "verdict": report["verdict"],
+        "suites": [
+            {
+                "suite": s["suite"],
+                "score": s["score"],
+                "floor": s["floor"],
+                "verdict": s["verdict"],
+                "n": s["n"],
+            }
+            for s in report["suites"]
+        ],
+    }
+
+
+def write_baseline(baseline: dict, path: Path) -> Path:
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(baseline, f, indent=2, ensure_ascii=False)
+        f.write("\n")
+    return path
+
+
+def load_baseline(path: Path) -> dict:
+    path = Path(path)
+    if not path.is_file():
+        raise BaselineError(
+            f"baseline file not found: {path}. A comparison was requested and "
+            f"cannot be made; fix the path or drop the baseline setting."
+        )
+    try:
+        with open(path, encoding="utf-8") as f:
+            baseline = json.load(f)
+    except (OSError, json.JSONDecodeError) as e:
+        raise BaselineError(f"unreadable baseline {path}: {e}") from e
+    if baseline.get("format") != BASELINE_FORMAT:
+        raise BaselineError(
+            f"{path} is not a Plumbline baseline record (expected format "
+            f"'{BASELINE_FORMAT}'; generate one with `plumbline baseline`)"
+        )
+    if baseline.get("format_version") != BASELINE_FORMAT_VERSION:
+        raise BaselineError(
+            f"{path}: unsupported baseline format_version "
+            f"{baseline.get('format_version')!r} (supported: "
+            f"{BASELINE_FORMAT_VERSION})"
+        )
+    for required in ("dataset_sha256", "judge_config_sha256", "suites"):
+        if required not in baseline:
+            raise BaselineError(f"{path}: baseline is missing '{required}'")
+    return baseline
+
+
+def baseline_digest(baseline: dict) -> str:
+    """Identity of a baseline document, folded into the run id so that a run
+    compared against a different bar is a different run."""
+    return sha256_text(canonical_json(baseline))
+
+
+def compare(report: dict, baseline: dict) -> dict:
+    """Compare a finished report against a baseline record."""
+    provenance = report["provenance"]
+    current = {s["suite"]: s for s in report["suites"]}
+    previous = {s["suite"]: s for s in baseline["suites"]}
+
+    refusals = []
+    if provenance["dataset_sha256"] != baseline["dataset_sha256"]:
+        refusals.append(
+            f"the dataset hash differs: this run scored "
+            f"{provenance['dataset_id']}, the baseline scored "
+            f"{baseline.get('dataset_id', baseline['dataset_sha256'][:12])}. "
+            f"The evidence changed, so the scores are not comparable numbers."
+        )
+    if provenance["judge_config_sha256"] != baseline["judge_config_sha256"]:
+        refusals.append(
+            f"the judge configuration hash differs: this run used "
+            f"{provenance['judge_config_sha256'][:12]}, the baseline used "
+            f"{baseline['judge_config_sha256'][:12]}. The scoring rules "
+            f"changed, so the scores are not comparable numbers."
+        )
+    comparable = not refusals
+
+    caveats = []
+    if provenance["harness_version"] != baseline.get("harness_version"):
+        caveats.append(
+            f"harness version differs ({baseline.get('harness_version')} -> "
+            f"{provenance['harness_version']}); suite implementations may have "
+            f"changed even though the hashes match"
+        )
+    if provenance["seed"] != baseline.get("seed"):
+        caveats.append(
+            f"seed differs ({baseline.get('seed')} -> {provenance['seed']}); "
+            f"bootstrap intervals and MDEs will move slightly"
+        )
+    floor_changes = [
+        f"{suite_id} {previous[suite_id]['floor']} -> {current[suite_id]['floor']}"
+        for suite_id in sorted(set(current) & set(previous))
+        if previous[suite_id]["floor"] != current[suite_id]["floor"]
+    ]
+    if floor_changes:
+        caveats.append(
+            "floors changed, so verdict changes may reflect the bar moving "
+            "rather than the target: " + "; ".join(floor_changes)
+        )
+
+    flipped = [
+        {"suite": suite_id,
+         "was": previous[suite_id]["verdict"],
+         "now": current[suite_id]["verdict"]}
+        for suite_id in sorted(set(current) & set(previous))
+        if previous[suite_id]["verdict"] != current[suite_id]["verdict"]
+    ]
+
+    moved = None
+    if comparable:
+        moved = []
+        for suite_id in sorted(set(current) & set(previous)):
+            delta = round(current[suite_id]["score"] - previous[suite_id]["score"], 4)
+            if delta == 0.0:
+                continue
+            mde = current[suite_id].get("mde")
+            entry = {
+                "suite": suite_id,
+                "baseline_score": previous[suite_id]["score"],
+                "score": current[suite_id]["score"],
+                "delta": delta,
+                "mde": mde,
+            }
+            if mde is None:
+                entry["detectable"] = None
+                entry["note"] = ("this suite reports no minimum detectable "
+                                 "effect, so the move cannot be qualified")
+            else:
+                entry["detectable"] = abs(delta) >= mde
+                if not entry["detectable"]:
+                    entry["note"] = (
+                        f"the move is smaller than this suite's minimum "
+                        f"detectable effect ({mde}); it is not distinguishable "
+                        f"from noise at this sample size"
+                    )
+            moved.append(entry)
+
+    added = sorted(set(current) - set(previous))
+    removed = sorted(set(previous) - set(current))
+
+    if not comparable:
+        summary = ("numeric comparison refused; verdict changes are still "
+                   "named below")
+    elif flipped:
+        summary = f"{len(flipped)} suite verdict(s) changed since the baseline"
+    elif moved:
+        summary = (f"no verdict changed; {len(moved)} suite score(s) moved "
+                   f"without crossing a floor")
+    else:
+        summary = "no verdict changed and no score moved"
+
+    return {
+        "comparable": comparable,
+        "summary": summary,
+        "against": {
+            "source_run_id": baseline.get("source_run_id"),
+            "dataset_id": baseline.get("dataset_id",
+                                       baseline["dataset_sha256"][:12]),
+            "harness_version": baseline.get("harness_version"),
+            "baseline_sha256": baseline_digest(baseline),
+        },
+        "refusals": refusals,
+        "caveats": caveats,
+        "verdict_change": (
+            None if baseline.get("verdict") == report["verdict"]
+            else {"was": baseline.get("verdict"), "now": report["verdict"]}
+        ),
+        "flipped_suites": flipped,
+        "moved_suites": moved,
+        "added_suites": added,
+        "removed_suites": removed,
+    }
+
+
+def render_markdown(comparison: dict) -> list[str]:
+    """Markdown lines for the report's regression section."""
+    lines = ["## Regression against baseline", ""]
+    against = comparison["against"]
+    lines.append(
+        f"Baseline run `{against['source_run_id']}`, dataset "
+        f"`{against['dataset_id']}`, harness `{against['harness_version']}`."
+    )
+    lines.append("")
+    if not comparison["comparable"]:
+        lines.append("**Numeric comparison refused.**")
+        lines.append("")
+        for reason in comparison["refusals"]:
+            lines.append(f"- {reason}")
+        lines.append("")
+        lines.append(
+            "Comparing incomparable runs would produce numbers that look like "
+            "measurements. Verdict changes are categorical and are still "
+            "reported."
+        )
+        lines.append("")
+    for caveat in comparison["caveats"]:
+        lines.append(f"- Caveat: {caveat}")
+    if comparison["caveats"]:
+        lines.append("")
+
+    change = comparison["verdict_change"]
+    if change:
+        lines.append(f"Overall verdict: **{change['was']} → {change['now']}**.")
+        lines.append("")
+
+    if comparison["flipped_suites"]:
+        lines.append("Suites whose verdict changed:")
+        lines.append("")
+        for flip in comparison["flipped_suites"]:
+            lines.append(f"- `{flip['suite']}`: {flip['was']} → {flip['now']}")
+        lines.append("")
+    else:
+        lines.append("No suite verdict changed.")
+        lines.append("")
+
+    for label, suites in (("Suites added since the baseline",
+                           comparison["added_suites"]),
+                          ("Suites in the baseline but not in this run",
+                           comparison["removed_suites"])):
+        if suites:
+            lines.append(f"{label}: {', '.join(f'`{s}`' for s in suites)}.")
+            lines.append("")
+
+    moved = comparison["moved_suites"]
+    if moved is None:
+        lines.append("Score movement is not reported: see the refusal above.")
+        lines.append("")
+    elif moved:
+        lines.append("| Suite | Baseline | Now | Delta | MDE | Detectable? |")
+        lines.append("|---|---|---|---|---|---|")
+        for entry in moved:
+            mde = "n/a" if entry["mde"] is None else f"{entry['mde']:.4f}"
+            detectable = {True: "yes", False: "no — inside the noise floor",
+                          None: "unknown"}[entry["detectable"]]
+            lines.append(
+                f"| {entry['suite']} | {entry['baseline_score']:.4f} | "
+                f"{entry['score']:.4f} | {entry['delta']:+.4f} | {mde} | "
+                f"{detectable} |"
+            )
+        lines.append("")
+    else:
+        lines.append("No suite score moved.")
+        lines.append("")
+    return lines
+
+
+def summarize_for_terminal(comparison: dict) -> list[str]:
+    lines = [f"baseline: {comparison['summary']}"]
+    for reason in comparison["refusals"]:
+        lines.append(f"  REFUSED: {reason}")
+    for caveat in comparison["caveats"]:
+        lines.append(f"  caveat:  {caveat}")
+    for flip in comparison["flipped_suites"]:
+        lines.append(f"  flipped: {flip['suite']} {flip['was']} -> {flip['now']}")
+    for entry in comparison["moved_suites"] or []:
+        tail = "" if entry["detectable"] else "  (inside the noise floor)"
+        lines.append(f"  moved:   {entry['suite']} {entry['delta']:+.4f}{tail}")
+    return lines

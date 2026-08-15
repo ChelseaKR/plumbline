@@ -1,12 +1,12 @@
 {
   "verdict": "PASS",
   "provenance": {
-    "run_id": "28d7d007dfd97963",
+    "run_id": "1682f39507e03965",
     "harness": "plumbline",
     "harness_version": "0.1.0.dev0",
     "seed": 1729,
-    "dataset_sha256": "4d85195589f1580404628e43cb3fda0a9ba1ef221e64c94590c9fe2df1b83832",
-    "dataset_id": "4d85195589f1",
+    "dataset_sha256": "1c14ef2522dae65254c3acd895358eef65e43993c7d915d80d7edff51cf723a7",
+    "dataset_id": "1c14ef2522da",
     "judge_kind": "lexical",
     "judge_config_sha256": "ca2a9ce203871e17cd57dd9585e72c68716b59144a6e8bb2986a92a4920b32d5"
   },
@@ -1954,6 +1954,23 @@
   "warnings": [
     "item rb-004 (es): translation of rb-003 lacks subject-matter-expert review"
   ],
+  "baseline": {
+    "comparable": true,
+    "summary": "no verdict changed and no score moved",
+    "against": {
+      "source_run_id": "fc1aea8a350a11f7",
+      "dataset_id": "1c14ef2522da",
+      "harness_version": "0.1.0.dev0",
+      "baseline_sha256": "3c4f588d217b9978fc7944cf7616eb0bce5ab91a77767c1563dd3b214d88941c"
+    },
+    "refusals": [],
+    "caveats": [],
+    "verdict_change": null,
+    "flipped_suites": [],
+    "moved_suites": [],
+    "added_suites": [],
+    "removed_suites": []
+  },
   "notes": {
     "mde": "mde is the smallest true drop in a suite's score that a same-sized future run could tell apart from noise; a regression smaller than it would not be detectable at this sample size",
     "hard_failures": "a suite with hard_failures fails regardless of its pooled score: a load-bearing policy fact was wrong, and pooled averages absorb single-item fabrications",

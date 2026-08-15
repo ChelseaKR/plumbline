@@ -12,11 +12,18 @@ Exit codes (see DESIGN.md):
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from pathlib import Path
 
 from . import __version__
 from .audit import DEFAULT_SEED, run_audit
+from .baseline import (
+    BaselineError,
+    build_baseline,
+    summarize_for_terminal,
+    write_baseline,
+)
 from .bundle import BundleError, IntegrityError, load as load_bundle, seal as seal_bundle
 from .config import ConfigError, load_config
 from .suites import EmptyPopulationError
@@ -57,9 +64,33 @@ def cmd_seal(args: argparse.Namespace) -> int:
     return EXIT_PASS
 
 
+def cmd_baseline(args: argparse.Namespace) -> int:
+    """Distil a finished report into the record a repository commits as its
+    bar for future runs."""
+    source = Path(args.source)
+    try:
+        with open(source, encoding="utf-8") as f:
+            report = json.load(f)
+    except (OSError, json.JSONDecodeError) as e:
+        raise BaselineError(f"unreadable report {source}: {e}") from e
+    if "provenance" not in report or "suites" not in report:
+        raise BaselineError(f"{source} is not a Plumbline report")
+    record = build_baseline(report)
+    out = write_baseline(record, Path(args.out))
+    print(f"baseline: {out}")
+    print(f"from run: {record['source_run_id']} (verdict {record['verdict']})")
+    print(f"dataset:  {record['dataset_id']}")
+    print(f"judge:    {record['judge_config_sha256'][:12]}")
+    print("note:     comparison against this baseline is refused if either "
+          "hash changes")
+    return EXIT_PASS
+
+
 def cmd_audit(args: argparse.Namespace) -> int:
     config = load_config(Path(args.config))
-    outcome = run_audit(config, seed=args.seed, out_dir=Path(args.out))
+    baseline_path = Path(args.baseline) if args.baseline else None
+    outcome = run_audit(config, seed=args.seed, out_dir=Path(args.out),
+                        baseline_path=baseline_path)
     _warn(outcome.warnings)
     print(f"verdict: {outcome.verdict}")
     for s in outcome.report["suites"]:
@@ -69,8 +100,18 @@ def cmd_audit(args: argparse.Namespace) -> int:
         severity = "  !load-bearing" if s.get("hard_failures") else ""
         print(f"  {s['suite']:<22} score {s['score']:.4f}  floor {s['floor']:.2f}  "
               f"{s['verdict']:<4}  n={s['n']:<3} {ci}  {mde}{severity}")
+    if outcome.comparison:
+        for line in summarize_for_terminal(outcome.comparison):
+            print(line)
     print(f"reports: {outcome.json_path}")
     print(f"         {outcome.md_path}")
+
+    if (outcome.comparison and not outcome.comparison["comparable"]
+            and args.require_comparable_baseline):
+        print("CONFIGURATION ERROR: --require-comparable-baseline was set and "
+              "the baseline is not comparable to this run. The audit itself "
+              "completed; see the report.", file=sys.stderr)
+        return EXIT_CONFIG_ERROR
     return EXIT_PASS if outcome.verdict == "PASS" else EXIT_SUITE_FAILURE
 
 
@@ -96,9 +137,31 @@ def build_parser() -> argparse.ArgumentParser:
     p_audit.add_argument("--out", default="audits", help="report output directory (default: audits)")
     p_audit.add_argument("--seed", type=int, default=DEFAULT_SEED,
                          help=f"random seed, recorded in provenance (default: {DEFAULT_SEED})")
+    _add_baseline_arguments(p_audit)
     p_audit.set_defaults(func=cmd_audit)
 
+    p_baseline = sub.add_parser(
+        "baseline",
+        help="write the committed baseline record distilled from a report")
+    p_baseline.add_argument("--from", dest="source", required=True,
+                            help="a report.json produced by `plumbline audit`")
+    p_baseline.add_argument("--out", required=True,
+                            help="path to write the baseline record to")
+    p_baseline.set_defaults(func=cmd_baseline)
+
     return parser
+
+
+def _add_baseline_arguments(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--baseline",
+        help="baseline record to compare this run against; overrides "
+             "[baseline].path in the target config")
+    parser.add_argument(
+        "--require-comparable-baseline", action="store_true",
+        help="exit with the configuration-error code if the baseline is not "
+             "comparable (differing dataset or judge configuration hash) "
+             "instead of only saying so in the report")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -111,7 +174,8 @@ def main(argv: list[str] | None = None) -> int:
               "re-seal the bundle with `plumbline seal` — the hash change is the trace.",
               file=sys.stderr)
         return EXIT_INTEGRITY_REFUSAL
-    except (ConfigError, BundleError, EmptyPopulationError, ValueError, KeyError) as e:
+    except (ConfigError, BundleError, BaselineError, EmptyPopulationError,
+            ValueError, KeyError) as e:
         msg = e.args[0] if e.args else e
         print(f"CONFIGURATION ERROR: {msg}", file=sys.stderr)
         return EXIT_CONFIG_ERROR

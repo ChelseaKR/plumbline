@@ -98,6 +98,53 @@ fabricated fact — both `accuracy` and `groundedness` are comfortably over
 their floors and fail on severity, not on score. And the same fact asked in
 two languages cannot be quietly wrong in one of them.
 
+The regression block in the same report closes the loop:
+
+```
+## Regression against baseline
+
+**Numeric comparison refused.**
+
+- the dataset hash differs: this run scored 44f59018fbe4, the baseline scored
+  1c14ef2522da. The evidence changed, so the scores are not comparable numbers.
+
+Overall verdict: **PASS → FAIL**.
+
+Suites whose verdict changed:
+- `accuracy`: PASS → FAIL
+- `cross_language`: PASS → FAIL
+- `groundedness`: PASS → FAIL
+```
+
+Re-sealing made the bundle runnable again. It could not make the run look like
+the one before it.
+
+## Comparing against a baseline
+
+A baseline is a short committed record — provenance and one line per suite —
+distilled from a report you were happy with:
+
+```sh
+PYTHONPATH=src python3 -m plumbline baseline \
+  --from audits/<run-id>/report.json --out baselines/riverbend-demo.json
+```
+
+Point a target at it once (`[baseline] path = "..."` in the config, or
+`--baseline` on the command line) and every later run reports what moved and
+what flipped. Two things it will not do:
+
+- It will not subtract scores across a **changed dataset hash or judge
+  configuration hash**. Those runs used different evidence or a different
+  instrument, and the difference would look like a measurement without being
+  one. It says which hash moved and stops there — verdict flips are still
+  named, because those stay meaningful.
+- It will not let a delta smaller than a suite's **minimum detectable effect**
+  pass as a finding. Such a move is reported as inside the noise floor, so
+  nobody spends a week chasing a wobble the sample size could never resolve.
+
+A refused comparison does not fail the build on its own; the audit is still
+valid. Pass `--require-comparable-baseline` if you want it to.
+
 ## What is implemented
 
 - Evidence bundle format v1: versioned dataset with per-item language,
@@ -148,9 +195,9 @@ interval that looks like evidence. See `DESIGN.md` for the methods and every con
 
 ## What is not implemented yet (see DESIGN.md roadmap)
 
-Baseline regression comparison; pin-file gate integration for consuming
-repos; live-target adapters and optional model-based judges. Every suite in
-the specification's taxonomy is implemented.
+Pin-file gate integration for consuming repos; live-target adapters;
+optional model-based judges. Every suite in the specification's taxonomy is
+implemented.
 
 ## Non-goals
 

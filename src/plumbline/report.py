@@ -12,6 +12,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from .baseline import render_markdown as render_baseline_markdown
 from .suites import SuiteResult
 
 REPORT_JSON = "report.json"
@@ -49,6 +50,9 @@ def build_report(
             for r in results
         ],
         "warnings": warnings,
+        # Filled in by the audit runner after the suites are scored, because a
+        # comparison needs the finished report (its MDEs in particular).
+        "baseline": None,
         "notes": {
             "mde": "mde is the smallest true drop in a suite's score that a same-sized future run could tell apart from noise; a regression smaller than it would not be detectable at this sample size",
             "hard_failures": "a suite with hard_failures fails regardless of its pooled score: a load-bearing policy fact was wrong, and pooled averages absorb single-item fabrications",
@@ -124,6 +128,8 @@ def render_markdown(report: dict) -> str:
     if any((s.get("stats") or {}).get("reason") for s in report["suites"]
            if s["ci"] is None):
         lines.append("")
+    if report.get("baseline"):
+        lines.extend(render_baseline_markdown(report["baseline"]))
     lines.append("## Warnings")
     lines.append("")
     if report["warnings"]:

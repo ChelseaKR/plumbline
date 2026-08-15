@@ -64,3 +64,9 @@ floor = 1.0
 [suites.accessibility]
 enabled = true
 floor = 1.0
+
+# The committed bar this run is compared against. Regenerate deliberately with
+# `plumbline baseline --from <report.json> --out baselines/riverbend-demo.json`;
+# comparison is refused if the dataset or judge configuration hash moves.
+[baseline]
+path = "../baselines/riverbend-demo.json"

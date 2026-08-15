@@ -26,6 +26,8 @@ class TargetConfig:
     judge: dict = field(default_factory=lambda: {"kind": "lexical"})
     # suite id -> floor, enabled suites only
     suites: dict[str, float] = field(default_factory=dict)
+    # Committed baseline record to compare this run against, if any.
+    baseline_path: Path | None = None
 
 
 def load_config(path: Path) -> TargetConfig:
@@ -47,9 +49,17 @@ def load_config(path: Path) -> TargetConfig:
     ds_path = dataset.get("path")
     if not ds_path or not isinstance(ds_path, str):
         raise ConfigError(f"{path}: [dataset].path (string) is required")
-    # Relative dataset paths resolve against the config file's directory, so
-    # the same config works from any working directory (clean-checkout rule).
-    dataset_path = (path.parent / ds_path).resolve() if not Path(ds_path).is_absolute() else Path(ds_path)
+    # Relative paths resolve against the config file's directory, so the same
+    # config works from any working directory (clean-checkout rule).
+    dataset_path = _resolve(path, ds_path)
+
+    baseline = raw.get("baseline", {})
+    if not isinstance(baseline, dict):
+        raise ConfigError(f"{path}: [baseline] must be a table")
+    baseline_raw = baseline.get("path")
+    if baseline_raw is not None and not isinstance(baseline_raw, str):
+        raise ConfigError(f"{path}: [baseline].path must be a string")
+    baseline_path = _resolve(path, baseline_raw) if baseline_raw else None
 
     judge = raw.get("judge", {"kind": "lexical"})
     if not isinstance(judge, dict):
@@ -84,4 +94,10 @@ def load_config(path: Path) -> TargetConfig:
             f"vacuous pass, and there is no vacuous pass"
         )
 
-    return TargetConfig(name=name, dataset_path=dataset_path, judge=judge, suites=enabled)
+    return TargetConfig(name=name, dataset_path=dataset_path, judge=judge,
+                        suites=enabled, baseline_path=baseline_path)
+
+
+def _resolve(config_path: Path, value: str) -> Path:
+    candidate = Path(value)
+    return candidate if candidate.is_absolute() else (config_path.parent / candidate).resolve()
