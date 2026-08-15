@@ -1,0 +1,111 @@
+"""The audit runner: integrity → validation → suites → report.
+
+Order matters and is fail-closed at every step:
+1. Judge and suite construction (config errors surface before touching data).
+2. Bundle integrity verification (refusal to score on any mismatch).
+3. Warnings collection (visible every run, never fatal).
+4. Suite evaluation in sorted suite-id order (deterministic).
+5. Report build + write. Overall verdict is FAIL if any enabled suite fails.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from pathlib import Path
+
+from . import __version__, bundle as bundle_mod
+from .config import TargetConfig
+from .hashing import config_digest, short_id, sha256_text, canonical_json
+from .judges import make_judge
+from .report import build_report, write_reports
+from .suites import FAIL, PASS, SuiteResult, get as get_suite
+
+DEFAULT_SEED = 1729  # Ramanujan's taxicab number: memorable, obviously arbitrary.
+
+RUN_ID_LEN = 16
+
+
+@dataclass
+class AuditOutcome:
+    verdict: str
+    report: dict
+    json_path: Path
+    md_path: Path
+    warnings: list[str]
+
+
+def compute_run_id(
+    *, harness_version: str, seed: int, dataset_sha256: str,
+    judge_config_sha256: str, suite_floors: dict[str, float],
+) -> str:
+    """Content-derived run identity: identical inputs give the identical run
+    id, so identical re-runs write identical bytes to the identical path."""
+    material = canonical_json({
+        "harness_version": harness_version,
+        "seed": seed,
+        "dataset_sha256": dataset_sha256,
+        "judge_config_sha256": judge_config_sha256,
+        "suites": sorted(suite_floors.items()),
+    })
+    return sha256_text(material)[:RUN_ID_LEN]
+
+
+def run_audit(config: TargetConfig, *, seed: int = DEFAULT_SEED, out_dir: Path) -> AuditOutcome:
+    # 1. Construction first: a misconfigured run should not touch evidence.
+    judge = make_judge(config.judge)  # ValueError on unknown kind -> exit 4
+    suites = {suite_id: get_suite(suite_id) for suite_id in sorted(config.suites)}
+
+    # 2. Integrity, then parse. bundle.load verifies checksums before parsing;
+    #    IntegrityError propagates to the CLI as exit 3, nothing scored.
+    bundle = bundle_mod.load(config.dataset_path)
+
+    # 3. Warnings: visible on every run, never fatal, never suppressed.
+    warnings = bundle.unreviewed_translation_warnings()
+
+    # 4. Evaluate enabled suites, deterministically ordered.
+    results: list[SuiteResult] = []
+    for suite_id, suite in suites.items():
+        results.append(suite.evaluate(bundle, judge, config.suites[suite_id]))
+
+    verdict = FAIL if any(r.verdict == FAIL for r in results) else PASS
+
+    judge_config = judge.config()
+    judge_config_sha256 = config_digest(judge_config)
+    run_id = compute_run_id(
+        harness_version=__version__,
+        seed=seed,
+        dataset_sha256=bundle.dataset_sha256,
+        judge_config_sha256=judge_config_sha256,
+        suite_floors=config.suites,
+    )
+
+    provenance = {
+        "run_id": run_id,
+        "harness": "plumbline",
+        "harness_version": __version__,
+        "seed": seed,
+        "dataset_sha256": bundle.dataset_sha256,
+        "dataset_id": bundle.dataset_id,
+        "judge_kind": judge_config["kind"],
+        "judge_config_sha256": judge_config_sha256,
+    }
+    dataset_info = {
+        "name": bundle.name,
+        "version": bundle.manifest.get("version"),
+        "synthetic": bool(bundle.manifest.get("synthetic", False)),
+        "items": len(bundle.items),
+    }
+
+    report = build_report(
+        verdict=verdict,
+        provenance=provenance,
+        target=config.name,
+        dataset_info=dataset_info,
+        results=results,
+        warnings=warnings,
+    )
+    json_path, md_path = write_reports(report, out_dir)
+    return AuditOutcome(
+        verdict=verdict, report=report,
+        json_path=json_path, md_path=md_path, warnings=warnings,
+    )
