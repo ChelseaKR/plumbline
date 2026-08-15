@@ -1,0 +1,19 @@
+# Local tooling for a gated repository. The point of routing through
+# plumbline-gate.sh rather than calling the harness directly is that `make
+# audit` on a laptop and the CI job read the same plumbline.pin, so they run
+# the same harness commit against the same target config.
+
+.PHONY: audit audit-summary baseline
+
+audit:
+	./plumbline-gate.sh
+
+# Same run, with the human-readable report appended to a file.
+audit-summary:
+	./plumbline-gate.sh --summary-file plumbline-audits/summary.md
+
+# Adopt the current report as the bar future runs are compared against.
+# Deliberate, reviewed, committed: this is the repository saying "this is the
+# quality we are holding".
+baseline:
+	@echo "Regenerate with: plumbline baseline --from <report.json> --out plumbline/baseline.json"

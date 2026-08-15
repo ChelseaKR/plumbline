@@ -1,0 +1,43 @@
+# Example CI job for a repository gated by Plumbline.
+#
+# It installs nothing: the harness is resolved at run time from the commit
+# pinned in plumbline.pin, and the gate's exit code is the job's exit code.
+# There is no `continue-on-error`, no conditional skip, and no step that can
+# turn a failure to run into a pass.
+
+name: plumbline gate
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      # Optional: keep resolved harness checkouts between runs. The cache key
+      # is the pin file itself, so bumping the pin invalidates the cache.
+      - uses: actions/cache@v4
+        with:
+          path: .plumbline-cache
+          key: plumbline-${{ hashFiles('plumbline.pin') }}
+
+      - name: Run the Plumbline gate
+        run: ./plumbline-gate.sh --summary-file "$GITHUB_STEP_SUMMARY"
+
+      # Always keep the reports, including from a failing run: the report is
+      # the record of what happened, and a failed gate is exactly when someone
+      # needs it.
+      - name: Upload audit reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: plumbline-reports
+          path: plumbline-audits/

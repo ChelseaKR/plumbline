@@ -1,0 +1,24 @@
+# Plumbline harness pin.
+#
+# This one file is the whole contract. A developer's `make audit` and the CI
+# job both read it, so a local run and a CI run are the same run. Copy it to
+# your repository root as `plumbline.pin` and edit the values.
+#
+# `ref` must be a full 40-character commit hash, not a branch or a tag. A
+# moving ref means a green gate today can mean something different tomorrow,
+# and the runner refuses anything else.
+#
+# Bump it deliberately: read the harness diff between the old and the new
+# commit the way you would read any dependency upgrade, then regenerate your
+# baseline if suite behavior changed.
+
+repo = https://github.com/ChelseaKR/plumbline.git
+ref  = 4ea6309a69d5592955fd8c538a782c83921ae792
+
+# Paths below are relative to the directory you run the gate from.
+config = plumbline/target.toml
+
+# Optional.
+# baseline = plumbline/baseline.json
+# out = plumbline-audits
+# require_comparable_baseline = false

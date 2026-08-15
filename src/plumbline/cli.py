@@ -86,33 +86,99 @@ def cmd_baseline(args: argparse.Namespace) -> int:
     return EXIT_PASS
 
 
-def cmd_audit(args: argparse.Namespace) -> int:
+def _audit_from_args(args: argparse.Namespace):
     config = load_config(Path(args.config))
     baseline_path = Path(args.baseline) if args.baseline else None
-    outcome = run_audit(config, seed=args.seed, out_dir=Path(args.out),
-                        baseline_path=baseline_path)
-    _warn(outcome.warnings)
-    print(f"verdict: {outcome.verdict}")
-    for s in outcome.report["suites"]:
+    return run_audit(config, seed=args.seed, out_dir=Path(args.out),
+                     baseline_path=baseline_path)
+
+
+def _suite_lines(report: dict) -> list[str]:
+    lines = []
+    for s in report["suites"]:
         ci = ("ci n/a" if s["ci"] is None
               else f"ci {s['ci']['lower']:.3f}-{s['ci']['upper']:.3f}")
         mde = "mde n/a" if s["mde"] is None else f"mde {s['mde']:.3f}"
         severity = "  !load-bearing" if s.get("hard_failures") else ""
-        print(f"  {s['suite']:<22} score {s['score']:.4f}  floor {s['floor']:.2f}  "
-              f"{s['verdict']:<4}  n={s['n']:<3} {ci}  {mde}{severity}")
-    if outcome.comparison:
-        for line in summarize_for_terminal(outcome.comparison):
-            print(line)
-    print(f"reports: {outcome.json_path}")
-    print(f"         {outcome.md_path}")
+        lines.append(
+            f"  {s['suite']:<22} score {s['score']:.4f}  floor {s['floor']:.2f}  "
+            f"{s['verdict']:<4}  n={s['n']:<3} {ci}  {mde}{severity}")
+    return lines
 
+
+def _baseline_exit(outcome, args) -> int | None:
+    """The configuration-error code when a strict run got an incomparable
+    baseline, otherwise None."""
     if (outcome.comparison and not outcome.comparison["comparable"]
             and args.require_comparable_baseline):
         print("CONFIGURATION ERROR: --require-comparable-baseline was set and "
               "the baseline is not comparable to this run. The audit itself "
               "completed; see the report.", file=sys.stderr)
         return EXIT_CONFIG_ERROR
-    return EXIT_PASS if outcome.verdict == "PASS" else EXIT_SUITE_FAILURE
+    return None
+
+
+def cmd_audit(args: argparse.Namespace) -> int:
+    outcome = _audit_from_args(args)
+    _warn(outcome.warnings)
+    print(f"verdict: {outcome.verdict}")
+    for line in _suite_lines(outcome.report):
+        print(line)
+    if outcome.comparison:
+        for line in summarize_for_terminal(outcome.comparison):
+            print(line)
+    print(f"reports: {outcome.json_path}")
+    print(f"         {outcome.md_path}")
+    return _baseline_exit(outcome, args) or (
+        EXIT_PASS if outcome.verdict == "PASS" else EXIT_SUITE_FAILURE)
+
+
+def cmd_gate(args: argparse.Namespace) -> int:
+    """The CI entry point. Same audit, same exit codes, output shaped for a
+    build log: the verdict on the first and last line, and every failing
+    suite named in between."""
+    outcome = _audit_from_args(args)
+    report = outcome.report
+    print(f"GATE: {report['verdict']} — target {report['target']}, "
+          f"dataset {report['provenance']['dataset_id']}, "
+          f"run {report['provenance']['run_id']}")
+    _warn(outcome.warnings)
+
+    failed = [s for s in report["suites"] if s["verdict"] != "PASS"]
+    if failed:
+        print(f"{len(failed)} of {len(report['suites'])} suites failed:")
+        for s in failed:
+            reason = (f"load-bearing item(s) {', '.join(s['hard_failures'])}"
+                      if s.get("hard_failures")
+                      else f"score {s['score']:.4f} below floor {s['floor']:.2f}")
+            print(f"  {s['suite']}: {reason}")
+    else:
+        print(f"all {len(report['suites'])} suites passed:")
+    for line in _suite_lines(report):
+        print(line)
+    if outcome.comparison:
+        for line in summarize_for_terminal(outcome.comparison):
+            print(line)
+    print(f"reports: {outcome.json_path}")
+
+    if args.summary_file:
+        summary = Path(args.summary_file)
+        summary.parent.mkdir(parents=True, exist_ok=True)
+        with open(summary, "a", encoding="utf-8") as f:
+            f.write(outcome.md_path.read_text(encoding="utf-8"))
+            f.write("\n")
+        print(f"summary: appended to {summary}")
+
+    strict = _baseline_exit(outcome, args)
+    if strict is not None:
+        print("GATE: REFUSED (baseline not comparable and comparability was "
+              "required)")
+        return strict
+    if report["verdict"] == "PASS":
+        print("GATE: PASS")
+        return EXIT_PASS
+    print("GATE: FAIL")
+    return EXIT_SUITE_FAILURE
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -139,6 +205,20 @@ def build_parser() -> argparse.ArgumentParser:
                          help=f"random seed, recorded in provenance (default: {DEFAULT_SEED})")
     _add_baseline_arguments(p_audit)
     p_audit.set_defaults(func=cmd_audit)
+
+    p_gate = sub.add_parser(
+        "gate",
+        help="CI entry point: run the audit and exit 0 pass / 1 fail / "
+             "3 integrity refusal / 4 misconfiguration")
+    p_gate.add_argument("--config", required=True, help="target configuration (TOML)")
+    p_gate.add_argument("--out", default="audits", help="report output directory (default: audits)")
+    p_gate.add_argument("--seed", type=int, default=DEFAULT_SEED,
+                        help=f"random seed, recorded in provenance (default: {DEFAULT_SEED})")
+    p_gate.add_argument("--summary-file",
+                        help="append the human-readable report to this file "
+                             "(for example \"$GITHUB_STEP_SUMMARY\")")
+    _add_baseline_arguments(p_gate)
+    p_gate.set_defaults(func=cmd_gate)
 
     p_baseline = sub.add_parser(
         "baseline",

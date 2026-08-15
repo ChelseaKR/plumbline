@@ -21,7 +21,7 @@ from .baseline import (
     load_baseline,
 )
 from .config import TargetConfig
-from .hashing import config_digest, short_id, sha256_text, canonical_json
+from .hashing import canonical_json, config_digest, sha256_text
 from .judges import make_judge
 from .report import build_report, write_reports
 from .stats import compute as compute_statistics

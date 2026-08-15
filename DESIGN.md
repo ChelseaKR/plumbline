@@ -422,15 +422,62 @@ plumbline --version
 One documented command (`plumbline audit --config …`) runs the full audit from a
 clean checkout, offline.
 
+## Gate integration
+
+`plumbline gate` is the CI entry point: the same audit, the same exit codes,
+output shaped for a build log. The verdict is the first line and the last
+line, every failing suite is named with the reason it failed, and
+`--summary-file` appends the human-readable report somewhere a CI system will
+render it (`--summary-file "$GITHUB_STEP_SUMMARY"` on GitHub Actions).
+
+A consuming repository copies two files from `gate/`: the runner
+`plumbline-gate.sh`, and `plumbline.pin`.
+
+```
+repo = https://github.com/ChelseaKR/plumbline.git
+ref  = <40-character commit hash>
+config = plumbline/target.toml
+```
+
+Three properties, each of them a failure mode avoided:
+
+- **One file, both callers.** A developer's `make audit` and the CI job read
+  the same pin, so a local run and a CI run are the same run. "Works locally,
+  fails in CI" and "passes in CI, fails locally" both come from two places
+  recording two versions of the tool.
+- **An exact commit.** The runner rejects a branch or a tag; `ref` must be a
+  40-character hash. A moving ref means a green gate today can quietly mean
+  something else tomorrow, which is the opposite of what an audit record is
+  for.
+- **Resolved at run time, not installed.** The harness is fetched into a cache
+  directory when the gate runs and verified to be at the pinned commit. It is
+  not in the target's lockfile, so the target's own dependency resolution
+  cannot move the thing auditing it.
+
+Every way resolution can fail — no pin file, missing keys, a non-hash ref, no
+`git`, an unreachable repository, an absent commit, a checkout at the wrong
+commit, a checkout with no `src/` — exits with the configuration-error code
+and a reason on stderr. There is no path through the runner that skips the
+gate or reports success without running it.
+
+`PLUMBLINE_SRC` bypasses resolution for developing the harness itself. It
+prints two lines to stderr saying the run is not pinned and not reproducible.
+The alternative, a quiet bypass, is exactly the hole this design exists to
+close.
+
 ## Repository layout
 
 ```
 DESIGN.md  README.md  LICENSE  pyproject.toml
-src/plumbline/          # package: cli, bundle, hashing, judges, report, stats, baseline
-src/plumbline/suites/   # smoke, accuracy, refusal + skeletons
+src/plumbline/          # package: cli, bundle, hashing, judges, lexicons,
+                        #   report, stats, baseline, config, audit
+src/plumbline/suites/   # 13 suites + an (empty) skeletons module
 datasets/riverbend-demo/  # synthetic demo bundle (clearly labeled)
-examples/riverbend.toml # demo target config
+examples/riverbend.toml # demo target config, all suites enabled
+baselines/              # committed baseline records
 audits/                 # committed reports from the demo audit
+gate/                   # what a consuming repo copies: runner, pin template,
+                        #   Makefile and CI examples, wiring guide
 tests/                  # stdlib unittest
 ```
 
@@ -458,7 +505,7 @@ says so on every line rather than letting a wall of 1.0000 imply otherwise.
 | **M2** | ✅ Confidence intervals + minimum-detectable-effect per suite; ✅ `cross_language` suite with harsh scoring for numeric policy-fact disagreement, and the tamper drill now catching the planted fact by en/es disagreement (2026-08-15). ✅ `groundedness`, `citation_validity`, `citation_accuracy` suites on a bundled source corpus. **M2 complete.** | R3, R4 (CI/MDE), R2 |
 | **M3** | ✅ Stored-baseline regression comparison: names flipped suites, refuses numeric comparison across differing dataset or judge hashes and says so, and qualifies every surviving delta against that suite's MDE. ✅ `fairness` (pooled + disaggregated), `representational_harms`, `privacy`, `adversarial` suites. **M3 complete.** | R4 (regression), R2 |
 | **M4** | ✅ `accessibility` structural checks (language declaration, labels, live regions, heading order, computed contrast) and ✅ a `multilingual` fidelity suite the roadmap had not anticipated. Remaining: live-target adapters; optional model-based judges, flagged in reports. | R2 |
-| **M5** | Gate integration: single pin file read by both local tooling and CI, run-time resolution (not a package dependency), legible fail-closed behavior when the harness is unreachable. | R6 |
+| **M5** | ✅ Gate integration: `plumbline gate` CI entry point, a single pin file read by both local tooling and CI, run-time resolution (not a package dependency), and legible fail-closed behavior when the harness is unreachable. **M5 complete.** | R6 |
 
 ## Milestone 1 acceptance record (verified 2026-08-15)
 

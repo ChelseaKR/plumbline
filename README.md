@@ -49,15 +49,53 @@ Re-running the audit with identical inputs writes byte-identical reports to
 the identical path — reports carry no timestamps by design; git history is the
 time record.
 
-## Exit codes
+## Using it as a CI gate
 
-| Code | Meaning |
-|---|---|
-| 0 | All enabled suites passed. |
-| 1 | At least one enabled suite failed — overall FAIL. |
-| 2 | Command-line usage error. |
-| 3 | **Integrity refusal**: evidence checksums missing or mismatched. Nothing was scored. |
-| 4 | Configuration error: malformed config, unknown/unimplemented suite, unreadable bundle. |
+`plumbline gate` is the entry point built for a build log: the verdict is the
+first line and the last line, every failing suite is named with why it failed,
+and `--summary-file` appends the human-readable report wherever your CI system
+renders one.
+
+```sh
+PYTHONPATH=src python3 -m plumbline gate --config examples/riverbend.toml \
+  --summary-file "$GITHUB_STEP_SUMMARY"
+```
+
+### Exit codes
+
+| Code | Meaning | What CI should do |
+|---|---|---|
+| 0 | All enabled suites passed | merge |
+| 1 | At least one enabled suite failed — overall FAIL | block; read the named suites |
+| 2 | Command-line usage error | fix the command |
+| 3 | **Integrity refusal**: evidence checksums missing or mismatched, nothing was scored | block; the evidence is untrustworthy, which is a different problem from a regression |
+| 4 | Configuration or environment error, including an unresolvable harness | block; the gate did not run |
+
+The separation of 1, 3 and 4 is deliberate. "The target got worse", "the
+evidence is untrustworthy" and "the gate was misconfigured" need three
+different people to do three different things.
+
+### Pinning the harness in a consuming repository
+
+Copy two files from [`gate/`](gate/) into the repository you want gated: the
+runner `plumbline-gate.sh` and a `plumbline.pin`.
+
+```
+repo = https://github.com/ChelseaKR/plumbline.git
+ref  = <40-character commit hash>
+config = plumbline/target.toml
+```
+
+Then `./plumbline-gate.sh` is the command, locally and in CI, and both read
+that one file. The `ref` must be an exact commit — the runner rejects a branch
+or a tag, because a moving ref means a green gate today can quietly mean
+something else tomorrow. The harness is fetched at run time and verified to be
+at the pinned commit; it is never a dependency in your lockfile, so your own
+dependency resolution cannot move the thing auditing you.
+
+If the harness cannot be reached, the job **fails**, with the reason on
+stderr. It does not skip and it does not report green. A gate that could not
+run is not a gate that passed. See [`gate/README.md`](gate/README.md).
 
 ## The tamper drill (try it)
 
