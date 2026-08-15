@@ -14,6 +14,7 @@ from __future__ import annotations
 
 from ..bundle import Bundle
 from ..judges import Judge, extract_numbers
+from ..stats import KIND_MEAN
 from . import FAIL, Suite, SuiteResult, register
 
 
@@ -64,4 +65,7 @@ class AccuracySuite(Suite):
                 ),
             },
             item_records=records,
+            hard_failures=load_bearing_failures,
+            score_kind=KIND_MEAN,
+            sample=scores,
         )

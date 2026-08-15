@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from ..bundle import Bundle
 from ..judges import Judge
+from ..stats import KIND_PROPORTION
 from . import Suite, SuiteResult, register
 
 
@@ -18,11 +19,13 @@ class SmokeSuite(Suite):
 
     def evaluate(self, bundle: Bundle, judge: Judge, floor: float) -> SuiteResult:
         records = []
+        sample = []
         covered = 0
         for item in bundle.items:
             response = bundle.response_for(item.id)
             ok = bool(response and response.strip())
             covered += ok
+            sample.append(1.0 if ok else 0.0)
             records.append({
                 "item": item.id,
                 "score": 1.0 if ok else 0.0,
@@ -38,4 +41,6 @@ class SmokeSuite(Suite):
             n=n,
             details={"items_with_response": covered, "items_total": n},
             item_records=records,
+            score_kind=KIND_PROPORTION,
+            sample=sample,
         )

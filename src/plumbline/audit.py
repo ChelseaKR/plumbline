@@ -18,11 +18,29 @@ from .config import TargetConfig
 from .hashing import config_digest, short_id, sha256_text, canonical_json
 from .judges import make_judge
 from .report import build_report, write_reports
+from .stats import compute as compute_statistics
 from .suites import FAIL, PASS, SuiteResult, get as get_suite
 
 DEFAULT_SEED = 1729  # Ramanujan's taxicab number: memorable, obviously arbitrary.
 
 RUN_ID_LEN = 16
+
+
+def attach_statistics(result: SuiteResult, *, seed: int) -> None:
+    """Stamp a confidence interval and a minimum detectable effect onto a
+    suite result. Derived per suite from the run seed and the suite id, so
+    two suites in the same run do not share a bootstrap resampling sequence
+    while the whole run stays reproducible from one seed."""
+    suite_seed = int(sha256_text(f"{seed}:{result.suite_id}")[:16], 16)
+    stats = compute_statistics(
+        score_kind=result.score_kind,
+        sample=result.sample,
+        strata=result.strata,
+        seed=suite_seed,
+    )
+    result.ci = stats.ci
+    result.mde = stats.mde
+    result.stats_meta = stats.meta
 
 
 @dataclass
@@ -62,10 +80,13 @@ def run_audit(config: TargetConfig, *, seed: int = DEFAULT_SEED, out_dir: Path) 
     # 3. Warnings: visible on every run, never fatal, never suppressed.
     warnings = bundle.unreviewed_translation_warnings()
 
-    # 4. Evaluate enabled suites, deterministically ordered.
+    # 4. Evaluate enabled suites, deterministically ordered, and attach
+    #    statistics centrally so no suite can ship without a CI and an MDE.
     results: list[SuiteResult] = []
     for suite_id, suite in suites.items():
-        results.append(suite.evaluate(bundle, judge, config.suites[suite_id]))
+        result = suite.evaluate(bundle, judge, config.suites[suite_id])
+        attach_statistics(result, seed=seed)
+        results.append(result)
 
     verdict = FAIL if any(r.verdict == FAIL for r in results) else PASS
 

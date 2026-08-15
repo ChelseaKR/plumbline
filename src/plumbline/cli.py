@@ -62,7 +62,12 @@ def cmd_audit(args: argparse.Namespace) -> int:
     _warn(outcome.warnings)
     print(f"verdict: {outcome.verdict}")
     for s in outcome.report["suites"]:
-        print(f"  {s['suite']:<10} score {s['score']:.4f}  floor {s['floor']:.2f}  {s['verdict']}")
+        ci = ("ci n/a" if s["ci"] is None
+              else f"ci {s['ci']['lower']:.3f}-{s['ci']['upper']:.3f}")
+        mde = "mde n/a" if s["mde"] is None else f"mde {s['mde']:.3f}"
+        severity = "  !load-bearing" if s.get("hard_failures") else ""
+        print(f"  {s['suite']:<22} score {s['score']:.4f}  floor {s['floor']:.2f}  "
+              f"{s['verdict']:<4}  n={s['n']:<3} {ci}  {mde}{severity}")
     print(f"reports: {outcome.json_path}")
     print(f"         {outcome.md_path}")
     return EXIT_PASS if outcome.verdict == "PASS" else EXIT_SUITE_FAILURE

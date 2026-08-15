@@ -101,6 +101,23 @@ class CliTests(unittest.TestCase):
             md_path.read_text(encoding="utf-8").startswith("# Audit verdict: PASS")
         )
 
+    def test_every_suite_reports_score_floor_verdict_ci_and_mde(self):
+        self._audit()
+        json_path, md_path = self._report_paths()
+        report = json.loads(json_path.read_text(encoding="utf-8"))
+        self.assertTrue(report["suites"])
+        for suite in report["suites"]:
+            for field in ("score", "floor", "verdict", "n", "stats"):
+                self.assertIn(field, suite)
+            self.assertIsNotNone(suite["ci"], f"{suite['suite']} has no CI")
+            self.assertIsNotNone(suite["mde"], f"{suite['suite']} has no MDE")
+            self.assertLessEqual(suite["ci"]["lower"], suite["score"] + 1e-9)
+            self.assertGreaterEqual(suite["ci"]["upper"], suite["score"] - 1e-9)
+        markdown = md_path.read_text(encoding="utf-8")
+        self.assertIn("| Suite | Score | Floor | Verdict | n | 95% CI | MDE |",
+                      markdown)
+        self.assertIn("smallest true drop", markdown)
+
     def test_reports_byte_identical_across_reruns(self):
         self._audit()
         json_path, md_path = self._report_paths()

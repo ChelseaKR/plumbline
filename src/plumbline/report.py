@@ -41,6 +41,8 @@ def build_report(
                 "n": r.n,
                 "ci": r.ci,
                 "mde": r.mde,
+                "hard_failures": r.hard_failures,
+                "stats": r.stats_meta,
                 "details": r.details,
                 "items": r.item_records,
             }
@@ -48,10 +50,21 @@ def build_report(
         ],
         "warnings": warnings,
         "notes": {
-            "stats": "ci and mde are null pending milestone 2 (Wilson interval, minimum detectable effect); see DESIGN.md roadmap",
+            "mde": "mde is the smallest true drop in a suite's score that a same-sized future run could tell apart from noise; a regression smaller than it would not be detectable at this sample size",
+            "hard_failures": "a suite with hard_failures fails regardless of its pooled score: a load-bearing policy fact was wrong, and pooled averages absorb single-item fabrications",
             "reproducibility": "identical inputs and seed produce byte-identical reports; reports carry no timestamps by design",
         },
     }
+
+
+def _format_ci(ci: dict | None) -> str:
+    if not ci:
+        return "n/a"
+    return f"{ci['lower']:.4f} – {ci['upper']:.4f}"
+
+
+def _format_mde(mde: float | None) -> str:
+    return "n/a" if mde is None else f"{mde:.4f}"
 
 
 def render_markdown(report: dict) -> str:
@@ -77,18 +90,40 @@ def render_markdown(report: dict) -> str:
     lines.append("")
     lines.append("## Suites")
     lines.append("")
-    lines.append("| Suite | Score | Floor | Verdict | n | CI | MDE |")
+    lines.append("| Suite | Score | Floor | Verdict | n | 95% CI | MDE |")
     lines.append("|---|---|---|---|---|---|---|")
     for s in report["suites"]:
-        ci = "pending (M2)" if s["ci"] is None else str(s["ci"])
-        mde = "pending (M2)" if s["mde"] is None else str(s["mde"])
         lines.append(
             f"| {s['suite']} | {s['score']:.4f} | {s['floor']:.2f} | "
-            f"**{s['verdict']}** | {s['n']} | {ci} | {mde} |"
+            f"**{s['verdict']}**{' !' if s.get('hard_failures') else ''} | "
+            f"{s['n']} | {_format_ci(s['ci'])} | {_format_mde(s['mde'])} |"
         )
     lines.append("")
     lines.append("Overall verdict fails if any enabled suite fails.")
     lines.append("")
+    lines.append(
+        "**MDE** is the smallest true drop in a score that a same-sized future "
+        "run could tell apart from noise (95% confidence, 80% power). A "
+        "regression smaller than a suite's MDE would not be detectable at this "
+        "sample size, whatever the score says."
+    )
+    lines.append("")
+    hard = [s for s in report["suites"] if s.get("hard_failures")]
+    if hard:
+        lines.append(
+            "`!` marks a suite failed by a load-bearing item rather than by its "
+            "pooled score:"
+        )
+        for s in hard:
+            lines.append(f"- `{s['suite']}`: {', '.join(s['hard_failures'])}")
+        lines.append("")
+    for s in report["suites"]:
+        reason = (s.get("stats") or {}).get("reason")
+        if reason and s["ci"] is None:
+            lines.append(f"- `{s['suite']}` reports no interval: {reason}.")
+    if any((s.get("stats") or {}).get("reason") for s in report["suites"]
+           if s["ci"] is None):
+        lines.append("")
     lines.append("## Warnings")
     lines.append("")
     if report["warnings"]:

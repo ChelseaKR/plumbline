@@ -151,6 +151,57 @@ configuration and therefore covered by the judge config hash.
 `adversarial`, `fairness`, `representational_harms`, `accessibility`, `privacy`.
 Each skeleton module documents its intended measurement and its milestone.
 
+## Statistical honesty
+
+Every suite in every report carries a confidence interval and a **minimum
+detectable effect (MDE)** alongside its score. The MDE is the figure that keeps
+a passing report honest: a suite can sit well above its floor and still be
+incapable of catching a regression anyone would care about, because the sample
+is too small. Printing it next to the score makes that visible instead of
+leaving it for the reader to work out.
+
+Constants (chosen here; the spec deliberately does not state any): **95%**
+two-sided confidence, **80%** power, **2000** bootstrap resamples.
+
+A suite declares what *kind* of statistic its score is, and the statistics
+module treats each kind honestly rather than emitting an interval that would
+mislead:
+
+| Score kind | Example suites | Interval | MDE |
+|---|---|---|---|
+| `proportion` | `smoke`, `refusal` | Wilson score interval | two-sample normal approximation, equal n |
+| `mean` | `accuracy` | percentile bootstrap | from the bootstrap standard error |
+| `gap` | `fairness` | percentile bootstrap, resampled within each group | from the bootstrap standard error of the gap |
+| `census` | `accessibility` | **none, with the reason printed** | none |
+
+Design notes:
+
+- **Wilson, not Wald.** Audit datasets are small and scores cluster near 1.0 —
+  exactly where the normal-approximation interval is worst: it collapses to
+  zero width at p = 1 and runs outside [0,1] elsewhere.
+- **MDE is a two-run figure.** The comparison a reader cares about is
+  run-versus-baseline, so the standard error used is that of the *difference*
+  of two independent estimates of the same size: `(z_(α/2) + z_β) · √2 · SE`.
+- **A perfect score does not mean zero MDE.** At a score of 1.0 the estimated
+  variance is zero, which would claim the run could detect an arbitrarily
+  small regression. It cannot. Those cases fall back to the 95% *rule of
+  three*: `3/n`, the largest true failure rate consistent with having seen no
+  failures at all. On the 12-item demo bundle that is 0.25 — a quarter of the
+  scale — which is the point.
+- **Some scores are not sample statistics.** The accessibility suite runs a
+  fixed, exhaustive checklist; there is no sampling error to report and a
+  wider checklist would not narrow one. It reports `null` for both figures
+  *with the reason in the report*, which is more defensible than an interval
+  that looks like evidence.
+- **Determinism.** Bootstrap resampling uses a SplitMix64 generator
+  implemented inside `stats.py` rather than `random`, so resamples depend only
+  on the run seed and never on the Python implementation's PRNG. Each suite's
+  bootstrap seed is `sha256(seed:suite_id)` so two suites in one run do not
+  share a resampling sequence while the whole run stays reproducible from one
+  seed. At 2000 resamples the reported figures agree across seeds to about
+  1e-3 — far inside any floor decision — and are byte-exact for a fixed seed.
+- The seed, previously recorded but unused, is now load-bearing.
+
 ## Judges
 
 `Judge` is a small protocol: `config()` (canonical dict), `answer_score(expected,
@@ -222,10 +273,10 @@ bytes" (spec R7) literally true; the git history of the committed report is the
 time record. `report.json` is written with `indent=2`, `ensure_ascii=False`,
 explicit key order, trailing newline.
 
-Suite entries include `ci` and `mde` fields, `null` in milestone 1 with an
-explicit `"stats": "planned-milestone-2"` marker — the schema is shaped for
-statistical honesty now so adding Wilson intervals and minimum detectable effect
-is a value change, not a format change.
+Suite entries carry `ci`, `mde`, a `stats` block naming the method, sample size
+and power, and `hard_failures` (item ids that failed a load-bearing check).
+Where a figure is `null`, the `stats` block carries the reason and the
+human-readable report prints it.
 
 Warnings (e.g., unreviewed translations) appear in both report formats and on
 stderr on **every** run — never fatal, never suppressed.
@@ -281,7 +332,7 @@ unreviewed translation so the warning path is exercised on every demo run.
 | Milestone | Delivers | Spec |
 |---|---|---|
 | **M1 (this build)** | Bundle format + sha256 integrity + refusal-to-score with exit 3; validate/seal/audit CLI; suite framework with `smoke`, `accuracy`, `refusal`; load-bearing per-item override; JSON+MD reports with full provenance; exit codes 0/1/3/4; synthetic demo bundle; tests; tamper-drill (integrity half) documented and verified. | R1, R2 (partial), R3 (per-item severity), R5, R7 |
-| **M2** | Wilson confidence intervals + minimum-detectable-effect per suite; `cross_language` suite (numeric policy-fact disagreement scored harshly); `groundedness`, `citation_validity`, `citation_accuracy` suites; full tamper drill incl. cross-language catch. | R3, R4 (CI/MDE), R2 |
+| **M2** | ✅ Confidence intervals + minimum-detectable-effect per suite (2026-08-15). Remaining: `cross_language` suite (numeric policy-fact disagreement scored harshly); `groundedness`, `citation_validity`, `citation_accuracy` suites; full tamper drill incl. cross-language catch. | R3, R4 (CI/MDE), R2 |
 | **M3** | Stored-baseline regression comparison: names flipped suites, refuses numeric comparison across differing dataset hashes and says so; `fairness` (pooled + disaggregated), `representational_harms`, `privacy`, `adversarial` suites. | R4 (regression), R2 |
 | **M4** | `accessibility` structural checks (language declaration, labels, live regions, heading order, contrast declarations); live-target adapters; optional model-based judges, flagged in reports. | R2 |
 | **M5** | Gate integration: single pin file read by both local tooling and CI, run-time resolution (not a package dependency), legible fail-closed behavior when the harness is unreachable. | R6 |
@@ -330,3 +381,11 @@ Commands run and observed results, on this repository at this milestone:
    it shapes the item schema from day one.
 8. **Unimplemented-suite enablement is an error, not a skip** — the no-silent-
    skip constraint applied to the plugin registry itself.
+9. **95% confidence, 80% power, 2000 bootstrap resamples** — statistics
+   constants, chosen here; see "Statistical honesty" for each one's rationale.
+10. **A perfect score reports `3/n` as its MDE**, not `0`. The alternative
+    would let a small, all-passing sample claim it could detect anything.
+11. **Statistics are attached centrally by the audit runner**, not by each
+    suite, so no suite can ship a score without an interval; a suite can only
+    declare a score kind whose honest answer is "no interval applies", and
+    that reason is printed.

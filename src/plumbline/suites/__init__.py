@@ -12,6 +12,7 @@ from dataclasses import dataclass, field
 
 from ..bundle import Bundle
 from ..judges import Judge
+from ..stats import KIND_PROPORTION
 
 PASS = "PASS"
 FAIL = "FAIL"
@@ -26,9 +27,23 @@ class SuiteResult:
     n: int                # items considered
     details: dict = field(default_factory=dict)
     item_records: list[dict] = field(default_factory=list)
-    # Statistical honesty fields; populated in milestone 2 (Wilson CI, MDE).
+
+    # Severity: item ids that failed a load-bearing check and therefore fail
+    # the suite regardless of the pooled average (spec R3).
+    hard_failures: list[str] = field(default_factory=list)
+
+    # What kind of statistic the score is, and the underlying units, so the
+    # statistics module can attach an honest interval instead of guessing.
+    # `sample` holds the per-unit scores that produced `score`; `strata` holds
+    # them grouped, for suites whose score is a between-group comparison.
+    score_kind: str = KIND_PROPORTION
+    sample: list[float] = field(default_factory=list)
+    strata: dict[str, list[float]] = field(default_factory=dict)
+
+    # Filled in centrally by the audit runner; no suite can forget them.
     ci: dict | None = None
     mde: float | None = None
+    stats_meta: dict = field(default_factory=dict)
 
 
 class Suite:

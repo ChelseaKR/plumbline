@@ -105,15 +105,33 @@ different dataset hash.
   byte-reproducible.
 - Unreviewed-translation warnings on every run — never fatal, never
   suppressed.
+- **Statistical honesty**: every suite reports a 95% confidence interval and a
+  minimum detectable effect at the sample size used.
+
+## Statistical honesty
+
+Every suite prints two figures beyond its score:
+
+- a **confidence interval** (Wilson for proportions, percentile bootstrap
+  otherwise) at 95%, and
+- a **minimum detectable effect (MDE)**: the smallest true drop in the score
+  that a same-sized future run could tell apart from noise, at 95% confidence
+  and 80% power.
+
+The MDE is the figure that keeps a passing report honest. On the 12-item
+synthetic demo, suites scoring a perfect 1.0 report an MDE of **0.25** — the
+sample could not rule out a failure rate of one in four. A report that only
+showed the score would hide that. Suites whose score is not a sample statistic
+say so and print `n/a` with the reason, rather than an interval that looks like
+evidence. See `DESIGN.md` for the methods and every constant.
 
 ## What is not implemented yet (see DESIGN.md roadmap)
 
-Confidence intervals and minimum detectable effect (report fields exist, null
-until milestone 2); cross-language agreement, groundedness, and citation
-suites (M2); baseline regression comparison and fairness/harms/privacy/
-adversarial suites (M3); accessibility checks, live-target adapters, optional
-model-based judges (M4); pin-file gate integration for consuming repos (M5).
-Enabling any skeleton suite is an error today, not a skip.
+Cross-language agreement, groundedness, and citation suites (M2); baseline
+regression comparison and fairness/harms/privacy/adversarial suites (M3);
+accessibility checks, live-target adapters, optional model-based judges (M4);
+pin-file gate integration for consuming repos (M5). Enabling any skeleton
+suite is an error today, not a skip.
 
 ## Non-goals
 

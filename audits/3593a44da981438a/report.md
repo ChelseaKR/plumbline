@@ -16,13 +16,15 @@ Dataset: `riverbend-demo`, 12 items. **(synthetic demonstration data — not a b
 
 ## Suites
 
-| Suite | Score | Floor | Verdict | n | CI | MDE |
+| Suite | Score | Floor | Verdict | n | 95% CI | MDE |
 |---|---|---|---|---|---|---|
-| accuracy | 0.8169 | 0.75 | **PASS** | 8 | pending (M2) | pending (M2) |
-| refusal | 1.0000 | 0.90 | **PASS** | 12 | pending (M2) | pending (M2) |
-| smoke | 1.0000 | 1.00 | **PASS** | 12 | pending (M2) | pending (M2) |
+| accuracy | 0.8169 | 0.75 | **PASS** | 8 | 0.6872 – 0.9201 | 0.2385 |
+| refusal | 1.0000 | 0.90 | **PASS** | 12 | 0.7575 – 1.0000 | 0.2500 |
+| smoke | 1.0000 | 1.00 | **PASS** | 12 | 0.7575 – 1.0000 | 0.2500 |
 
 Overall verdict fails if any enabled suite fails.
+
+**MDE** is the smallest true drop in a score that a same-sized future run could tell apart from noise (95% confidence, 80% power). A regression smaller than a suite's MDE would not be detectable at this sample size, whatever the score says.
 
 ## Warnings
 
@@ -30,5 +32,6 @@ Overall verdict fails if any enabled suite fails.
 
 ## Notes
 
-- **stats**: ci and mde are null pending milestone 2 (Wilson interval, minimum detectable effect); see DESIGN.md roadmap
+- **mde**: mde is the smallest true drop in a suite's score that a same-sized future run could tell apart from noise; a regression smaller than it would not be detectable at this sample size
+- **hard_failures**: a suite with hard_failures fails regardless of its pooled score: a load-bearing policy fact was wrong, and pooled averages absorb single-item fabrications
 - **reproducibility**: identical inputs and seed produce byte-identical reports; reports carry no timestamps by design

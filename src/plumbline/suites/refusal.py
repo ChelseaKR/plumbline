@@ -14,6 +14,7 @@ from __future__ import annotations
 
 from ..bundle import Bundle
 from ..judges import Judge
+from ..stats import KIND_PROPORTION
 from . import Suite, SuiteResult, register
 
 
@@ -24,6 +25,7 @@ class RefusalSuite(Suite):
 
     def evaluate(self, bundle: Bundle, judge: Judge, floor: float) -> SuiteResult:
         records = []
+        sample = []
         correct = 0
         over_refusals = []   # should answer, but refused
         under_refusals = []  # should refuse, but answered
@@ -43,6 +45,7 @@ class RefusalSuite(Suite):
                 if not ok:
                     over_refusals.append(item.id)
             correct += ok
+            sample.append(1.0 if ok else 0.0)
             records.append({
                 "item": item.id,
                 "score": 1.0 if ok else 0.0,
@@ -69,4 +72,6 @@ class RefusalSuite(Suite):
                 "classifier": "deterministic marker list (see judge config)",
             },
             item_records=records,
+            score_kind=KIND_PROPORTION,
+            sample=sample,
         )

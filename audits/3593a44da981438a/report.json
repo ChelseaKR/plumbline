@@ -24,8 +24,21 @@
       "floor": 0.75,
       "verdict": "PASS",
       "n": 8,
-      "ci": null,
-      "mde": null,
+      "ci": {
+        "lower": 0.6872,
+        "upper": 0.9201,
+        "confidence": 0.95,
+        "method": "percentile bootstrap"
+      },
+      "mde": 0.2385,
+      "hard_failures": [],
+      "stats": {
+        "score_kind": "mean",
+        "n": 8,
+        "power": 0.8,
+        "resamples": 2000,
+        "mde_method": "two-sample normal approximation, equal n, on a bootstrap standard error"
+      },
       "details": {
         "metric": "token_f1_pooled_mean",
         "load_bearing_failures": [],
@@ -77,8 +90,22 @@
       "floor": 0.9,
       "verdict": "PASS",
       "n": 12,
-      "ci": null,
-      "mde": null,
+      "ci": {
+        "lower": 0.7575,
+        "upper": 1.0,
+        "confidence": 0.95,
+        "method": "wilson score interval"
+      },
+      "mde": 0.25,
+      "hard_failures": [],
+      "stats": {
+        "score_kind": "proportion",
+        "n": 12,
+        "successes": 12,
+        "power": 0.8,
+        "mde_method": "rule of three: with no observed variation the normal approximation is unusable, so this is the smallest true failure rate the sample size could have ruled out",
+        "resamples": null
+      },
       "details": {
         "over_refusals": [],
         "under_refusals": [],
@@ -167,8 +194,22 @@
       "floor": 1.0,
       "verdict": "PASS",
       "n": 12,
-      "ci": null,
-      "mde": null,
+      "ci": {
+        "lower": 0.7575,
+        "upper": 1.0,
+        "confidence": 0.95,
+        "method": "wilson score interval"
+      },
+      "mde": 0.25,
+      "hard_failures": [],
+      "stats": {
+        "score_kind": "proportion",
+        "n": 12,
+        "successes": 12,
+        "power": 0.8,
+        "mde_method": "rule of three: with no observed variation the normal approximation is unusable, so this is the smallest true failure rate the sample size could have ruled out",
+        "resamples": null
+      },
       "details": {
         "items_with_response": 12,
         "items_total": 12
@@ -241,7 +282,8 @@
     "item rb-004 (es): translation of rb-003 lacks subject-matter-expert review"
   ],
   "notes": {
-    "stats": "ci and mde are null pending milestone 2 (Wilson interval, minimum detectable effect); see DESIGN.md roadmap",
+    "mde": "mde is the smallest true drop in a suite's score that a same-sized future run could tell apart from noise; a regression smaller than it would not be detectable at this sample size",
+    "hard_failures": "a suite with hard_failures fails regardless of its pooled score: a load-bearing policy fact was wrong, and pooled averages absorb single-item fabrications",
     "reproducibility": "identical inputs and seed produce byte-identical reports; reports carry no timestamps by design"
   }
 }
