@@ -95,18 +95,21 @@ Milestone 3 extends the drill further: the regression block will name the
 flipped suites while refusing numeric comparison against a baseline with a
 different dataset hash.
 
-## What is implemented (milestone 1)
+## What is implemented
 
 - Evidence bundle format v1: versioned dataset with per-item language,
   expected behavior class (answer vs. refusal), translation review status,
-  load-bearing flags, cross-language fact links; recorded responses; SHA-256
-  integrity manifest.
-- Suites: `smoke` (target is testable at all, floor 1.00), `accuracy`
+  load-bearing flags, cross-language fact links, retrieved source ids; a
+  source corpus; recorded responses; SHA-256 integrity manifest.
+- Suites: `smoke` (target is testable at all, floor 1.00); `accuracy`
   (token-F1 with a load-bearing per-item override that can fail the suite
-  regardless of the pooled average, floor 0.75), `refusal` (both directions,
-  floor 0.90), `cross_language` (paired facts must agree across languages on
-  their numbers and on whether they refused, floor 1.00). Floors are
-  per-target configuration; these are demonstration defaults.
+  regardless of the pooled average, floor 0.75); `refusal` (both directions,
+  floor 0.90); `cross_language` (paired facts must agree across languages on
+  their numbers and on whether they refused, floor 1.00); `groundedness`,
+  `citation_validity` and `citation_accuracy` (three questions about the same
+  answer: is it supported by its sources, do the sources it cites exist, and
+  do *those* sources support it). Floors are per-target configuration; these
+  are demonstration defaults.
 - Enabling a suite the bundle cannot exercise is a configuration error, not a
   vacuous pass.
 - Reports: `report.json` + `report.md`, verdict first, full provenance block,
@@ -135,8 +138,7 @@ evidence. See `DESIGN.md` for the methods and every constant.
 
 ## What is not implemented yet (see DESIGN.md roadmap)
 
-Cross-language agreement, groundedness, and citation suites (M2); baseline
-regression comparison and fairness/harms/privacy/adversarial suites (M3);
+Baseline regression comparison and fairness/harms/privacy/adversarial suites (M3);
 accessibility checks, live-target adapters, optional model-based judges (M4);
 pin-file gate integration for consuming repos (M5). Enabling any skeleton
 suite is an error today, not a skip.

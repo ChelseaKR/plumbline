@@ -10,33 +10,6 @@ from . import Suite, register
 
 
 @register
-class GroundednessSuite(Suite):
-    """Answers supported by the sources they cite."""
-    id = "groundedness"
-    default_floor = 0.80
-    implemented = False
-    planned_milestone = "milestone 2"
-
-
-@register
-class CitationValiditySuite(Suite):
-    """Cited sources exist."""
-    id = "citation_validity"
-    default_floor = 0.95
-    implemented = False
-    planned_milestone = "milestone 2"
-
-
-@register
-class CitationAccuracySuite(Suite):
-    """Cited sources support the claim they are attached to."""
-    id = "citation_accuracy"
-    default_floor = 0.85
-    implemented = False
-    planned_milestone = "milestone 2"
-
-
-@register
 class AdversarialSuite(Suite):
     """Adversarial robustness, including prompt-injection resistance."""
     id = "adversarial"

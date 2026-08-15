@@ -39,10 +39,22 @@ def write_bundle(
     responses: list[dict],
     *,
     name: str = "test-bundle",
+    sources: list[dict] | None = None,
+    interface: str | None = None,
     do_seal: bool = True,
 ) -> Path:
     bundle_dir = Path(root) / name
     bundle_dir.mkdir(parents=True, exist_ok=True)
+    files = {"items": "items.jsonl", "responses": "responses.jsonl"}
+    if sources is not None:
+        files["sources"] = "sources.jsonl"
+        (bundle_dir / "sources.jsonl").write_text(
+            "".join(json.dumps(s, ensure_ascii=False) + "\n" for s in sources),
+            encoding="utf-8",
+        )
+    if interface is not None:
+        files["interface"] = "interface.html"
+        (bundle_dir / "interface.html").write_text(interface, encoding="utf-8")
     manifest = {
         "format": "plumbline-bundle",
         "format_version": 1,
@@ -50,7 +62,7 @@ def write_bundle(
         "version": "0.0.1",
         "synthetic": True,
         "description": "synthetic fixture for tests",
-        "files": {"items": "items.jsonl", "responses": "responses.jsonl"},
+        "files": files,
     }
     (bundle_dir / "manifest.json").write_text(
         json.dumps(manifest, indent=2) + "\n", encoding="utf-8"

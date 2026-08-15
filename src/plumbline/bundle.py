@@ -35,6 +35,15 @@ class IntegrityError(Exception):
 
 
 @dataclass
+class Source:
+    """One passage the target could have grounded an answer in."""
+    id: str
+    text: str
+    title: str | None = None
+    url: str | None = None
+
+
+@dataclass
 class Item:
     id: str
     lang: str
@@ -45,7 +54,7 @@ class Item:
     fact_id: str | None = None
     group: str | None = None
     translation: dict | None = None
-    sources: list = field(default_factory=list)
+    sources: list[str] = field(default_factory=list)  # source ids retrieved for this item
 
 
 @dataclass
@@ -55,6 +64,17 @@ class Bundle:
     items: list[Item]
     responses: dict[str, str]  # item id -> recorded response text
     dataset_sha256: str
+    sources: dict[str, Source] = field(default_factory=dict)
+
+    def source(self, source_id: str) -> Source | None:
+        return self.sources.get(source_id)
+
+    def sources_for(self, item: Item) -> list[Source]:
+        """The passages retrieved for one item, in declared order."""
+        return [self.sources[sid] for sid in item.sources if sid in self.sources]
+
+    def source_text_for(self, item: Item) -> str:
+        return "\n".join(s.text for s in self.sources_for(item))
 
     @property
     def dataset_id(self) -> str:
@@ -184,6 +204,13 @@ def _parse_items(path: Path) -> list[Item]:
                 raise BundleError(
                     f"{path.name}:{lineno}: answer item '{raw['id']}' has no expected answer"
                 )
+            item_sources = raw.get("sources", [])
+            if not isinstance(item_sources, list) or not all(
+                    isinstance(s, str) for s in item_sources):
+                raise BundleError(
+                    f"{path.name}:{lineno}: 'sources' must be a list of "
+                    f"source ids"
+                )
             t = raw.get("translation")
             if t is not None and t.get("review") not in REVIEW_STATUSES:
                 raise BundleError(
@@ -200,11 +227,35 @@ def _parse_items(path: Path) -> list[Item]:
                 fact_id=raw.get("fact_id"),
                 group=raw.get("group"),
                 translation=t,
-                sources=raw.get("sources", []),
+                sources=item_sources,
             ))
     if not items:
         raise BundleError(f"{path.name}: no items")
     return items
+
+
+def _parse_sources(path: Path) -> dict[str, Source]:
+    sources: dict[str, Source] = {}
+    with open(path, encoding="utf-8") as f:
+        for lineno, line in enumerate(f, 1):
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                raw = json.loads(line)
+            except json.JSONDecodeError as e:
+                raise BundleError(f"{path.name}:{lineno}: invalid JSON: {e}") from e
+            for req in ("id", "text"):
+                if not raw.get(req):
+                    raise BundleError(f"{path.name}:{lineno}: missing '{req}'")
+            if raw["id"] in sources:
+                raise BundleError(f"{path.name}:{lineno}: duplicate source id "
+                                  f"'{raw['id']}'")
+            sources[raw["id"]] = Source(
+                id=raw["id"], text=raw["text"],
+                title=raw.get("title"), url=raw.get("url"),
+            )
+    return sources
 
 
 def _parse_responses(path: Path, item_ids: set[str]) -> dict[str, str]:
@@ -259,10 +310,27 @@ def load(bundle_dir: Path) -> Bundle:
     items = _parse_items(bundle_dir / items_name)
     responses = _parse_responses(bundle_dir / responses_name, {i.id for i in items})
 
+    sources_name = files.get("sources")
+    sources = _parse_sources(bundle_dir / sources_name) if sources_name else {}
+
+    # An item that points at a source which is not in the corpus would make
+    # every grounding score meaningless, so it is a bundle error, not a
+    # runtime surprise.
+    for item in items:
+        missing = [sid for sid in item.sources if sid not in sources]
+        if missing:
+            raise BundleError(
+                f"item '{item.id}' cites source ids that are not in the "
+                f"corpus: {', '.join(missing)}"
+                + ("" if sources_name else
+                   " (the manifest declares no files.sources)")
+            )
+
     return Bundle(
         path=bundle_dir,
         manifest=manifest,
         items=items,
         responses=responses,
         dataset_sha256=dataset_sha256,
+        sources=sources,
     )

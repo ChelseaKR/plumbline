@@ -123,6 +123,7 @@ def _load_all() -> None:
     from . import (  # noqa: F401
         accuracy,
         cross_language,
+        grounding,
         refusal,
         skeletons,
         smoke,
