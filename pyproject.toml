@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "plumbline"
+version = "0.1.0.dev0"
+description = "Fail-closed, deterministic evaluation harness for government-facing chat systems: provenance-stamped audit reports, usable as a merge-blocking CI gate."
+readme = "README.md"
+requires-python = ">=3.11"
+license = "Apache-2.0"
+authors = [{ name = "Chelsea Kelly-Reif" }]
+keywords = ["evaluation", "audit", "llm", "civic-tech", "ci-gate"]
+classifiers = [
+  "Development Status :: 2 - Pre-Alpha",
+  "Intended Audience :: Developers",
+  "Programming Language :: Python :: 3 :: Only",
+  "Topic :: Software Development :: Quality Assurance",
+]
+
+[project.scripts]
+plumbline = "plumbline.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
