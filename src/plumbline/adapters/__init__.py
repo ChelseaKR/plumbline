@@ -20,6 +20,12 @@ promised:
    half-recorded transcript can never be graded as if the target had merely
    done badly.
 
+Two kinds ship. `http_json` talks to a service; `subprocess` runs a local
+program, which fits the offline-first default better than HTTP does — a
+subprocess recording opens no socket at all. Both are bounded the same way:
+explicit timeouts, explicit size ceilings, secrets from the environment by
+name, and unknown configuration keys refused rather than ignored.
+
 Adding an adapter kind means adding a module here and registering it. The
 registry refuses an unknown kind rather than falling back to anything.
 """
@@ -48,8 +54,11 @@ class Adapter(Protocol):
 
 
 def _factories() -> dict:
-    from . import http_json
-    return {http_json.HttpJsonAdapter.kind: http_json.HttpJsonAdapter}
+    from . import http_json, subprocess_cli
+    return {
+        http_json.HttpJsonAdapter.kind: http_json.HttpJsonAdapter,
+        subprocess_cli.SubprocessAdapter.kind: subprocess_cli.SubprocessAdapter,
+    }
 
 
 def available() -> tuple[str, ...]:

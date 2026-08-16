@@ -360,10 +360,50 @@ properly sealed — nothing was tampered with — and `cross_language` still fai
 because English now says 900 where Spanish says 850. That is the tamper drill
 arriving through the live path.
 
+### Or against a target that is a program
+
+Not every system worth grading is a service. The `subprocess` adapter records
+against a local executable, which fits the offline-first default better than
+HTTP does — no socket is opened at any point in the run:
+
+```sh
+PYTHONPATH=src python3 -m plumbline record --config examples/riverbend-cli.toml --synthetic
+PYTHONPATH=src python3 -m plumbline audit  --config examples/riverbend-cli.toml
+```
+
+```toml
+[adapter]
+kind = "subprocess"
+command = ["python3", "navigator.py", "--lang", "{lang}"]
+workdir = "../navigator"
+input = "json"                # write [adapter.stdin] to the program
+output = "json"
+response_pointer = "reply.text"
+timeout_seconds = 20          # exceeded: the child is killed
+max_output_bytes = 65536      # exceeded: the child is killed, not truncated
+```
+
+**There is no shell.** `command` is an argv list executed directly, and
+interpolation is element by element, so a prompt containing `;` or `$(…)` is
+one argument and stays one argument. There is no `shell` key, and unknown keys
+are refused, so there is no way to ask for one. The child's environment is
+exactly what `[adapter.env]` declares plus `PATH`, so a recording cannot
+depend on ambient state nobody wrote down.
+
+It is **not a sandbox** — the program runs with your privileges. What it gives
+you is bounds and provenance, including the sha256 of the executable that
+produced the evidence, recorded in the bundle manifest.
+
+`examples/fixture_cli_target.py` is a local stand-in with flags that make it
+misbehave on purpose (`--hang`, `--flood`, `--fail`, `--silent`) so you can
+watch the bounds refuse rather than read about them.
+
 **The gate never records.** The `[adapter]` table is read by `plumbline record`
 and by nothing else. A full `gate` run does not import the adapter package at
 all, and the tests assert it: one runs the gate in a subprocess and inspects
-`sys.modules`, another blocks `socket.socket` and audits anyway. Everything
+`sys.modules` (which contains neither `plumbline.adapters` nor the standard
+library's `subprocess`), another blocks `socket.socket` and audits anyway, and
+a third blocks `subprocess.Popen` and audits anyway. Everything
 that opens a socket lives in one module, and a test reads the source tree to
 keep it there. An adapter cannot become a hidden network dependency of your
 merge gate, because there is no code path for it.

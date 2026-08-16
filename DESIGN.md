@@ -218,6 +218,68 @@ Fail-closed decisions, each of them a failure this avoids:
   run. A literal value in a header whose name looks like a credential warns,
   loudly, without refusing — that call is the operator's to make.
 
+### `subprocess`, the second adapter
+
+The HTTP adapter assumes the system under test is a service somewhere. Plenty
+of systems worth grading are not: a command-line assistant, a batch scorer, a
+wrapper somebody wrote around a model, a binary a vendor shipped. The
+`subprocess` adapter runs a local program — and it fits the offline-first
+default better than HTTP does, because a subprocess recording opens no socket
+at all. `tests/test_subprocess_adapter.py` proves that by blocking
+`socket.socket` and recording anyway.
+
+Same bounds discipline as `http_json`, with three decisions specific to
+running a program:
+
+- **There is no shell, and there is no way to ask for one.** `command` is an
+  argv list executed directly. A string is refused with an explanation rather
+  than split, because there is no safe way to split it; interpolation happens
+  element by element, so a prompt containing `;`, `$(…)` or a newline is one
+  argument and stays one argument. `shell` is not a key, and unknown keys are
+  refused, so the request cannot be made.
+- **The bounds are enforced by killing the child, not by hoping.** The
+  timeout kills; exceeding `max_output_bytes` kills, because a program that
+  decides to print a gigabyte should cost the recorder one refusal and not the
+  machine's memory. Reader threads keep both pipes drained so the child cannot
+  deadlock on a full one, and the deadline is polled rather than `select`ed,
+  which keeps it the same code everywhere Python runs. A non-zero exit is an
+  error naming the code and quoting stderr; exiting 0 having printed nothing
+  is a broken integration rather than an empty answer, and `on_error =
+  "record_empty"` is how you ask for the other reading.
+- **The child's environment is exactly what the config declares, plus PATH.**
+  Inheriting the caller's environment would make a recording depend on ambient
+  state nobody wrote down, which is the opposite of evidence somebody can
+  defend. PATH is the one exception, because a program that cannot find the
+  tools it shells out to is a support burden — and this is not a security
+  boundary. Variable *names* go in the manifest; values never do.
+
+**Provenance an HTTP recording cannot have.** The manifest records
+`program_sha256`: the exact bytes of the executable that produced the
+evidence. It is deliberately not oversold — hashing `python3` says nothing
+about the script it ran, the script is named in `command` but not hashed, and
+the manifest says so in a `program_hash_note` rather than letting a reader
+assume the whole target is pinned. Absolute paths stay out: one machine's
+directory layout is not a fact about the system under test.
+
+Every adapter reports an `endpoint`, so reports and `validate` can say where
+evidence came from without knowing the transport. For a local program the
+program is the endpoint, and it reads `subprocess:<program name>`.
+
+`examples/fixture_cli_target.py` is the local stand-in, with flags that make
+it misbehave on purpose (`--hang`, `--flood`, `--fail`, `--silent`,
+`--fabricate`) so the bounds can be watched refusing rather than described.
+
+### Why the subprocess adapter imports `network.py`
+
+It reuses the transport-agnostic vocabulary that happens to live there:
+placeholder templating, the `{ env = "NAME" }` secret resolution, and the
+JSON-pointer walk. Importing the module does not open a socket, the structural
+test still proves no module outside `network.py` imports a socket library, and
+a separate test proves a subprocess recording makes no socket. Splitting the
+vocabulary into its own module would read better and was judged not worth
+churning a well-tested module for; this paragraph is the honest version of
+that trade.
+
 ### What recording writes
 
 A new bundle, never the old one. Recording into the question set is refused:

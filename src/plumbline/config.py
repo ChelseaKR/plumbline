@@ -86,6 +86,14 @@ def load_config(path: Path) -> TargetConfig:
     if questions_raw is not None and not isinstance(questions_raw, str):
         raise ConfigError(f"{path}: [adapter].questions must be a string path")
     questions_path = _resolve(path, questions_raw) if questions_raw else None
+    # A subprocess adapter's working directory is a path like any other:
+    # resolved against the config file, so the same config records the same
+    # program from any working directory.
+    if "workdir" in adapter:
+        if not isinstance(adapter["workdir"], str):
+            raise ConfigError(f"{path}: [adapter].workdir must be a string path")
+        adapter = dict(adapter)
+        adapter["workdir"] = str(_resolve(path, adapter["workdir"]))
 
     available = suite_registry.available()
     enabled: dict[str, float] = {}

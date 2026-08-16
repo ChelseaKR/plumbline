@@ -51,12 +51,14 @@ RETRYABLE_STATUS = (429, 500, 502, 503, 504)
 
 USER_AGENT = f"plumbline/{__version__}"
 
-# Header names whose value should come from the environment, not from a file
-# somebody committed. Matching one with a literal value is a warning, never a
-# refusal: it is not the harness's place to decide that a token is a secret,
-# only to say out loud that it looks like one.
+# Names whose value should come from the environment, not from a file somebody
+# committed. Matching one with a literal value is a warning, never a refusal:
+# it is not the harness's place to decide that a token is a secret, only to say
+# out loud that it looks like one. Underscores are folded to hyphens before
+# matching, because the same list guards HTTP header names (`X-Api-Key`) and
+# environment variable names (`API_KEY`).
 SECRET_HEADER_HINTS = ("authorization", "api-key", "x-api-key", "token",
-                       "cookie", "secret")
+                       "cookie", "secret", "password", "credential")
 
 PLACEHOLDER_RE = re.compile(r"\{([a-z_]+)\}")
 
@@ -193,7 +195,8 @@ def resolve_headers(raw: object, *, where: str) -> tuple[dict[str, str], list[st
                 )
             headers[name] = resolved
         elif isinstance(value, str):
-            if any(hint in name.lower() for hint in SECRET_HEADER_HINTS):
+            folded = name.lower().replace("_", "-")
+            if any(hint in folded for hint in SECRET_HEADER_HINTS):
                 warnings.append(
                     f"{where}: header '{name}' has a literal value in the "
                     f"configuration file; use {{ env = \"VARIABLE_NAME\" }} so "
