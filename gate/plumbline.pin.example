@@ -17,7 +17,7 @@
 # commit you actually reviewed.
 
 repo = https://github.com/ChelseaKR/plumbline.git
-ref  = 0695bef46be9db03dd93ffd519b189739b3b61e2
+ref  = 06039a75994303050e13abc5df9775cef4195a85
 
 # Paths below are relative to the directory you run the gate from.
 config = plumbline/target.toml
