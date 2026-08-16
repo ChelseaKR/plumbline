@@ -29,7 +29,7 @@ from .hashing import (
     source_digest,
 )
 from .judges import make_judge
-from .report import build_report, write_reports
+from .report import ReportSealError, build_report, write_reports
 from .stats import compute as compute_statistics
 from .suites import FAIL, PASS, SuiteResult, get as get_suite
 
@@ -53,6 +53,62 @@ def attach_statistics(result: SuiteResult, *, seed: int) -> None:
     result.ci = stats.ci
     result.mde = stats.mde
     result.stats_meta = stats.meta
+
+
+class CoverageError(Exception):
+    """The enabled suites cannot see something that happened to the evidence.
+
+    A configuration error, and the same rule as `EmptyPopulationError` one
+    level up: a suite with no population is not a pass, and a *run* whose
+    suites all excuse the thing that went wrong is not a pass either.
+    """
+
+
+def refuse_uncounted_silence(bundle, results: list[SuiteResult]) -> None:
+    """Refuse a run in which nobody counts the items nobody could read.
+
+    Every absence suite now excludes an unreadable response instead of scoring
+    it 1.0, which is right, and on its own it opens a quieter version of the
+    same hole: a target that answers the easy third of a corpus and returns
+    punctuation for the rest is excluded from `groundedness`, excluded from
+    `privacy`, excluded from `fairness`, and passes all three with a coverage
+    line nobody reads. Silence has to cost something somewhere.
+
+    So this asks the run's own evidence, not a table of suite names: for each
+    item with nothing readable recorded, did any enabled suite score it zero?
+    `smoke`, `refusal` and `multilingual` do that for every item; `accuracy`
+    and `adversarial` do it for the items in their populations. If none of them
+    is enabled, no suite in this run can distinguish "the target was quiet" from
+    "the target was clean", and the honest answer is to stop rather than report
+    a verdict that turns on the difference.
+    """
+    from .suites import unreadable_reason  # local: avoids a circular import
+
+    unreadable = {item.id: reason
+                  for item in bundle.items
+                  if (reason := unreadable_reason(bundle, item)) is not None}
+    if not unreadable:
+        return
+    counted = {
+        record["item"]
+        for result in results
+        for record in result.item_records
+        if record.get("item") in unreadable and record.get("score") == 0.0
+    }
+    uncounted = sorted(set(unreadable) - counted)
+    if not uncounted:
+        return
+    shown = ", ".join(uncounted[:5]) + ("…" if len(uncounted) > 5 else "")
+    raise CoverageError(
+        f"{len(uncounted)} of {len(bundle.items)} items recorded nothing a "
+        f"check could read ({shown}), and no enabled suite counts that against "
+        f"the target: every suite in this run either excluded them as "
+        f"unverifiable or never looked at them. A run whose suites all excuse "
+        f"silence cannot tell a working target from a quiet one, so it will "
+        f"not report a verdict. Enable `smoke` (or `refusal`, or "
+        f"`multilingual`), which score an unreadable response wrong for every "
+        f"item, and run it again."
+    )
 
 
 class ResultError(Exception):
@@ -113,6 +169,63 @@ def validate_result(result: SuiteResult, *, suite_id: str, floor: float) -> None
         raise ResultError(
             f"suite '{suite_id}' reported {PASS} while naming load-bearing "
             f"failures {result.hard_failures}")
+
+
+def run_id_of(report: dict) -> str:
+    """The run id the report's own contents generate.
+
+    Recomputable by anyone holding the report, because every input to
+    `compute_run_id` is written down in it: the target and the floors in the
+    body, the rest in the provenance block, and the baseline's digest in the
+    comparison block when there was one.
+    """
+    provenance = report.get("provenance") or {}
+    comparison = report.get("baseline") or {}
+    return compute_run_id(
+        target=report.get("target"),
+        harness_version=provenance.get("harness_version"),
+        seed=provenance.get("seed"),
+        dataset_sha256=provenance.get("dataset_sha256"),
+        judge_config_sha256=provenance.get("judge_config_sha256"),
+        suite_floors={s["suite"]: s["floor"] for s in report.get("suites", [])},
+        baseline_sha256=(comparison.get("against") or {}).get("baseline_sha256"),
+    )
+
+
+def verify_run_id(report: dict, *, source: str = "report") -> str:
+    """Refuse a report whose run id its own contents do not generate.
+
+    The seal proves a report has not moved since it was written. It cannot
+    prove *which run wrote it*, because anyone who can edit the body can
+    recompute the seal over the edit. The run id is the one field with a
+    second, independent derivation: it is a hash of the run's inputs, and every
+    one of those inputs is in the report.
+
+    So a report cannot claim an identity its contents do not produce. That
+    matters because the run id is not decoration — it names the output
+    directory, `plumbline baseline` copies it into the committed bar as
+    `source_run_id`, and a reviewer reading a pull request treats it as the
+    thing that ties a verdict to a run. Editing a target name, a floor or a
+    dataset hash and re-sealing used to leave all of that intact.
+    """
+    recorded = (report.get("provenance") or {}).get("run_id")
+    try:
+        expected = run_id_of(report)
+    except (AttributeError, KeyError, TypeError) as e:
+        raise ReportSealError(
+            f"{source} does not carry the fields its run id is derived from "
+            f"({e}), so the id cannot be checked against its own contents"
+        ) from e
+    if recorded != expected:
+        raise ReportSealError(
+            f"{source} records run id {recorded!r}, but its own contents "
+            f"generate {expected!r}. The run id is a hash of the target, the "
+            f"harness version, the seed, the dataset hash, the judge "
+            f"configuration hash, the enabled floors and the baseline — so one "
+            f"of those was edited after the run, or this provenance block came "
+            f"from a different run. Re-run the audit."
+        )
+    return expected
 
 
 @dataclass
@@ -198,6 +311,9 @@ def run_audit(config: TargetConfig, *, seed: int = DEFAULT_SEED, out_dir: Path,
         raise ResultError(
             "no suite produced a result; an audit that scored nothing is not "
             "a pass")
+    # ...and an audit whose suites all excused what went wrong is not a pass
+    # either, whichever way the arithmetic came out.
+    refuse_uncounted_silence(bundle, results)
     verdict = PASS if all(r.verdict == PASS for r in results) else FAIL
 
     harness_source = source_digest(Path(__file__).resolve().parent)

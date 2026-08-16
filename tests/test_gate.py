@@ -171,6 +171,11 @@ class GateRunnerTests(GateFixture):
     def run_runner(self, *args, pin=None, env_extra=None):
         env = dict(os.environ)
         env["PLUMBLINE_CACHE_DIR"] = str(self.root / "cache")
+        # These tests use the local-source bypass, which the runner refuses
+        # when CI is set — including when this suite is the thing CI is
+        # running. Dropping it here makes every test below a developer's
+        # laptop; `test_the_bypass_is_refused_in_ci` puts it back deliberately.
+        env.pop("CI", None)
         if pin is not None:
             env["PLUMBLINE_PIN_FILE"] = str(pin)
         env.update(env_extra or {})
@@ -194,6 +199,19 @@ class GateRunnerTests(GateFixture):
         # The bypass must be loud: an unpinned run is not a reproducible one.
         self.assertIn("BYPASSED", result.stderr)
         self.assertIn("NOT pinned", result.stderr)
+
+    def test_the_bypass_is_refused_in_ci(self):
+        # "CI must never set PLUMBLINE_SRC" was a rule written in a comment.
+        # A build that bypassed the pin would publish a verdict from a harness
+        # nobody can name, so the runner enforces the rule instead of stating
+        # it. Every major provider exports CI.
+        pin = self.write_pin()
+        result = self.run_runner(
+            pin=pin, env_extra={"PLUMBLINE_SRC": str(REPO_ROOT / "src"),
+                                "CI": "true"})
+        self.assertEqual(result.returncode, EXIT_CONFIG_ERROR, result.stderr)
+        self.assertIn("PLUMBLINE_SRC is set and CI is set", result.stderr)
+        self.assertNotIn("GATE: PASS", result.stdout)
 
     def test_arguments_are_passed_through_to_the_harness(self):
         pin = self.write_pin()

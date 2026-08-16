@@ -85,6 +85,13 @@ if [ -z "$pin_config" ]; then
 fi
 
 if [ -n "${PLUMBLINE_SRC:-}" ]; then
+    # "CI must never set this" was a sentence in a comment, which is a rule
+    # nothing enforces. Every major CI provider exports CI=true, so the gate
+    # can enforce it: a build that bypasses the pin is a green check standing
+    # for a harness nobody can identify, which is worse than no check.
+    if [ -n "${CI:-}" ]; then
+        fail "PLUMBLINE_SRC is set and CI is set. The bypass exists for developing the harness itself; a CI run that used it would report a verdict from an unpinned, possibly modified harness. Unset PLUMBLINE_SRC and let $PIN_FILE decide."
+    fi
     printf 'PLUMBLINE GATE: PLUMBLINE_SRC is set, so the pin in %s was BYPASSED.\n' "$PIN_FILE" >&2
     printf 'PLUMBLINE GATE: this run is NOT pinned and its result is not reproducible from %s. CI must not set PLUMBLINE_SRC.\n' "$PIN_FILE" >&2
     harness_src="$PLUMBLINE_SRC"

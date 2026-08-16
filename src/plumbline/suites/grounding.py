@@ -24,18 +24,32 @@ three-quarters grounded; it is wrong in the way that matters.
 from __future__ import annotations
 
 from ..bundle import Bundle
-from ..judges import Judge, citations, strip_citations
+from ..judges import Judge, asserts_nothing, citations, strip_citations
 from ..stats import KIND_MEAN
 from . import (
     FAIL,
     SILENCE_NOTE,
-    SILENT,
+    UNVERIFIABLE,
     Suite,
     SuiteResult,
+    readable,
     register,
-    responded,
-    silence_record,
+    split_unreadable,
+    unreadable_records,
     unverifiable_block,
+)
+
+# Reason id: the response is readable but asserts nothing a source could
+# support — no content token and no number survive normalization.
+NO_CLAIM = "no_claim"
+
+NO_CLAIM_NOTE = (
+    "these responses are readable but assert nothing: every word in them is a "
+    "function word and there is no number, so the support measure divides by "
+    "zero claims and returns a perfect 1.00. `the the of and to` is not a "
+    "well-grounded answer, it is an answer with nothing in it to ground. "
+    "Excluded from the score and named; `accuracy` and `multilingual` are the "
+    "suites that score such a response wrong rather than unverifiable."
 )
 
 
@@ -71,13 +85,30 @@ class GroundednessSuite(Suite):
         # An empty response asserts nothing, so nothing in it is unsupported,
         # so the support measure returns a perfect 1.0. That is arithmetic, not
         # evidence: a target that said nothing is not a well-grounded target.
-        silent = [i.id for i in eligible if not responded(bundle, i)]
+        # The same arithmetic covers a response that is readable but asserts
+        # nothing — only function words, no numbers — so that is excluded here
+        # too rather than scored a perfect 1.00.
+        scorable, excluded = split_unreadable(bundle, eligible)
+        vacuous = [i.id for i in scorable
+                   if asserts_nothing(bundle.response_for(i.id) or "")]
+        excluded[NO_CLAIM] = vacuous
+        asserted_nothing = set(vacuous)
         population = self.require_population(
-            [i for i in eligible if responded(bundle, i)],
-            "every answer item's recorded response is empty, so there is no "
-            "claim whose grounding could be checked",
+            [i for i in scorable if i.id not in asserted_nothing],
+            "no answer item's recorded response asserts anything a source "
+            "could support, so there is no claim whose grounding could be "
+            "checked",
         )
-        records = [silence_record(i) for i in silent]
+        records = unreadable_records(
+            {r: ids for r, ids in excluded.items() if r != NO_CLAIM})
+        records.extend({
+            "item": item_id,
+            "verdict": UNVERIFIABLE,
+            "reason": NO_CLAIM,
+            "note": ("this response asserts nothing a source could support, so "
+                     "support for it is vacuously total; excluded from the "
+                     "score, and not a pass"),
+        } for item_id in vacuous)
         sample, hard_failures = [], []
         for item in population:
             response = bundle.response_for(item.id) or ""
@@ -125,8 +156,9 @@ class GroundednessSuite(Suite):
                     if i.behavior == "answer" and not i.sources
                 ],
                 "unverifiable": unverifiable_block(
-                    {SILENT: silent}, eligible=len(eligible),
-                    scored=len(population), note=SILENCE_NOTE),
+                    excluded, eligible=len(eligible),
+                    scored=len(population),
+                    note=SILENCE_NOTE + " " + NO_CLAIM_NOTE),
             },
             item_records=records,
             hard_failures=hard_failures,
@@ -167,6 +199,17 @@ class CitationValiditySuite(Suite):
                     record["fabricated_citations"] = fabricated
                     record["note"] = "cites sources that do not exist"
                     hard_failures.append(item.id)
+                if not readable(response):
+                    # A response that is nothing but citation markers resolves
+                    # every one of them and used to score a perfect 1.0 here.
+                    # Citing correctly is a property of an answer, and there is
+                    # no answer. Fabricated citations above still count: an
+                    # invented reference is an invented reference.
+                    score = 0.0
+                    record["note"] = (
+                        "the response has no readable content beyond its "
+                        "citation markers; a citation is not an answer"
+                    )
                 if out_of_context:
                     record["out_of_context_citations"] = out_of_context
             record["score"] = round(score, 4)
@@ -234,6 +277,13 @@ class CitationAccuracySuite(Suite):
             cited_text = "\n".join(bundle.source(c).text for c in cited)
             score, tokens, numbers, unsupported = _support(
                 judge, response, cited_text)
+            # An answer that asserts nothing is supported by everything it
+            # cites, arithmetically. A response of "[src-rent-cap]" or of
+            # "the and of" therefore scored a perfect 1.0 for pointing the
+            # reader at a passage it took nothing from. This suite asks whether
+            # a real answer's pointer leads anywhere; there is no answer.
+            if asserts_nothing(response):
+                score, tokens, numbers = 0.0, 0.0, 0.0
             unrelated = [
                 c for c in cited
                 if judge.support_score(bundle.source(c).text,
@@ -246,12 +296,19 @@ class CitationAccuracySuite(Suite):
                 "token_support": round(tokens, 4),
                 "number_support": round(numbers, 4),
             }
+            if asserts_nothing(response):
+                record["asserts_nothing"] = True
             if unsupported:
                 record["unsupported_numbers"] = unsupported
             if unrelated:
                 record["unrelated_citations"] = unrelated
                 record["note"] = (
                     "cited a source with no content in common with the answer"
+                )
+            if record.get("asserts_nothing"):
+                record["note"] = (
+                    "the response asserts nothing the cited passages could "
+                    "support; scored zero rather than vacuously supported"
                 )
             sample.append(score)
             records.append(record)

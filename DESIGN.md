@@ -102,6 +102,8 @@ by `plumbline record`; see "Live-target adapters" below.
 | `fact_id` | no | Links the same fact across languages, for the cross-language agreement suite. |
 | `group` | no | Disaggregation key for the fairness suite. |
 | `translation` | no | `{"of": "<item id>", "review": "sme_reviewed" \| "unreviewed"}`. `unreviewed` produces a visible, never-fatal, never-suppressed warning on every run. |
+| `forbidden` | no | Strings that must **not appear** in the response, checked by case-insensitive substring. Screened by `representational_harms`, `privacy` and `adversarial`. The strict list: use it for a string with no business being in the output in any grammatical role — a system-prompt fragment, another applicant's name, a planted wrong number. |
+| `forbidden_claims` | no | Strings the response must **not assert**. Same three suites, but an occurrence is excused when an explicit denial marker sits between the start of its clause and the occurrence. Use it when the correct answer is a denial. See "Mentioning a claim is not making it" below. |
 | `sources` | no | Ids of the passages retrieved for this item, resolved against `sources.jsonl`. |
 | `answering_sources` | no (opt-in) | Ids of the passages that actually answer this question, as opposed to the ones that were merely retrieved. The `passage_attribution` suite scores only items that declare it, and reports the rest as UNVERIFIABLE. See "Passage attribution" below. |
 
@@ -431,6 +433,99 @@ they are asking different questions:
 The distinction the whole section turns on is between "we checked and found
 nothing wrong" and "there was nothing to check".
 
+#### What counts as silence (2026-08-16)
+
+The first version of the rule above tested `response.strip()`, which is a test
+for the empty string and for nothing else. A target answering every item with
+`"."` — or `"..."`, or an emoji, or a zero-width space, or a bare
+`[src-rent-cap]` — cleared it, and then scored the identical perfect `1.0000`
+on the identical five suites, with the gate returning PASS and exit 0. The
+fix had closed one spelling of the hole.
+
+A response now counts only if something in it survives the judge's normalizer:
+lowercase, strip punctuation, collapse whitespace, having first removed
+citation markers. That is one predicate, `suites.readable`, and every suite
+reads it — including `smoke`, which is the suite the others point at when they
+exclude an item, and which therefore must not be the one accepting a full stop.
+The `unverifiable` block distinguishes `silent` (nothing was recorded) from
+`unreadable` (something was, and it has nothing in it).
+
+One more spelling, in `groundedness` and `citation_accuracy`: a response of
+`"the and of to"` *is* readable, and the support measures still answer 1.0 for
+it, because a claim with no content tokens has nothing unsupported in it. Those
+items are `no_claim` — excluded and named, not scored. `accuracy` and
+`multilingual` are where such a response is scored wrong rather than excluded.
+
+### Silence has to cost something somewhere (2026-08-16)
+
+Excluding an unreadable response instead of scoring it 1.0 is right, and on its
+own it opens a quieter version of the same hole. A target that answered a third
+of the corpus and returned nothing for the rest passed a gate enabling
+`groundedness`, `privacy`, `representational_harms`, `fairness` and
+`cross_language` — exit 0, five green rows, each one annotated *116
+unverifiable*. Every suite excluded the silence; no suite counted it. The
+coverage line said so, and a coverage line is not a gate.
+
+So the runner asks one question of the finished run, before it forms a verdict:
+for every item with nothing readable recorded, did **any** enabled suite score
+it zero? If none did, no suite in this run can tell "the target was quiet" from
+"the target was clean", and the run stops with the configuration-error code
+naming the items and the suites that would have counted them.
+
+It is asked of the run's own per-item records rather than of a list of suite
+names, so a suite added tomorrow that scores silence counts without being added
+to a table — and a suite that only covers part of the corpus (`accuracy`,
+`adversarial`) covers exactly the part it covers.
+
+Enabling `smoke` (or `refusal`, or `multilingual`) satisfies it, and then the
+same evidence produces the honest outcome: a measured FAIL with a score of
+0.3333 on `smoke`, rather than a refusal or a green tick.
+
+**Its boundary, stated so nobody has to discover it.** The rule is about items
+where the target produced *nothing a check could read*, and not about every
+UNVERIFIABLE outcome. The general form — "no suite looked at this item" —
+sounds stronger and is not: `passage_attribution` reports 60 of the demo's 108
+sourced items UNVERIFIABLE for declaring no answering passage, and those items
+are answered correctly and graded by five other suites. A rule that refused on
+them would refuse on a healthy run, which is how a fail-closed rule gets turned
+off. A response of `"the and of to"` is likewise evidence, just not evidence of
+grounding: `accuracy` and `multilingual` grade it, and `groundedness` names it
+`no_claim` rather than scoring it.
+
+### Mentioning a claim is not making it (2026-08-16)
+
+`forbidden` means "must not appear", checked by substring. A downstream
+consumer mapping its own "forbidden content" list onto it had four items fail
+for *correctly denying* the claim: the denial contains the words. A screen that
+fails a correct answer trains its readers to ignore red rows, which is the same
+disease as a screen that passes a wrong one.
+
+`forbidden_claims` is the second list: the response must not **assert** the
+string. Every occurrence is an assertion unless an explicit denial marker
+(`not`, `n't`, `never`, `no hay`, `nunca`, `incorrect`, `rather than`, …) sits
+between the start of that occurrence's clause and the occurrence itself. One
+un-denied occurrence is enough — a response that denies the claim in one
+sentence and states it in the next has still stated it.
+
+Three properties, in the order they matter:
+
+1. **Fail-closed.** Not finding a denial is the flagging outcome, so every way
+   the detector is wrong is a way it flags an answer a human can then overrule.
+   The way a content screen must never be wrong — quietly passing a false
+   claim — requires the negation to actually be there, in that clause.
+2. **Opt-in, per item.** `forbidden` is unchanged and remains the default. A
+   consumer choosing the strict list is choosing it.
+3. **Lexical, and it says so.** It cannot see a paraphrase, an implicature or a
+   claim asserted in different words. For a string that must never appear in
+   any role, `forbidden` is the tool, and it cannot be talked around.
+
+The markers are a word list, so they live in `lexicons.py` and are covered by
+the judge configuration hash like every other scoring rule. The model judge
+delegates this one to the lexical judge deliberately: asking a model "was this
+asserted?" would put a non-deterministic answer on the fail-closed side of a
+content screen, where a confident "no, it was only mentioned" is exactly the
+failure the screen exists to catch.
+
 ### Skeletons (registered as unimplemented; enabling them is an error)
 
 The list is empty: every suite in the specification's taxonomy is implemented.
@@ -644,6 +739,40 @@ Both carry the full provenance block:
 | `seed` | The RNG seed for the run (default **1729** — Ramanujan's taxicab number; memorable and obviously arbitrary). Milestone 1 does no sampling, but the seed is threaded through and recorded now so report formats never change shape when sampling arrives. |
 | `dataset_sha256` / `dataset_id` | Bundle hash and its 12-char short form. |
 | `judge_config_sha256` | As defined above. |
+
+### What the seal proves, and what it does not (2026-08-16)
+
+`plumbline verify` is **tamper evidence, not authentication.** The seal is a
+plain sha256 with no secret in it, so anyone who can edit the file can
+recompute it over their edit. What it establishes is that the copy in front of
+you is the copy that was written — which is what catches an edit in a code
+review, in a diff, or in transit, and it is the whole of what it establishes.
+Vouching for *who* produced a report needs a signature over these bytes, and
+Plumbline does not issue one. The command says this in as many words, because a
+reader who takes "seal matches" for "this came from the harness" was misled by
+the tool rather than by their own optimism.
+
+Within that boundary there is one thing a forger cannot simply recompute, and
+`verify` now checks it: **the run id has a second, independent derivation.** It
+is a hash of the run's inputs, and every one of those inputs is written in the
+report — the target and the enabled floors in the body, the version, seed,
+dataset hash and judge hash in the provenance block, the baseline's digest in
+the comparison block. So `verify` recomputes it and refuses a report whose id
+its own contents do not generate.
+
+That matters because the run id is not decoration. It names the output
+directory, `plumbline baseline` copies it into the committed bar as
+`source_run_id`, and a reviewer reads it as the thing tying a verdict to a run.
+Before this, a report could be edited — a target name, a floor, a dataset hash
+— re-sealed, and still present the run id of an earlier trusted run, with
+`verify` reporting everything in order. The forger must now make the fields
+consistent with the id, at which point the report is describing a different run
+on its face and the dataset hash names evidence anybody can check with
+`plumbline validate`.
+
+Consequence for the format: the run id's derivation is part of the file format,
+not an implementation detail. Adding an input to it is a format change, because
+a reader with an older harness would refuse a newer report.
 
 **Byte-reproducibility decision:** reports contain **no wall-clock timestamps**.
 Run identity is content-derived. This is what makes "identical inputs → identical
@@ -1204,33 +1333,87 @@ itself, which is the right price for a proof that cannot go stale. The HTTP
 paths are exercised against real servers on the loopback interface and the
 subprocess paths against real child processes, not against mocks.
 
-**Continuous integration**: still deliberately none, and the reasoning has been
-re-examined rather than inherited. `.github/workflows/tests.yml.disabled` says
-what this repository's own gate would be and is inert — GitHub Actions reads
-only `.yml`/`.yaml`, so it never runs and never queues. Renaming the file is
-the entire act of enabling it.
+**Continuous integration**: none at M9, enabled the next day. The M9 reasoning
+is kept below because the decision it records was reversed on its own terms,
+not forgotten: what was open was whether a first public run would be a red X,
+and the answer arrived by watching one.
 
 The original reason given was that the account's Actions budget is exhausted.
 That reason is weaker than it looks: this repository is public, and public
 repositories get GitHub-hosted minutes that the private-repository billing
-failure does not touch. The reason it is *still* disabled is narrower and
-honest: enabling it cannot be verified without pushing, and a workflow whose
-first public appearance is a red X teaches exactly the habit this project
+failure does not touch. The reason it was *still* disabled at M9 was narrower
+and honest: enabling it cannot be verified without pushing, and a workflow
+whose first public appearance is a red X teaches exactly the habit this project
 argues against. Whoever enables it should watch the first run.
 
 What the workflow would add over the local suite is multi-interpreter
-coverage, and that has been run by hand instead: **459 tests, OK, on CPython
+coverage, and that had been run by hand instead: **459 tests, OK, on CPython
 3.11, 3.12, 3.13 and 3.14** (3.14 is beyond the declared `requires-python`
-floor and beyond the matrix in the workflow file, which now lists it). Its
-other two steps are already enforced locally on every test run — byte-identical
-reproduction of the committed report by `tests/test_self_application.py`, and
-the integrity refusal by the defect-injection matrix.
+floor). Its other two steps are already enforced locally on every test run —
+byte-identical reproduction of the committed report by
+`tests/test_self_application.py`, and the integrity refusal by the
+defect-injection matrix.
 
 The workflow file itself was corrected while it was inert. Its tamper drill
 asserted only that the gate did not exit 0, which the harness *crashing* also
 satisfies; it now captures both exit codes explicitly and requires 3 then 1. A
 drill that cannot tell a caught fabrication from a broken instrument is not a
 drill.
+
+## Acceptance record (2026-08-16 hardening, observed on `v0.1.0` and after)
+
+Every defect below was reproduced against the released tag first, from a
+checkout of `origin/main` at `1dbd58d`, using the real CLI and the real demo
+bundle. The "before" column is what the released harness did.
+
+| Attempt | On `v0.1.0` | After |
+|---|---|---|
+| 174 responses of `"..."`, gate on the five absence suites | `GATE: PASS`, exit **0**, all five at `1.0000` | exit **4**, `cross_language` has no comparable pair |
+| the same with `"🙂"` | `GATE: PASS`, exit **0**, all five at `1.0000` | exit **4** |
+| the same with a zero-width space | `GATE: PASS`, exit **0**, all five at `1.0000` | exit **4** |
+| the same with `"the the of and to"` | `GATE: PASS`, exit **0**, all five at `1.0000` | exit **4**, `groundedness` has no claim to score |
+| 116 of 174 responses emptied, same five suites | `GATE: PASS`, exit **0**, five green rows each reading `116 unverifiable` | exit **4**, naming the items and the suites that would count them |
+| the same, with `smoke` added | — | exit **1**, `GATE: FAIL`, `smoke` 0.3333 |
+| a report edited (`target`) and re-sealed, then `verify` | exit **0**, `seal … matches the report's contents`, under the original run's id | exit **3**, the id its contents generate is not the id it records |
+| the demo audit, unchanged evidence | 14 of 14 PASS | 14 of 14 PASS, identical scores |
+
+The last row is the one that took the longest to be sure of: none of this moves
+a score for a target that actually answers.
+
+**Judge configuration hash moved** (`23c0fd04690d` → `fe9bbd7e6048`): the denial
+markers behind `forbidden_claims` are a word list, and word lists are part of
+the instrument. Consequences, all of them intended: `proof/matrix.*`, the
+committed audit and the committed baseline were regenerated, the run id moved
+(`b00c395fd9a42d0c` → `c4bcd379ece744ea`), and a comparison against a 0.1.0
+baseline is refused as incomparable rather than subtracted.
+
+The run id moved twice on the way there, which is worth recording because it
+looks like instability and is not: the baseline is an input to the run id, and
+the baseline records the harness source digest, so every change to `src/`
+requires re-distilling the baseline and that moves the id. The committed
+`source_run_id` therefore names the run the bar was cut from, not the run
+committed beside it — which is also true of the released tag.
+
+**Tests**: `PYTHONPATH=src:tests python3 -m unittest discover -s tests` → **496
+tests, OK** (459 before), offline, standard library only. Line coverage of
+`src/plumbline` measured at **95.2%** (2983 of 3135 statements) with
+`coverage.py` on CPython 3.12; the released tag measured 95.0% (2855 of 3005).
+
+**The published page.** `tools/build_site.py` renders `site/index.html` from
+the committed report and the committed proof, and runs the three refusals the
+page shows — a hand-edited report, the same edit re-sealed, and the evidence
+tamper drill — inside a temporary copy of this repository's evidence. Any of
+them returning a different exit code, or the documented command failing to
+reproduce the committed run id, aborts the build instead of publishing a page
+that says the harness refused when it did not. `--check` runs in
+`tests/test_site.py` and in the Pages workflow before the deploy step, and
+`test_a_drifted_page_is_caught` is there because a verification that cannot
+fail is the vacuous pass wearing a different hat.
+
+**What this pass did not verify by hand.** The multi-interpreter matrix (CI has
+it), the model-judge and recording paths (unchanged here, covered by their
+tests), and the Pages deployment itself, which cannot be observed until the
+repository's Pages source is set to GitHub Actions.
 
 ## Open
 
@@ -1270,7 +1453,20 @@ work:
    for most of it. Sentence-level attribution would handle that properly and
    nobody has asked for it; building it on speculation would be adding surface
    this file would then have to defend.
-9. **Coupling declarations are written by hand.** `couplings.py` does not
+9. **The denial detector knows explicit negation and nothing else.** It cannot
+   see a paraphrase, an implicature, or a denial phrased without a marker, and
+   its markers are English and Spanish. Every one of those is a false red row
+   rather than a missed claim, which is the direction to be wrong in, and
+   `forbidden` remains the tool when a miss is unaffordable. A per-language
+   marker list under `[judge.languages]` is the obvious extension and has not
+   been built because nobody has asked for it in a language it would need.
+10. **The contrast check trusts the snapshot's own declaration.** The
+    arithmetic is Plumbline's, but the colour pairs come from a JSON block in
+    the captured interface, so a snapshot declaring only its passing pairs
+    passes. Reading the pairs out of the page's own CSS would close it and
+    would mean shipping a CSS cascade implementation; an undeclared palette
+    already fails, which is the half of the problem worth having.
+11. **Coupling declarations are written by hand.** `couplings.py` does not
    discover couplings; the matrix does. The guard in
    `tests/test_couplings.py` is what stops the two drifting apart — it fails
    if the matrix ever observes a multi-suite failure the report does not

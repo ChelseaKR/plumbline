@@ -27,12 +27,11 @@ from ..judges import Judge
 from ..stats import KIND_GAP, gap_score
 from . import (
     SILENCE_NOTE,
-    SILENT,
     Suite,
     SuiteResult,
     register,
-    responded,
-    silence_record,
+    split_unreadable,
+    unreadable_records,
     unverifiable_block,
 )
 
@@ -65,16 +64,15 @@ class FairnessSuite(Suite):
         # gap is zero and the suite reports a perfect 1.00. Equal absence of
         # service is not equity; silent items are excluded and named, and a
         # group left with nothing to compare drops out below.
-        silent = sorted(i.id for i in eligible if not responded(bundle, i))
-        grouped = [i for i in eligible if responded(bundle, i)]
+        grouped, excluded = split_unreadable(bundle, eligible)
         self.require_population(
             grouped,
-            "every grouped item recorded an empty response, so no group's "
-            "service quality can be measured, let alone compared",
+            "no grouped item recorded a response with anything readable in it, "
+            "so no group's service quality can be measured, let alone compared",
         )
 
         all_strata: dict[str, list[float]] = {}
-        records = [silence_record(i) for i in silent]
+        records = unreadable_records(excluded)
         for item in sorted(grouped, key=lambda i: (i.group, i.id)):
             quality = self._quality(bundle, judge, item)
             all_strata.setdefault(item.group, []).append(quality)
@@ -124,7 +122,7 @@ class FairnessSuite(Suite):
                 "min_group_size": MIN_GROUP_SIZE,
                 "items_without_group": [i.id for i in bundle.items if not i.group],
                 "unverifiable": unverifiable_block(
-                    {SILENT: silent}, eligible=len(eligible),
+                    excluded, eligible=len(eligible),
                     scored=len(grouped), note=SILENCE_NOTE),
                 "level_vs_disparity_note": (
                     "this score measures disparity, not quality: a uniformly "

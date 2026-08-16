@@ -25,7 +25,13 @@ import traceback
 from pathlib import Path
 
 from . import __version__
-from .audit import DEFAULT_SEED, ResultError, run_audit
+from .audit import (
+    CoverageError,
+    DEFAULT_SEED,
+    ResultError,
+    run_audit,
+    verify_run_id,
+)
 from .baseline import (
     BaselineError,
     build_baseline,
@@ -124,13 +130,21 @@ def cmd_verify(args: argparse.Namespace) -> int:
     source = Path(args.report)
     report = _read_report(source)
     digest = verify_report(report, source=str(source))
+    run_id = verify_run_id(report, source=str(source))
     provenance = report["provenance"]
     print(f"report:  {source}")
     print(f"verdict: {report['verdict']}")
     print(f"target:  {report.get('target')}")
-    print(f"run:     {provenance['run_id']}")
+    print(f"run:     {run_id} — derived from this report's own inputs")
     print(f"seal:    {digest} — matches the report's contents")
     print(f"dataset: {provenance['dataset_sha256']}")
+    print("note:    this is tamper evidence, not authentication. The seal is a "
+          "plain sha256 with no secret in it, so anyone who can edit the file "
+          "can recompute it; what it proves is that the copy in front of you "
+          "is the copy that was written, which is what catches an edit in "
+          "review, in a diff, or in transit. Vouching for WHO produced a "
+          "report needs a signature over these bytes, which Plumbline does not "
+          "issue.")
     print("note:    the seal covers this report's body. It does not vouch for "
           "the evidence beyond the dataset hash above; verify that bundle with "
           "`plumbline validate`.")
@@ -143,10 +157,12 @@ def cmd_baseline(args: argparse.Namespace) -> int:
     source = Path(args.source)
     report = _read_report(source)
     # A baseline is the bar every later run is judged against, so it may only
-    # be cut from a report that still matches its own seal. Distilling an
-    # edited report would launder a hand-written number into the thing the
+    # be cut from a report that still matches its own seal, and whose run id is
+    # the one its contents generate. Distilling an edited report would launder
+    # a hand-written number — or a borrowed run id — into the thing the
     # repository treats as ground truth.
     verify_report(report, source=str(source))
+    verify_run_id(report, source=str(source))
     record = build_baseline(report)
     out = write_baseline(record, Path(args.out))
     print(f"baseline: {out}")
@@ -444,7 +460,7 @@ def main(argv: list[str] | None = None) -> int:
               "in a suite; please report it.", file=sys.stderr)
         return EXIT_INTERNAL_ERROR
     except (ConfigError, BundleError, BaselineError, EmptyPopulationError,
-            OutboundError, ValueError, KeyError) as e:
+            CoverageError, OutboundError, ValueError, KeyError) as e:
         msg = e.args[0] if e.args else e
         print(f"CONFIGURATION ERROR: {msg}", file=sys.stderr)
         return EXIT_CONFIG_ERROR

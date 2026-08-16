@@ -52,10 +52,13 @@ from ..judges import Judge, citations
 from ..stats import KIND_PROPORTION
 from . import (
     FAIL,
+    SILENT,
+    UNREADABLE,
     UNVERIFIABLE,
     Suite,
     SuiteResult,
     register,
+    unreadable_reason,
     unverifiable_block,
 )
 
@@ -110,6 +113,8 @@ class PassageAttributionSuite(Suite):
             NO_DECLARATION: [i.id for i in eligible if not i.answering_sources],
             NO_DISTRACTOR: [],
             INDISTINGUISHABLE: [],
+            SILENT: [],
+            UNREADABLE: [],
         }
         records: list[dict] = []
         sample: list[float] = []
@@ -119,6 +124,24 @@ class PassageAttributionSuite(Suite):
 
         for item in declared:
             response = bundle.response_for(item.id) or ""
+            # An unreadable response is accounted for equally badly by every
+            # passage, so both sides of the comparison come out at the support
+            # measure's vacuous 1.0 and the margin is zero. That would be
+            # reported as `indistinguishable`, which reads as "two plausible
+            # passages" when the truth is "no answer". Name it for what it is.
+            unreadable = unreadable_reason(bundle, item)
+            if unreadable is not None:
+                reasons[unreadable].append(item.id)
+                records.append({
+                    "item": item.id,
+                    "answering_sources": list(item.answering_sources),
+                    "verdict": UNVERIFIABLE,
+                    "reason": unreadable,
+                    "note": ("nothing readable was recorded for this item, so "
+                             "no passage accounts for it; excluded from the "
+                             "score, and not a pass"),
+                })
+                continue
             answering = bundle.answering_sources_for(item)
             distractors = bundle.distractor_sources_for(item)
             support, best_answering = _best(judge, response, answering)
@@ -241,7 +264,10 @@ class PassageAttributionSuite(Suite):
                         "dataset can. `no_distractor`: the item had nothing "
                         "else the answer could have come from. "
                         "`indistinguishable`: two passages account for the "
-                        "answer within the decision margin"
+                        "answer within the decision margin. `silent` / "
+                        "`unreadable`: nothing was recorded for the item, or "
+                        "nothing in what was recorded survives normalization, "
+                        "so no passage accounts for it"
                     ),
                 ),
                 "suggested_declarations": self._suggestions(bundle, judge, eligible),

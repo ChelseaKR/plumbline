@@ -1,28 +1,14 @@
-# DISABLED ON PURPOSE — this file does not run, and is not meant to yet.
-#
-# GitHub Actions only reads `.yml` / `.yaml` files in this directory, so the
-# `.disabled` suffix means this workflow is never scheduled and consumes no
-# Actions minutes. Renaming it to `tests.yml` is the entire act of enabling it.
-#
-# Why it is off: this account's Actions budget is exhausted. A workflow that
-# cannot run is worse than no workflow — a red or perpetually-queued check
-# teaches everyone who sees it to ignore checks, which is the exact habit this
-# project exists to argue against.
-#
-# Why it is here at all: a harness whose thesis is "a gate that could not run
-# is not a gate that passed" should be able to say what its own gate would be,
-# and should not make the next person reinvent it. This is that statement,
-# written down and inert.
-#
-# Until it is enabled, the suite is run locally before every push, and the
-# acceptance record in DESIGN.md reports observed results from an actual clean
-# checkout rather than a badge.
+# The repository's own gate. It runs on every push to main and every pull
+# request, and it is the same suite a contributor runs locally:
 #
 #   PYTHONPATH=src:tests python3 -m unittest discover -s tests
 #
 # Nothing here needs a key, a network, or a third-party package: the tests
 # bind a local HTTP server on the loopback interface for the adapter and
 # model-judge paths, and everything else is standard library.
+#
+# Every step below has to be able to fail. A step that cannot go red is a
+# badge, and this repository exists to argue against those.
 
 name: tests
 
@@ -54,13 +40,26 @@ jobs:
         run: PYTHONPATH=src:tests python3 -m unittest discover -s tests
 
       # The audit of the bundled demo is committed. If a change to the harness
-      # moves a score, a hash, or a byte of the report, this step fails with a
-      # diff — which is the reproducibility claim, enforced.
+      # moves a score, a hash, or a byte of the report, this step fails — which
+      # is the reproducibility claim, enforced.
+      #
+      # `git status --porcelain` and not `git diff --exit-code` alone: the run
+      # id is the output directory's name, so anything that moves the run id
+      # writes a *new, untracked* directory and leaves the committed one
+      # untouched. A diff sees nothing and reports success, which is this
+      # repository's own favourite failure — a check that passed because it did
+      # not run. Untracked output is a failure here.
       - name: The committed demo audit must still reproduce byte for byte
         run: |
           PYTHONPATH=src python3 -m plumbline gate \
             --config examples/riverbend.toml --out audits
-          git diff --exit-code -- audits baselines
+          git diff -- audits baselines
+          dirty=$(git status --porcelain -- audits baselines)
+          if [ -n "$dirty" ]; then
+            echo "the committed audit is not what this code produces:" >&2
+            echo "$dirty" >&2
+            exit 1
+          fi
 
       # The committed report must still match its own seal.
       - name: The committed report has not been edited since it was produced

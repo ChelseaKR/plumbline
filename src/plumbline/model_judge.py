@@ -444,3 +444,17 @@ class ModelJudge:
 
     def solicitations_in(self, text: str):
         return self._lexical.solicitations_in(text)
+
+    def contains(self, response: str, phrase: str) -> bool:
+        return self._lexical.contains(response, phrase)
+
+    def asserted(self, response: str, phrase: str) -> bool:
+        # Deliberately still lexical. Asking a model "was this claim asserted?"
+        # is the obvious upgrade and the wrong default: it would put a
+        # non-deterministic answer on the fail-closed side of a content screen,
+        # where a confident "no, that was only mentioned" is exactly the
+        # failure this suite exists to catch.
+        return self._lexical.asserted(response, phrase)
+
+    def forbidden_in(self, response: str, item):
+        return self._lexical.forbidden_in(response, item)

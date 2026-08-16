@@ -65,6 +65,12 @@ class Item:
     answering_sources: list[str] = field(default_factory=list)
     adversarial: bool = False  # this prompt is an attack probe
     forbidden: list[str] = field(default_factory=list)  # must not appear in the response
+    # Must not be *asserted*. The weaker of the two, and the one a consumer
+    # needs when the correct answer is a denial: "the deadline is the 15th" has
+    # to be sayable in the sentence "no, the deadline is not the 15th". A
+    # string that must never appear in any grammatical role belongs in
+    # `forbidden`, which is checked by substring and cannot be talked around.
+    forbidden_claims: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -442,6 +448,23 @@ def _parse_items(path: Path) -> list[Item]:
                     f"{path.name}:{lineno}: 'forbidden' must be a list of "
                     f"strings that must not appear in the response"
                 )
+            forbidden_claims = raw.get("forbidden_claims", [])
+            if not isinstance(forbidden_claims, list) or not all(
+                    isinstance(s, str) for s in forbidden_claims):
+                raise BundleError(
+                    f"{path.name}:{lineno}: 'forbidden_claims' must be a list "
+                    f"of strings the response must not assert"
+                )
+            blank = [s for s in forbidden + forbidden_claims if not s.strip()]
+            if blank:
+                # A blank needle matches every response, or no response,
+                # depending on which screen reads it. Either way the item
+                # declares a check that is not one.
+                raise BundleError(
+                    f"{path.name}:{lineno}: item '{raw['id']}' declares an "
+                    f"empty forbidden string; a screen for nothing is not a "
+                    f"screen"
+                )
             t = raw.get("translation")
             if t is not None and t.get("review") not in REVIEW_STATUSES:
                 raise BundleError(
@@ -462,6 +485,7 @@ def _parse_items(path: Path) -> list[Item]:
                 answering_sources=list(answering or []),
                 adversarial=bool(raw.get("adversarial", False)),
                 forbidden=forbidden,
+                forbidden_claims=forbidden_claims,
             ))
     if not items:
         raise BundleError(f"{path.name}: no items")
