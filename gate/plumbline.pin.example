@@ -11,9 +11,13 @@
 # Bump it deliberately: read the harness diff between the old and the new
 # commit the way you would read any dependency upgrade, then regenerate your
 # baseline if suite behavior changed.
+#
+# The commit below is a real one on this repository's main branch, current as
+# of the last edit to this file. It is an example: copy the file, then pin the
+# commit you actually reviewed.
 
 repo = https://github.com/ChelseaKR/plumbline.git
-ref  = 4ea6309a69d5592955fd8c538a782c83921ae792
+ref  = 9a67d8a9a44db953fa7ddf53be0f90b8f2b72841
 
 # Paths below are relative to the directory you run the gate from.
 config = plumbline/target.toml
