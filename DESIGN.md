@@ -103,6 +103,7 @@ by `plumbline record`; see "Live-target adapters" below.
 | `group` | no | Disaggregation key for the fairness suite. |
 | `translation` | no | `{"of": "<item id>", "review": "sme_reviewed" \| "unreviewed"}`. `unreviewed` produces a visible, never-fatal, never-suppressed warning on every run. |
 | `sources` | no | Ids of the passages retrieved for this item, resolved against `sources.jsonl`. |
+| `answering_sources` | no (opt-in) | Ids of the passages that actually answer this question, as opposed to the ones that were merely retrieved. The `passage_attribution` suite scores only items that declare it, and reports the rest as UNVERIFIABLE. See "Passage attribution" below. |
 
 ### Source corpus (sources.jsonl, optional, declared as `files.sources`)
 
@@ -318,7 +319,7 @@ A suite implements: `id`, `evaluate(bundle, judge) -> SuiteResult` where
 FAIL if **any enabled suite** fails. Enabling a suite that is not implemented is
 a configuration error (fail closed), never a skip.
 
-### The thirteen suites
+### The fourteen suites
 
 | Suite id | Measures | Default floor | Why this floor |
 |---|---|---|---|
@@ -330,6 +331,12 @@ a configuration error (fail closed), never a skip.
 | `groundedness` | Is the answer supported by the sources the item had available, cited or not? Scored as `min(content-token recall, number support)`. **A load-bearing answer stating a number found in none of its sources fails the suite regardless of the pooled average.** | **0.70** | Content-token recall punishes legitimate paraphrase the same way token-F1 does; a near-perfect floor would be dishonest for a lexical judge. |
 | `citation_validity` | Do the cited source ids resolve to real passages? An answer that cites nothing when sources were available scores 0. **Citing a source that does not exist fails the suite regardless of the pooled average.** | **0.95** | Inventing a reference is categorically different from imprecise wording, and it is invisible to a reader who does not check. |
 | `citation_accuracy` | Is the answer supported by the sources it *actually cited*, as opposed to the ones it had? | **0.80** | Catches an answer grounded in source B that points the reader at source A. |
+| `passage_attribution` | Of the passages this item had, which one best accounts for the answer, and is it one the item **declared** as answering the question? Opt-in per item: an item that declares nothing is reported UNVERIFIABLE, never passed. **A load-bearing item attributed to a passage that does not answer the question fails the suite regardless of the pooled average.** | **0.95** | Scored items are the unambiguous ones — the close calls are held out as unverifiable rather than guessed — so a scored failure is an answer materially better accounted for by the wrong paragraph. There is very little of that worth tolerating, and the load-bearing override takes the cases where there is none. |
+
+The six remaining suites (`multilingual`, `adversarial`, `fairness`,
+`representational_harms`, `privacy`, `accessibility`) carry their floors and
+their reasoning in their module docstrings; the rows above are the ones this
+document argues about at length.
 
 Refusal detection is a deterministic marker-list classifier (lowercased
 substring match, English and Spanish markers), part of the judge configuration
@@ -1254,3 +1261,147 @@ Fail-closed decisions inside it:
 Not done: shipping profiles for further languages. Plumbline cannot enumerate
 the world's languages and should not pretend to. The shipped three are a
 demonstration of the two mechanisms; the config table is the answer.
+
+## Passage attribution: the wrong-paragraph gap (M9)
+
+A consumer grading a grounded-answering engine reported an answer Plumbline
+scored clean and a human reviewer would reject. The question asked about
+eligibility; the answer was composed from the **fare paragraph of the right
+document**, which happens to share a word with the question. It was fluent,
+drawn from a real passage, cited to that passage, in the language it was asked
+in, and not a refusal. Their report's own sentence is the whole problem: *the
+audit passes that item, because no suite it runs can say "wrong paragraph."*
+
+They were right, and the reason is worth writing down rather than patching.
+Every existing suite answers its own question correctly here:
+
+- `groundedness` scores support against **the union of the item's sources**.
+  If the fare paragraph was retrieved, the answer *is* supported by the
+  evidence the system had. That is the question the suite asks and the honest
+  answer is yes.
+- `citation_validity` asks whether the cited id resolves to a real passage. It
+  does.
+- `citation_accuracy` asks whether the passage the answer cited supports what
+  it said. It does — emphatically, because that is where the text came from.
+  This suite is *strongest* exactly where the defect is worst.
+- `refusal`, `multilingual`, `smoke`, `adversarial`, and the two screens are
+  all indifferent by construction.
+- `accuracy` is the only suite that sees anything, and what it sees is one
+  item's token-F1 sinking into a pooled mean. It cannot say *wrong paragraph*;
+  it can only say *less similar to the reference than average*, and a floor set
+  honestly for a lexical judge has to leave room for paraphrase — which is
+  precisely the room this defect hides in. The load-bearing override rescues
+  only the sub-case where the reference carries a number the wrong paragraph
+  omits.
+
+The gap is structural: nothing asks **which passage the answer came from**.
+"Supported by something that was on the desk" is a much weaker property than a
+reader of a green report believes it to be, and the three grounding suites
+between them do not add up to the stronger one.
+
+### What the evidence has to carry
+
+The suite is only as sound as what the bundle can prove, so the dataset
+requirement comes first and the code second. To check "the answer came from the
+passage that actually answers the question", a bundle needs four things:
+
+1. **A corpus at paragraph granularity.** If a whole document is one source id,
+   there is no wrong paragraph to find — the defect is invisible by
+   construction, and no suite can recover it. `sources.jsonl` already works
+   this way; this is now a load-bearing property of it, not a convenience.
+2. **The passages the item had.** Already `item.sources`.
+3. **A declaration of which of them answers the question.** New:
+   `item.answering_sources`, a list of source ids. This is the part that cannot
+   be inferred soundly (below), and it is opt-in.
+4. **At least one passage that does not answer it.** If the only passage
+   available is the answering one, there is nothing the answer could have come
+   from instead, and a pass would be vacuous. Such items are reported
+   UNVERIFIABLE with the reason `no_distractor`, which reads as a note to the
+   dataset author: to test this property, the distractor has to be in the
+   evidence.
+
+### What a lexical judge can and cannot determine here
+
+**Can**: which of two passages better accounts for the words of an answer.
+Content-token recall of the answer against each candidate passage is a
+comparison between passages, not an absolute judgment of an answer, and
+comparative lexical measures are far more robust than thresholded ones — the
+stopword list, the paraphrase penalty and the normalizer's quirks apply
+equally to both sides and largely cancel.
+
+**Cannot**: decide *which passage answers a question*. That is a semantic
+judgment about the question, and nothing in a lexical judge can make it. The
+tempting shortcut is to infer it — take the passage whose text best matches the
+item's reference answer and call that the answering passage. It is often right
+and it is not sound: reference answers are paraphrases, corpora contain
+near-duplicate passages, and the inference would be computed from the same
+bundle the suite is grading. Worse, a wrong inference does not fail loudly; it
+silently grades every answer against the wrong expectation. So the inference is
+**not** used for scoring. It appears only as a suggestion in the report for
+items that declare nothing, and only when one passage beats the runner-up by
+the decision margin, labelled as something a human must confirm.
+
+Hence the opt-in field, and hence the rule that the absence of the field
+produces UNVERIFIABLE rather than a pass. A vacuous pass here would be worse
+than no suite at all: it would put a green tick on exactly the property the
+consumer discovered nobody was checking.
+
+### The rule
+
+For each item that declares `answering_sources`, with recorded response *R*:
+
+- *a* = the highest content-token recall of *R* against any single declared
+  answering passage.
+- *d* = the highest content-token recall of *R* against any single other
+  passage available to the item (its **distractors**).
+- **PASS** when `a - d >= 0.10`; **FAIL** when `d - a >= 0.10`; otherwise
+  **UNVERIFIABLE** (`indistinguishable`).
+
+`0.10` is the decision margin, chosen here and arbitrary like every other
+constant in this repository. The band exists because a comparison that close is
+one the instrument cannot make: declaring a failure inside it would report a
+certainty the measurement has not earned, and declaring a pass would be the
+vacuous pass this suite exists to refuse.
+
+Both sides are compared **per passage**, not against the concatenation of the
+declared set, so an item declaring three answering passages does not get a
+three-paragraph vocabulary to match against while each distractor gets one.
+
+Decisions inside it:
+
+- **Unverifiable items are excluded from the score and named in the report**,
+  with their reason, plus a coverage line: how many eligible items exist, how
+  many declared, how many were scored. A suite reporting 1.00 over four of two
+  hundred items must not read like a suite reporting 1.00 over two hundred, and
+  the sample size, the interval and the MDE all move with it.
+- **No item declaring the field is a configuration error** (`EmptyPopulationError`),
+  like every other empty population here. Enabling this suite against a bundle
+  with no declarations claims a property the evidence cannot test.
+- **A load-bearing item attributed to a distractor is a hard failure**, failing
+  the suite regardless of the pooled average. Same argument as everywhere else:
+  a pooled mean absorbs a single wrong policy fact, and an amount composed from
+  the wrong paragraph is a wrong policy fact.
+- **The declared answering passage need not be among the item's sources.** If
+  it is not, the system could not have used it, which is a retrieval failure
+  rather than a composition failure. It is still scored — Plumbline grades the
+  system, not one of its components — but it is named separately in
+  `answering_passage_not_available` so the consumer looks in the right place.
+- **A declared id that is not in the corpus is a bundle error**, refused at
+  load time, exactly as an unresolvable `sources` id already is.
+
+### What this suite cannot determine
+
+Recorded honestly, in the report as well as here:
+
+- Whether the declared answering passage is the *right* declaration. It is
+  human-authored ground truth; garbage in, green tick out.
+- Anything about an item that does not declare it. Coverage is reported for
+  this reason: the suite's silence is loud in the report rather than absent
+  from it.
+- Whether an answer is *correct*. An answer copied from the passage that
+  answers the question scores 1.0 here even if the passage itself is wrong, and
+  even if the answer contradicts the reference. `accuracy` owns that question.
+- Whether an answer synthesized across several documents came from the right
+  parts of each. It is compared on the single best passage per side, which is
+  conservative toward the answering set only when the item declares more than
+  one.
