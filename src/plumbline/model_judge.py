@@ -308,6 +308,13 @@ class ModelJudge:
                 "[judge].cache is required in cached mode: there is nowhere "
                 "for the judgments to have been recorded"
             )
+        if mode == "live" and not cache_path:
+            warnings.append(
+                "[judge]: mode = \"live\" with no cache — the judgments this "
+                "run pays for will not be recorded, so the run cannot be "
+                "reproduced, cannot be gated on, and the next run will ask "
+                "the same questions again. Set [judge].cache."
+            )
         cache = JudgmentCache(Path(cache_path) if cache_path else None, identity)
         return cls(model=model, shape=shape, headers=headers, mode=mode,
                    cache=cache), warnings

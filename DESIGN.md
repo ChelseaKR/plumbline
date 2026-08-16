@@ -797,7 +797,7 @@ directory was never created. The same file covers a missing pin, a pin missing
 `config` or `ref`, a branch name where a commit hash is required, and an
 unknown pin key — all exit 4.
 
-**Tests**: `PYTHONPATH=src:tests python3 -m unittest discover -s tests` → **274
+**Tests**: `PYTHONPATH=src:tests python3 -m unittest discover -s tests` → **275
 tests, OK**, in about two seconds, offline, with no third-party packages. The
 HTTP paths are exercised against real servers on the loopback interface, not
 against mocked openers.

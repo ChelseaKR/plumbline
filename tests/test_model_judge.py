@@ -151,14 +151,20 @@ class ScoreParsing(unittest.TestCase):
 
 
 class Configuration(unittest.TestCase):
-    def build(self, **overrides):
+    def build(self, cache=None, **overrides):
         overrides.setdefault("mode", "live")
-        return make_judge(judge_config("http://127.0.0.1:9/x", cache=None,
+        return make_judge(judge_config("http://127.0.0.1:9/x", cache=cache,
                                        **overrides))
 
     def test_a_valid_live_configuration_builds(self):
         judge, warnings = self.build()
         self.assertEqual(judge.kind, "model")
+        self.assertEqual(len(warnings), 1, "live with no cache should warn")
+        self.assertIn("will not be recorded", warnings[0])
+
+    def test_live_with_a_cache_does_not_warn(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            _, warnings = self.build(cache=str(Path(tmp) / "j.json"))
         self.assertEqual(warnings, [])
 
     def test_model_is_required(self):

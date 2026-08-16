@@ -27,7 +27,7 @@ Pre-release (`0.1.0.dev0`). Every capability in the functional specification
 is implemented: thirteen scoring suites, per-suite confidence intervals and
 minimum detectable effect, baseline regression comparison, a pinned
 fail-closed CI gate, live-target recording, and an optional model judge —
-neither of which the gate can reach. 274 tests, standard library only,
+neither of which the gate can reach. 275 tests, standard library only,
 offline.
 
 There is deliberately no CI badge here: this repository runs no GitHub Actions
