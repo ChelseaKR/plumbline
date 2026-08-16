@@ -475,3 +475,55 @@ def setUpModule():
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ValidatingAQuestionSet(unittest.TestCase):
+    """You should be able to inspect what you are about to send to a live
+    target before you send it."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.root = Path(self._tmp.name)
+
+    def test_validate_accepts_a_bundle_with_no_responses(self):
+        questions = write_question_set(self.root, ITEMS)
+        code, out, _ = run_cli("validate", questions.as_posix())
+        self.assertEqual(code, EXIT_PASS, out)
+        self.assertIn("items:    3", out)
+        self.assertIn("this is a question set", out)
+        self.assertIn("integrity: OK", out)
+
+    def test_validate_still_refuses_unverifiable_evidence(self):
+        questions = write_question_set(self.root, ITEMS)
+        (questions / "checksums.json").unlink()
+        code, _, err = run_cli("validate", questions.as_posix())
+        self.assertEqual(code, EXIT_INTEGRITY_REFUSAL)
+        self.assertIn("INTEGRITY REFUSAL", err)
+
+    def test_validate_names_a_recording_and_counts_responses(self):
+        questions = write_question_set(self.root, ITEMS)
+        with LocalJSONServer(answering("an answer")) as server:
+            adapter, _ = make_adapter(adapter_config(server.url))
+            result = recording.record(questions=load_questions(questions),
+                                      adapter=adapter,
+                                      out_dir=self.root / "recorded")
+        code, out, _ = run_cli("validate", result.out_dir.as_posix())
+        self.assertEqual(code, EXIT_PASS, out)
+        self.assertIn("responses: 3, one per item", out)
+        self.assertIn("via the http_json adapter", out)
+
+    def test_recording_into_the_dataset_path_without_a_question_set_is_refused(self):
+        """The likeliest first-time mistake: no [adapter].questions, so the
+        recorder would be pointed at the bundle it is meant to produce."""
+        bundle = write_bundle(self.root, ITEMS, [
+            {"id": i["id"], "response": "x"} for i in ITEMS])
+        config = self.root / "target.toml"
+        with LocalJSONServer(answering()) as server:
+            config.write_text(CONFIG_TEMPLATE.format(
+                dataset_path=bundle.as_posix(), endpoint=server.url, extra=""),
+                encoding="utf-8")
+            code, _, err = run_cli("record", "--config", config.as_posix())
+            self.assertEqual(server.requests, [])
+        self.assertEqual(code, EXIT_CONFIG_ERROR)
+        self.assertIn("refusing to record over the question set", err)

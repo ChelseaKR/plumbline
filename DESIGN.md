@@ -593,7 +593,8 @@ worse" from "the evidence is untrustworthy" from "the harness was misused".
 ## CLI surface
 
 ```
-plumbline validate <bundle>          # integrity check, item count, dataset id, warnings
+plumbline validate <bundle>          # integrity, item count, dataset id, warnings;
+                                     #   accepts a question set as well as a bundle
 plumbline seal <bundle>              # (re)generate checksums.json
 plumbline audit --config <toml> [--out audits] [--seed N]
                 [--baseline PATH] [--require-comparable-baseline]
@@ -796,7 +797,7 @@ directory was never created. The same file covers a missing pin, a pin missing
 `config` or `ref`, a branch name where a commit hash is required, and an
 unknown pin key — all exit 4.
 
-**Tests**: `PYTHONPATH=src:tests python3 -m unittest discover -s tests` → **270
+**Tests**: `PYTHONPATH=src:tests python3 -m unittest discover -s tests` → **274
 tests, OK**, in about two seconds, offline, with no third-party packages. The
 HTTP paths are exercised against real servers on the loopback interface, not
 against mocked openers.

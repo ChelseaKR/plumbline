@@ -27,7 +27,6 @@ from .baseline import (
 from .bundle import (
     BundleError,
     IntegrityError,
-    load as load_bundle,
     load_questions as load_bundle_questions,
     seal as seal_bundle,
 )
@@ -48,16 +47,37 @@ def _warn(lines: list[str]) -> None:
 
 
 def cmd_validate(args: argparse.Namespace) -> int:
-    bundle = load_bundle(Path(args.bundle))
+    """Inspect a bundle. Accepts a question set too — you should be able to
+    check what you are about to send to a live target before you send it, and
+    integrity, item count and the translation warnings do not need responses
+    to be meaningful. Whether responses are present is reported either way,
+    because a bundle with none cannot be scored."""
+    bundle = load_bundle_questions(Path(args.bundle))
     langs: dict[str, int] = {}
     for item in bundle.items:
         langs[item.lang] = langs.get(item.lang, 0) + 1
     print(f"bundle:   {bundle.name} (version {bundle.manifest.get('version')})")
     print(f"items:    {len(bundle.items)} "
           f"({', '.join(f'{k}: {v}' for k, v in sorted(langs.items()))})")
+    missing = [i.id for i in bundle.items if not bundle.response_for(i.id)]
+    if not bundle.manifest.get("files", {}).get("responses"):
+        print("responses: none — this is a question set, not gradable "
+              "evidence. Record against it with `plumbline record`.")
+    elif missing:
+        print(f"responses: {len(bundle.responses)} of {len(bundle.items)} "
+              f"({len(missing)} empty or absent: {', '.join(missing[:5])}"
+              f"{'…' if len(missing) > 5 else ''}); the smoke suite fails on "
+              f"these")
+    else:
+        print(f"responses: {len(bundle.responses)}, one per item")
     print(f"dataset:  {bundle.dataset_id} (sha256 {bundle.dataset_sha256})")
     if bundle.manifest.get("synthetic"):
         print("note:     synthetic demonstration data — not a benchmark")
+    recording = bundle.manifest.get("recording")
+    if recording:
+        adapter = recording.get("adapter") or {}
+        print(f"recorded: {recording.get('recorded_at')} from "
+              f"{adapter.get('endpoint')} via the {adapter.get('kind')} adapter")
     _warn(bundle.unreviewed_translation_warnings())
     print("integrity: OK")
     return EXIT_PASS
