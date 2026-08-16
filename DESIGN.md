@@ -99,8 +99,8 @@ by `plumbline record`; see "Live-target adapters" below.
 | `prompt` | yes | The user message. |
 | `expected` | answer items | Reference answer text. |
 | `load_bearing` | no (default false) | Marks a load-bearing policy fact (an amount, a limit, a deadline). A failing load-bearing item can fail its suite regardless of the pooled average (spec R3). |
-| `fact_id` | no | Links the same fact across languages, for the cross-language agreement suite (milestone 2). |
-| `group` | no | Disaggregation key for the fairness suite (milestone 3). |
+| `fact_id` | no | Links the same fact across languages, for the cross-language agreement suite. |
+| `group` | no | Disaggregation key for the fairness suite. |
 | `translation` | no | `{"of": "<item id>", "review": "sme_reviewed" \| "unreviewed"}`. `unreviewed` produces a visible, never-fatal, never-suppressed warning on every run. |
 | `sources` | no | Ids of the passages retrieved for this item, resolved against `sources.jsonl`. |
 
@@ -779,6 +779,14 @@ by a model judge.**` above the provenance table, `"deterministic": false` in
 the JSON, and `judge_kind: model` in any baseline built from it. Compared
 against a lexical baseline, the run refused numeric comparison naming the
 judge hash and still reported `accuracy: FAIL → PASS`.
+
+**A consuming repository, pinned to this commit, gates on it.** The bumped
+`gate/plumbline.pin.example` was exercised rather than only edited: copied
+into a scratch repository alongside `plumbline-gate.sh` and a target config,
+`./plumbline-gate.sh` resolved the pinned commit from GitHub at run time,
+scored the bundle and exited **0**; with one number edited in the consuming
+repo's own evidence it exited **3** with an integrity refusal, naming both the
+changed file and a stray unlisted one.
 
 **With the harness unreachable, a consuming repo's gate fails rather than
 skips.** `tests/test_gate.py` runs `gate/plumbline-gate.sh` as a real
