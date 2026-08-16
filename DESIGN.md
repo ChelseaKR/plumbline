@@ -1116,7 +1116,7 @@ directory was never created. The same file covers a missing pin, a pin missing
 unknown pin key — all exit 4.
 
 **Tests**: `PYTHONPATH=src:tests python3 -m unittest discover -s tests` →
-**414 tests, OK**, in about thirteen seconds, offline, with no third-party
+**415 tests, OK**, in about thirteen seconds, offline, with no third-party
 packages. Nine of those seconds are the defect-injection matrix rebuilding
 itself, which is the right price for a proof that cannot go stale. The HTTP
 paths are exercised against real servers on the loopback interface and the
