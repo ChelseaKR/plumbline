@@ -668,6 +668,8 @@ src/plumbline/adapters/ # live-target adapters; imported by `record` only
 datasets/riverbend-demo/  # synthetic demo bundle (clearly labeled)
 tools/                  # build_riverbend_demo.py: the committed, deterministic
                         #   generator for that bundle
+                        # defect_matrix.py: the defect-injection proof
+proof/                  # committed output of the defect-injection matrix
 examples/riverbend.toml # demo target config, all suites enabled
 examples/riverbend-live.toml  # the same, recorded from a live target
 examples/fixture_target.py    # a local target to record against, offline
@@ -733,6 +735,85 @@ The list stays a demonstration list and says so. What this means for a real
 target is in `DATASET.md` and worth repeating: write the marker list from the
 service's own transcripts before trusting the refusal suite, or the score
 measures the list's coverage rather than the system's behavior.
+
+## Proving the gate bites: the defect-injection matrix
+
+Everything else in this document argues that Plumbline fails closed. None of
+it is evidence. Thirteen suites reporting PASS on a clean bundle says nothing
+about whether any of them is *able* to report FAIL, and a suite nobody has
+watched fail is indistinguishable from a suite that cannot.
+
+`tools/defect_matrix.py` closes that gap. For each enabled suite it plants a
+defect that suite exists to catch, into a copy of the real demonstration
+evidence, re-seals the copy, and runs the **real** audit path — the same
+`run_audit` the CLI calls, not a stub. Every case is checked on two
+assertions:
+
+1. the suite under test **fails**, and
+2. every other enabled suite **stays passing**.
+
+The second assertion is the one that earns its keep. If a planted defect
+fails five suites, the suites are not measuring distinct things, and the tool
+that discovers that should say so rather than quietly weakening the case until
+it looks clean. So a case may **declare** its collateral failures, with a
+reason; the matrix reports declared collateral as a coupling and treats
+undeclared collateral as a failed row.
+
+Committed output: `proof/matrix.md` (human) and `proof/matrix.json`
+(machine). No network, no randomness, no timestamps, so re-running it on the
+same repository reproduces both byte for byte —
+`tests/test_defect_matrix.py` rebuilds the matrix on every test run and fails
+if the committed proof has gone stale. It is the slowest thing in the test
+suite by an order of magnitude, and that is the right trade: a fail-closed
+harness whose proof of being fail-closed is a stale file has the exact problem
+it exists to prevent.
+
+### What building it found
+
+- **`forbidden` is read by three suites.** A probe that emits content an
+  attack was trying to extract fails `adversarial`, `representational_harms`
+  and `privacy`, because all three screen each item's `forbidden` list. The
+  overlap is defensible — a leak really is an adversarial failure, a conduct
+  failure and a disclosure — but it means those three verdicts are not three
+  independent signals, and a reader counting failures should know. Declared as
+  a coupling rather than engineered around.
+- **`fairness` cannot be isolated from `accuracy` in principle.** Per-item
+  service quality *is* the accuracy measure, so any register gap wide enough
+  to breach the fairness floor also moves the accuracy mean. In this
+  configuration the gap costs accuracy 0.08 and its floor is 0.11 below its
+  score, so only one suite fails — but that is a margin, not an independence
+  guarantee. A target with a tighter accuracy floor would see both fail.
+- **Some suites need a *class* of defect, not one item.** `refusal` at floor
+  0.90 over 174 items tolerates seventeen misclassifications; one flipped
+  refusal scores 0.9943 and passes. `multilingual` needs nine wrong-language
+  answers, `adversarial` five behavior failures, `citation_accuracy` twelve
+  miscitations. The suites that fail on a *single* item are exactly the ones
+  with a severity rule (`accuracy`, `groundedness`, `citation_validity`,
+  `adversarial` on a leak) or a floor of 1.00 (`smoke`, `privacy`,
+  `representational_harms`, `cross_language`, `accessibility`). That split is
+  the design working, and the matrix makes it legible: the negative-control
+  case in it plants a real defect and is expected *not* to fail.
+- **Isolating a defect is harder than planting one.** Most defects worth
+  planting are visible to several suites, and constructing one that only its
+  own suite can see took real care: dropping a load-bearing number in *all*
+  four language/register variants (so cross-language agreement survives),
+  adding an unsourced number *alongside* the correct one (so accuracy has
+  nothing to catch), degrading a register using verbatim sentences from the
+  item's own source (so grounding has nothing to catch). Those constructions
+  are documented per case in `proof/matrix.md`, and they are themselves a
+  description of what each suite uniquely measures.
+- **No suite resisted.** Every one of the thirteen was made to fail on a
+  defect specific to it. `accessibility` was the easiest (five structural
+  checks, a census, no floor arithmetic to fight); `fairness` the hardest, for
+  the reason above.
+
+### What the matrix does not prove
+
+It does not prove the suites catch defects nobody thought to plant; every case
+is a defect an author imagined. It does not prove the floors are right — the
+cases were sized against the demonstration floors and the demonstration
+bundle, and change either and the smallest catchable defect changes with it.
+And it says nothing whatever about any real chat system.
 
 ## Roadmap (spec requirement → milestone)
 

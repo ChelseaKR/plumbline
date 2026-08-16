@@ -10,6 +10,7 @@ is exactly the drift the harness exists to catch elsewhere.
 from __future__ import annotations
 
 import importlib.util
+import sys
 import json
 import tempfile
 import unittest
@@ -29,6 +30,9 @@ def _load_generator():
     spec = importlib.util.spec_from_file_location("build_riverbend_demo",
                                                   GENERATOR)
     module = importlib.util.module_from_spec(spec)
+    # Registered before execution: @dataclass resolves annotations
+    # through sys.modules, and a module that is not there fails.
+    sys.modules['build_riverbend_demo'] = module
     spec.loader.exec_module(module)
     return module
 

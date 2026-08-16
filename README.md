@@ -110,6 +110,41 @@ If the harness cannot be reached, the job **fails**, with the reason on
 stderr. It does not skip and it does not report green. A gate that could not
 run is not a gate that passed. See [`gate/README.md`](gate/README.md).
 
+## Proof that the gate bites
+
+Thirteen suites reporting PASS proves nothing about whether any of them *can*
+report FAIL. A suite nobody has watched fail is indistinguishable from a suite
+that cannot fail, and "fail closed" is this project's entire claim.
+
+So the repository carries a **defect-injection matrix**: for each suite, a
+planted defect that suite exists to catch, run through the real audit path end
+to end, checked on two assertions rather than one — the suite under test
+fails, *and* the suites that should be indifferent stay passing.
+
+```sh
+python3 tools/defect_matrix.py           # writes proof/matrix.{md,json}
+python3 tools/defect_matrix.py --check   # verify the committed proof is current
+```
+
+Read the result in [`proof/matrix.md`](proof/matrix.md) rather than taking
+this paragraph's word for it. Seventeen cases, all thirteen suites covered,
+plus an integrity refusal and an empty-population configuration error. The
+matrix is regenerated and checked on every test run, so it cannot go stale
+while the code moves under it.
+
+Three things it deliberately reports rather than hides:
+
+- **Couplings.** Making one probe leak its system prompt fails `adversarial`
+  *and* `representational_harms` *and* `privacy`, because all three read the
+  item's `forbidden` list. That is a fact about the design; the matrix names
+  it instead of tuning it away.
+- **What the floors tolerate.** One under-refusal out of 174 items scores
+  0.9943 and passes. That case is in the matrix as a declared non-failure, so
+  a reader can see the size of the smallest defect the configuration catches.
+- **Score movement without verdict movement.** Every case lists the suites
+  whose score moved but whose floor forgave it — the near-misses, and the
+  right place to look before tightening a floor.
+
 ## The tamper drill (try it)
 
 Evidence bundles are protected by SHA-256 checksums (`checksums.json`).
