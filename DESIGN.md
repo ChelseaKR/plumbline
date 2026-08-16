@@ -960,12 +960,12 @@ tamper drill, the new wrong-paragraph and coupling drills, and the pinned
 consuming repository. Figures that moved since the M8 record moved because the
 demo bundle gained thirteen distractor passages and their declarations (74
 source passages now, still 174 items) and because a fourteenth suite is
-enabled. The remaining entries — the live and subprocess recording paths, the
-model judge, and the gate's inability to reach any of them — are M8
-observations carried forward and were **not** re-run by hand at M9; they are
-exercised by `tests/test_adapters.py`, `test_subprocess_adapter.py`,
-`test_model_judge.py`, `test_network.py` and `test_gate.py`, which passed in
-the clean checkout above against real loopback servers and real child
+enabled. Both recording paths were re-run too, over HTTP and against a local
+program, and fixing what that turned up is recorded below. Two entries — the
+model judge, and the gate's inability to reach any of it — are M8 observations
+carried forward and were **not** re-run by hand at M9; they are exercised by
+`tests/test_model_judge.py`, `test_network.py` and `test_gate.py`, which passed
+in the clean checkout above against real loopback servers and real child
 processes.
 
 **Clean checkout, one documented command, offline, identical re-run.**
@@ -1051,18 +1051,30 @@ moved hash, and reported `PASS → FAIL` with all three flips.
 
 **The same fabrication caught through the live path, with nothing tampered.**
 `python3 examples/fixture_target.py --fabricate` serves the demo answers with
-one English number changed. `plumbline record` produced a legitimate, properly
-sealed bundle; `plumbline gate` on it exited **1** with the same three suites
-failing. No integrity refusal, because nothing was tampered with — the
-evidence is exactly what the target said.
+one English number changed. `plumbline record` recorded 174 responses over
+HTTP into a legitimate, properly sealed bundle (`3d10c220cd96`); `plumbline
+gate` on it exited **1** with the same three suites failing on the same
+load-bearing items. No integrity refusal, because nothing was tampered with —
+the evidence is exactly what the target said. Re-run at M9.
 
-**Record then audit against a program, with no socket anywhere.** From the
-clean checkout: `plumbline record --config examples/riverbend-cli.toml
---synthetic` ran `examples/fixture_cli_target.py` 174 times, recorded 174
-responses, and sealed a new bundle whose manifest carries the argv, the
-working directory's program, its `program_sha256`, the declared environment
-variable *names*, every bound and the recording timestamp; `plumbline audit`
-on the result → exit **0**.
+**Record then audit against a program, with no socket anywhere.** `plumbline
+record --config examples/riverbend-cli.toml --synthetic` ran
+`examples/fixture_cli_target.py` 174 times, recorded 174 responses, and sealed
+a new bundle whose manifest carries the argv, the working directory's program,
+its `program_sha256`, the declared environment variable *names*, every bound
+and the recording timestamp; `plumbline audit` on the result → exit **0**,
+fourteen suites including `passage_attribution` at 48 of 108 items. Re-run at
+M9: the recorded bundle inherits the question set's items verbatim, so the
+declarations survive recording.
+
+**A bound that had gone stale, found by running the documented command.**
+`examples/riverbend-live.toml` shipped `max_items = 50` against a question set
+that grew to 174, so the command in its own header comment exited **4** —
+correctly, and uselessly. Raised to 200 with the reason in the file. With the
+fixture target running, `plumbline record` then recorded 174 responses over
+HTTP into a sealed bundle and `plumbline audit` on it exited **0**. The bound
+did exactly what a bound should; the example was wrong, and the way that was
+found was running it rather than reading it.
 
 **The gate cannot reach an adapter, a program, a socket or a live model
 judge.** A full `gate` run in a subprocess imports none of

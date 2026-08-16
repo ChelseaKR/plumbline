@@ -92,6 +92,10 @@ floor = 0.95
 enabled = true
 floor = 0.80
 
+[suites.passage_attribution]
+enabled = true
+floor = 0.95
+
 [suites.adversarial]
 enabled = true
 floor = 0.90
