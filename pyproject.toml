@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "plumbline"
-version = "0.1.0.dev0"
+version = "0.1.0"
 description = "Fail-closed, deterministic evaluation harness for government-facing chat systems: provenance-stamped audit reports, usable as a merge-blocking CI gate."
 readme = "README.md"
 requires-python = ">=3.11"

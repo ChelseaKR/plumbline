@@ -31,7 +31,9 @@ third party could defend:
 
 ## Status
 
-Pre-release (`0.1.0.dev0`). Every capability in the functional specification
+Pre-1.0 (`0.1.0`, the first tagged release). While the version stays below
+`1.0.0`, a MINOR bump may break the interface; pin an exact commit and read
+the CHANGELOG before moving. Every capability in the functional specification
 is implemented: fourteen scoring suites, per-suite confidence intervals and
 minimum detectable effect, baseline regression comparison, a pinned
 fail-closed CI gate, live-target recording over HTTP or against a local
