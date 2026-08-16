@@ -76,8 +76,11 @@ class LocalJSONServer:
         self.url = f"http://127.0.0.1:{self._server.server_address[1]}"
 
     def __enter__(self) -> "LocalJSONServer":
-        self._thread = threading.Thread(target=self._server.serve_forever,
-                                        daemon=True)
+        # A short poll interval keeps teardown quick: socketserver's default
+        # makes every shutdown wait half a second.
+        self._thread = threading.Thread(
+            target=self._server.serve_forever, kwargs={"poll_interval": 0.01},
+            daemon=True)
         self._thread.start()
         return self
 
@@ -162,6 +165,61 @@ def write_bundle(
     if do_seal:
         seal(bundle_dir)
     return bundle_dir
+
+
+def write_question_set(
+    root: Path,
+    items: list[dict],
+    *,
+    name: str = "test-questions",
+    sources: list[dict] | None = None,
+    interface: str | None = None,
+) -> Path:
+    """A sealed bundle with items but no responses: what a live-target
+    recording is made against."""
+    bundle_dir = Path(root) / name
+    bundle_dir.mkdir(parents=True, exist_ok=True)
+    files = {"items": "items.jsonl"}
+    if sources is not None:
+        files["sources"] = "sources.jsonl"
+        (bundle_dir / "sources.jsonl").write_text(
+            "".join(json.dumps(s, ensure_ascii=False) + "\n" for s in sources),
+            encoding="utf-8",
+        )
+    if interface is not None:
+        files["interface"] = "interface.html"
+        (bundle_dir / "interface.html").write_text(interface, encoding="utf-8")
+    manifest = {
+        "format": "plumbline-bundle",
+        "format_version": 1,
+        "name": name,
+        "version": "0.0.1",
+        "synthetic": True,
+        "description": "synthetic question set for tests.",
+        "files": files,
+    }
+    (bundle_dir / "manifest.json").write_text(
+        json.dumps(manifest, indent=2) + "\n", encoding="utf-8"
+    )
+    (bundle_dir / "items.jsonl").write_text(
+        "".join(json.dumps(i, ensure_ascii=False) + "\n" for i in items),
+        encoding="utf-8",
+    )
+    seal(bundle_dir)
+    return bundle_dir
+
+
+def run_cli(*argv: str) -> tuple[int, str, str]:
+    """Run the CLI in-process and capture (exit code, stdout, stderr)."""
+    import contextlib
+    import io
+
+    from plumbline.cli import main
+
+    out, err = io.StringIO(), io.StringIO()
+    with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+        code = main(list(argv))
+    return code, out.getvalue(), err.getvalue()
 
 
 def answer_item(item_id: str, expected: str, **extra) -> dict:

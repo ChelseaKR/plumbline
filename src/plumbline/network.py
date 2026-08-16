@@ -35,6 +35,7 @@ import urllib.request
 from dataclasses import dataclass, field
 
 from . import __version__
+from .errors import OutboundError
 from .hashing import canonical_json, sha256_text
 
 ALLOWED_SCHEMES = ("http", "https")
@@ -58,10 +59,6 @@ SECRET_HEADER_HINTS = ("authorization", "api-key", "x-api-key", "token",
                        "cookie", "secret")
 
 PLACEHOLDER_RE = re.compile(r"\{([a-z_]+)\}")
-
-
-class OutboundError(Exception):
-    """Base for every failure in this module (configuration error, exit 4)."""
 
 
 class OutboundConfigError(OutboundError):

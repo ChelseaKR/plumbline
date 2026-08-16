@@ -71,6 +71,39 @@ def _format_mde(mde: float | None) -> str:
     return "n/a" if mde is None else f"{mde:.4f}"
 
 
+def _recording_lines(recording: dict | None) -> list[str]:
+    """Where the graded answers came from, when the bundle records it.
+
+    A hand-written transcript and a transcript captured from a production
+    service last Tuesday are different kinds of evidence, and a reader
+    defending this report needs to know which one they are holding.
+    """
+    if not recording:
+        return []
+    adapter = recording.get("adapter") or {}
+    questions = recording.get("questions") or {}
+    lines = [
+        f"Responses were **recorded from a live target** at "
+        f"`{recording.get('recorded_at')}` by the "
+        f"`{adapter.get('kind')}` adapter against "
+        f"`{adapter.get('endpoint')}`, from question set "
+        f"`{questions.get('name')}` (`{str(questions.get('sha256', ''))[:12]}`).",
+        "",
+    ]
+    empty = recording.get("responses_recorded_empty") or []
+    if empty:
+        lines.append(
+            f"{len(empty)} response(s) were recorded empty because the call "
+            f"failed: {', '.join(e['id'] for e in empty)}. The smoke suite "
+            f"scores those as untestable rather than as wrong answers."
+        )
+        lines.append("")
+    if recording.get("note"):
+        lines.append(f"Recording note: {recording['note']}")
+        lines.append("")
+    return lines
+
+
 def render_markdown(report: dict) -> str:
     p = report["provenance"]
     lines: list[str] = []
@@ -92,6 +125,7 @@ def render_markdown(report: dict) -> str:
     synthetic = " **(synthetic demonstration data — not a benchmark)**" if ds.get("synthetic") else ""
     lines.append(f"Dataset: `{ds['name']}`, {ds['items']} items.{synthetic}")
     lines.append("")
+    lines.extend(_recording_lines(ds.get("recording")))
     lines.append("## Suites")
     lines.append("")
     lines.append("| Suite | Score | Floor | Verdict | n | 95% CI | MDE |")

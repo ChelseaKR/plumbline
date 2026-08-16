@@ -135,6 +135,11 @@ def run_audit(config: TargetConfig, *, seed: int = DEFAULT_SEED, out_dir: Path,
         "version": bundle.manifest.get("version"),
         "synthetic": bool(bundle.manifest.get("synthetic", False)),
         "items": len(bundle.items),
+        # Where the graded answers came from, when the bundle says. A reader
+        # should not have to open the manifest to find out whether these
+        # transcripts were written by hand or recorded from a live system, and
+        # when. It is null for a bundle that makes no claim.
+        "recording": bundle.manifest.get("recording"),
     }
 
     report = build_report(

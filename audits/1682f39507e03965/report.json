@@ -15,7 +15,8 @@
     "name": "riverbend-demo",
     "version": "2.0.0",
     "synthetic": true,
-    "items": 26
+    "items": 26,
+    "recording": null
   },
   "suites": [
     {

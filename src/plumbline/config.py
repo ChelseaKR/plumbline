@@ -28,6 +28,12 @@ class TargetConfig:
     suites: dict[str, float] = field(default_factory=dict)
     # Committed baseline record to compare this run against, if any.
     baseline_path: Path | None = None
+    # How `plumbline record` reaches the live target. Read by that command and
+    # by nothing else: an audit grades the committed bundle, so declaring an
+    # adapter here can never put a network call inside the gate.
+    adapter: dict = field(default_factory=dict)
+    # Question set to record against, when it is not the dataset being graded.
+    questions_path: Path | None = None
 
 
 def load_config(path: Path) -> TargetConfig:
@@ -65,6 +71,14 @@ def load_config(path: Path) -> TargetConfig:
     if not isinstance(judge, dict):
         raise ConfigError(f"{path}: [judge] must be a table")
 
+    adapter = raw.get("adapter", {})
+    if not isinstance(adapter, dict):
+        raise ConfigError(f"{path}: [adapter] must be a table")
+    questions_raw = adapter.get("questions")
+    if questions_raw is not None and not isinstance(questions_raw, str):
+        raise ConfigError(f"{path}: [adapter].questions must be a string path")
+    questions_path = _resolve(path, questions_raw) if questions_raw else None
+
     available = suite_registry.available()
     enabled: dict[str, float] = {}
     for suite_id, spec in raw.get("suites", {}).items():
@@ -95,7 +109,8 @@ def load_config(path: Path) -> TargetConfig:
         )
 
     return TargetConfig(name=name, dataset_path=dataset_path, judge=judge,
-                        suites=enabled, baseline_path=baseline_path)
+                        suites=enabled, baseline_path=baseline_path,
+                        adapter=adapter, questions_path=questions_path)
 
 
 def _resolve(config_path: Path, value: str) -> Path:

@@ -181,6 +181,18 @@ def verify_integrity(bundle_dir: Path) -> str:
     return recorded["bundle_sha256"]
 
 
+def _declared(bundle_dir: Path, filename: str, role: str) -> Path:
+    """A file the manifest declares must actually be there. Named rather than
+    left to raise an unhandled FileNotFoundError deeper in."""
+    path = bundle_dir / filename
+    if not path.is_file():
+        raise BundleError(
+            f"{MANIFEST_FILENAME} declares files.{role} = '{filename}', which "
+            f"is not in the bundle"
+        )
+    return path
+
+
 def _parse_items(path: Path) -> list[Item]:
     items: list[Item] = []
     seen: set[str] = set()
@@ -293,6 +305,25 @@ def _parse_responses(path: Path, item_ids: set[str]) -> dict[str, str]:
 def load(bundle_dir: Path) -> Bundle:
     """Verify integrity, then parse. Integrity always comes first: nothing is
     parsed for scoring from a bundle that failed verification."""
+    return _load(bundle_dir, require_responses=True)
+
+
+def load_questions(bundle_dir: Path) -> Bundle:
+    """Load a bundle that may not have any responses yet.
+
+    A *question set* is an evidence bundle without the evidence: items, an
+    optional source corpus, an optional interface snapshot, sealed like any
+    other bundle. It is what a live-target adapter records against, and it is
+    verified before a single request goes out — recording against unverified
+    questions would produce evidence nobody could defend.
+
+    The scoring path never uses this loader: an audit always requires
+    responses.
+    """
+    return _load(bundle_dir, require_responses=False)
+
+
+def _load(bundle_dir: Path, *, require_responses: bool) -> Bundle:
     bundle_dir = Path(bundle_dir)
     if not bundle_dir.is_dir():
         raise BundleError(f"bundle path is not a directory: {bundle_dir}")
@@ -315,14 +346,25 @@ def load(bundle_dir: Path) -> Bundle:
     files = manifest.get("files", {})
     items_name = files.get("items")
     responses_name = files.get("responses")
-    if not items_name or not responses_name:
-        raise BundleError(f"{MANIFEST_FILENAME}: files.items and files.responses are required")
+    if not items_name:
+        raise BundleError(f"{MANIFEST_FILENAME}: files.items is required")
+    if require_responses and not responses_name:
+        raise BundleError(
+            f"{MANIFEST_FILENAME}: files.responses is required to score a "
+            f"bundle (a bundle without responses is a question set: record "
+            f"against it with `plumbline record`)"
+        )
 
-    items = _parse_items(bundle_dir / items_name)
-    responses = _parse_responses(bundle_dir / responses_name, {i.id for i in items})
+    items = _parse_items(_declared(bundle_dir, items_name, "items"))
+    responses = (
+        _parse_responses(_declared(bundle_dir, responses_name, "responses"),
+                         {i.id for i in items})
+        if responses_name else {}
+    )
 
     sources_name = files.get("sources")
-    sources = _parse_sources(bundle_dir / sources_name) if sources_name else {}
+    sources = (_parse_sources(_declared(bundle_dir, sources_name, "sources"))
+               if sources_name else {})
 
     # An item that points at a source which is not in the corpus would make
     # every grounding score meaningless, so it is a bundle error, not a

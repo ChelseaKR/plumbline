@@ -75,11 +75,14 @@ A bundle is a directory:
   "version": "...",
   "synthetic": true,
   "description": "...",
-  "files": {"items": "items.jsonl", "responses": "responses.jsonl"}
+  "files": {"items": "items.jsonl", "responses": "responses.jsonl"},
+  "recording": null
 }
 ```
 
 `synthetic: true` is required for every bundle shipped in this repository.
+`recording` is absent from a hand-written bundle and present in one produced
+by `plumbline record`; see "Live-target adapters" below.
 
 ### Item schema (items.jsonl, one JSON object per line)
 
@@ -109,9 +112,10 @@ meaningless.
 
 `{"id": "<item id>", "response": "<recorded target output>"}`
 
-Milestone 1 grades recorded transcripts (replay mode). Live-target adapters are a
-later milestone; the bundle format already separates items from responses so a
-live adapter simply writes `responses.jsonl` before scoring.
+Plumbline grades recorded transcripts. A bundle that has items but no
+responses is a **question set**, and `plumbline record` turns one into an
+evidence bundle by asking a live target (below). Grading is the same command
+either way.
 
 ### Integrity (checksums.json)
 
@@ -136,6 +140,108 @@ live adapter simply writes `responses.jsonl` before scoring.
   re-running until green is structurally impossible without a trace: the bundle
   hash in every subsequent report changes, and regression comparison (milestone
   3) refuses numeric comparison across differing hashes.
+
+## Live-target adapters (recording)
+
+Grading recorded transcripts is the right default — it is what makes a run a
+pure function of committed bytes — but something has to produce the
+transcripts. An **adapter** does: `plumbline record` reads a sealed question
+set, asks a live target every prompt in it, and writes a new sealed evidence
+bundle. `plumbline audit` then grades that bundle with the same command,
+statistics and floors as any other.
+
+Recording and grading are separate commands on purpose. Recording is an event
+in the world, against a system that can change under you; grading is a
+function of bytes. Splitting them is what lets the gate stay offline,
+deterministic and byte-reproducible while still being pointed at something
+real.
+
+**The gate never records.** `[adapter]` in a target configuration is read by
+`plumbline record` and by nothing else, and the adapter package is imported by
+that command alone. `tests/test_adapters.py` runs a full `gate` in a
+subprocess and asserts `plumbline.adapters`, `plumbline.network` and
+`plumbline.recording` are not among the imported modules; a second test blocks
+`socket.socket` and audits anyway. An adapter cannot become a hidden network
+dependency of the gate, because the code path does not exist.
+
+### The one module that talks to the network
+
+Everything that opens a socket is in `network.py`, and a test reads the source
+tree to keep it that way. The client refuses rather than doing the dangerous
+thing:
+
+| Bound | Why |
+|---|---|
+| `http`/`https` only | `urllib` will open `file://`. A target URL is configuration; configuration should not be able to read the disk. |
+| No redirects | An audit talks to the endpoint it was pointed at and no other. |
+| No credentials in the URL | They end up in logs and in committed provenance. Headers come from the environment, by name. |
+| Explicit timeout (default 30s, max 300s) | A hung gate is a gate that never fails, which is worse than one that fails. |
+| Response-size ceiling (default 256 KiB) | Exceeding it is an error, not a truncation: grading half an answer is grading nothing. |
+| Retries off by default, capped at 5 | Only on connection failures and 429/5xx. A retried 4xx is a bug being papered over. |
+| `min_interval_seconds` between calls | Recording should not behave like a load test against somebody's public service. |
+| `max_items` (default 250) | Pointing the recorder at the wrong question set should cost one refusal, not ten thousand requests. |
+
+### `http_json`, the first adapter
+
+Provider-neutral by design: the request body is a template in the target
+config and the answer is read out with a dotted path, so pointing Plumbline at
+a service means describing that service rather than waiting for an
+integration. `{prompt}`, `{lang}` and `{item_id}` interpolate; substitution
+happens in the template and never in the data, so a prompt containing a brace
+is inert.
+
+Fail-closed decisions, each of them a failure this avoids:
+
+- **An unrecognised `[adapter]` key is refused, not ignored.** `timout_seconds`
+  quietly dropped is a bound that is not there.
+- **A body template that never uses `{prompt}`** would send every item the
+  same request. That is not a recording, and it is refused.
+- **An unknown placeholder is refused** rather than shipped literally to the
+  target.
+- **A non-string answer at the response pointer is an error.** So is a pointer
+  that does not resolve; the message names what the response actually
+  contained.
+- **A failed call aborts the recording** (`on_error = "abort"`, the default).
+  Nothing is sealed, so an aborted recording cannot be graded at all: the
+  half-written directory has no `checksums.json` and any audit of it is an
+  integrity refusal. `on_error = "record_empty"` is available and records an
+  empty answer, which `smoke` (floor 1.00) then fails on, and which is named
+  in the manifest. Either way a broken integration can never read as a merely
+  mediocre target.
+- **Secrets come from the environment**: `Authorization = { env = "TOKEN" }`.
+  A missing variable is a configuration error rather than an unauthenticated
+  run. A literal value in a header whose name looks like a credential warns,
+  loudly, without refusing — that call is the operator's to make.
+
+### What recording writes
+
+A new bundle, never the old one. Recording into the question set is refused:
+what was asked and what answered both stay on disk. The new manifest carries a
+`recording` block — mode, timestamp, harness version, the adapter's
+description (endpoint without query string or credentials, header *names*
+only, the body template, every bound, and a `request_sha256` over that call
+shape), the question set's name and hash, and any responses recorded empty.
+
+Two decisions worth stating:
+
+- **A recorded bundle is not synthetic unless the recorder says so.** Whether
+  the target was a fixture is a claim only the person running it can make, so
+  `--synthetic` is opt-in and the default is the honest answer for a live
+  system.
+- **The recording is timestamped, and reports still are not.** A report must
+  be a pure function of its inputs, so it carries no wall-clock time. A
+  recording is the opposite kind of object: the same target asked tomorrow may
+  answer differently, so *when* is part of what the evidence means. The
+  timestamp lives in the manifest, inside the dataset hash, fixed at recording
+  time — which keeps both properties. The report surfaces it as data about the
+  evidence, and every audit of that bundle is still byte-reproducible.
+
+`examples/fixture_target.py` is a local stand-in target so the whole loop runs
+offline with nothing installed. Its `--fabricate` flag changes one policy
+number in the English answers only: the recording is legitimate and properly
+sealed, and `cross_language` still catches the number that disagrees with its
+Spanish twin. That is the tamper drill arriving through the live path, where
+no tampering happened at all.
 
 ## Suites
 
@@ -420,9 +526,16 @@ plumbline validate <bundle>          # integrity check, item count, dataset id, 
 plumbline seal <bundle>              # (re)generate checksums.json
 plumbline audit --config <toml> [--out audits] [--seed N]
                 [--baseline PATH] [--require-comparable-baseline]
+plumbline gate  --config <toml> …    # the same audit, shaped for a build log
+plumbline record --config <toml> [--out DIR] [--questions DIR]
+                [--overwrite] [--synthetic] [--note TEXT]
 plumbline baseline --from <report.json> --out <path>
 plumbline --version
 ```
+
+`record` is the only command that opens a socket. With `--out` omitted it
+writes to `[dataset].path`, so one config file serves both `record` and
+`audit`: record into the place the audit grades.
 
 One documented command (`plumbline audit --config …`) runs the full audit from a
 clean checkout, offline.
@@ -475,10 +588,14 @@ close.
 ```
 DESIGN.md  README.md  LICENSE  pyproject.toml
 src/plumbline/          # package: cli, bundle, hashing, judges, lexicons,
-                        #   report, stats, baseline, config, audit
+                        #   report, stats, baseline, config, audit, errors,
+                        #   network, recording
 src/plumbline/suites/   # 13 suites + an (empty) skeletons module
+src/plumbline/adapters/ # live-target adapters; imported by `record` only
 datasets/riverbend-demo/  # synthetic demo bundle (clearly labeled)
 examples/riverbend.toml # demo target config, all suites enabled
+examples/riverbend-live.toml  # the same, recorded from a live target
+examples/fixture_target.py    # a local target to record against, offline
 baselines/              # committed baseline records
 audits/                 # committed reports from the demo audit
 gate/                   # what a consuming repo copies: runner, pin template,
@@ -509,8 +626,9 @@ says so on every line rather than letting a wall of 1.0000 imply otherwise.
 | **M1** | Bundle format + sha256 integrity + refusal-to-score with exit 3; validate/seal/audit CLI; suite framework with `smoke`, `accuracy`, `refusal`; load-bearing per-item override; JSON+MD reports with full provenance; exit codes 0/1/3/4; synthetic demo bundle; tests; tamper-drill (integrity half) documented and verified. **M1 complete.** | R1, R2 (partial), R3 (per-item severity), R5, R7 |
 | **M2** | ✅ Confidence intervals + minimum-detectable-effect per suite; ✅ `cross_language` suite with harsh scoring for numeric policy-fact disagreement, and the tamper drill now catching the planted fact by en/es disagreement (2026-08-15). ✅ `groundedness`, `citation_validity`, `citation_accuracy` suites on a bundled source corpus. **M2 complete.** | R3, R4 (CI/MDE), R2 |
 | **M3** | ✅ Stored-baseline regression comparison: names flipped suites, refuses numeric comparison across differing dataset or judge hashes and says so, and qualifies every surviving delta against that suite's MDE. ✅ `fairness` (pooled + disaggregated), `representational_harms`, `privacy`, `adversarial` suites. **M3 complete.** | R4 (regression), R2 |
-| **M4** | ✅ `accessibility` structural checks (language declaration, labels, live regions, heading order, computed contrast) and ✅ a `multilingual` fidelity suite the roadmap had not anticipated. Remaining: live-target adapters; optional model-based judges, flagged in reports. | R2 |
+| **M4** | ✅ `accessibility` structural checks (language declaration, labels, live regions, heading order, computed contrast) and ✅ a `multilingual` fidelity suite the roadmap had not anticipated. | R2 |
 | **M5** | ✅ Gate integration: `plumbline gate` CI entry point, a single pin file read by both local tooling and CI, run-time resolution (not a package dependency), and legible fail-closed behavior when the harness is unreachable. **M5 complete.** | R6 |
+| **M6** | ✅ Live-target adapters: `plumbline record`, the bounded `http_json` adapter, a question-set loader, recording provenance in the manifest and in every report, and tests proving the gate cannot reach any of it (2026-08-16). Remaining: optional model-based judges, flagged in reports. | R2, R7 |
 
 ## Acceptance record (verified 2026-08-15, clean checkout)
 
@@ -638,3 +756,17 @@ tests, OK**, in about one second, offline, with no third-party packages.
     changed the dataset hash, which invalidated the previous committed report
     and baseline; both were regenerated in the same commit, which is exactly
     the trace the design promises.
+21. **Recording is a separate command from grading**, and the network lives in
+    one module the gate does not import. The spec says "deterministic and
+    offline by default"; the cheapest way to keep a default is to make the
+    alternative unreachable from the default's code path, and then test that.
+22. **A recording writes a new bundle and never over its question set.** The
+    question set's hash goes in the new manifest, so what was asked is always
+    recoverable from what answered.
+23. **A recorded bundle is dated; a report still is not.** Recording is an
+    event, grading is a function. The timestamp goes inside the hashed
+    manifest, which keeps the report byte-reproducible while still telling a
+    reader when the evidence was captured.
+24. **An adapter refuses unknown configuration keys.** A misspelled bound is a
+    bound that is not there, and this is a harness whose whole argument is
+    that silent skips are the enemy.

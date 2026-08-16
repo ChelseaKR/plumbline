@@ -3,3 +3,6 @@ __pycache__/
 *.egg-info/
 build/
 dist/
+
+# Recordings are evidence you make, not evidence shipped with the instrument.
+recordings/

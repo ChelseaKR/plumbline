@@ -25,8 +25,9 @@ third party could defend:
 
 Pre-release (`0.1.0.dev0`). Every capability in the functional specification
 is implemented: thirteen scoring suites, per-suite confidence intervals and
-minimum detectable effect, baseline regression comparison, and a pinned
-fail-closed CI gate. 172 tests, standard library only, offline.
+minimum detectable effect, baseline regression comparison, a pinned
+fail-closed CI gate, and live-target recording that the gate cannot reach.
+241 tests, standard library only, offline.
 
 Built from a functional specification, started 2026-08-15, implemented with AI
 agents (Claude Code), reviewed and directed by a human. `DESIGN.md` carries
@@ -242,14 +243,57 @@ A report that only showed the scores would hide that. Suites whose score is
 not a sample statistic say so and print `n/a` with the reason, rather than an
 interval that looks like evidence. See `DESIGN.md` for the methods and every constant.
 
+## Recording against a live target
+
+Plumbline grades an evidence bundle. `plumbline record` is what produces one
+from a system that is actually running: it reads a sealed **question set**
+(items, sources, interface snapshot — no responses yet), asks the target every
+prompt, and writes a new sealed bundle. Grading it is the same `audit` command
+as always.
+
+The whole loop runs offline against the bundled fixture target:
+
+```sh
+python3 examples/fixture_target.py &          # a local stand-in on 127.0.0.1:8099
+
+PYTHONPATH=src python3 -m plumbline record --config examples/riverbend-live.toml --synthetic
+PYTHONPATH=src python3 -m plumbline audit  --config examples/riverbend-live.toml
+```
+
+One config file serves both commands: `record` writes to `[dataset].path`,
+which is what `audit` then grades.
+
+Try it with `python3 examples/fixture_target.py --fabricate`, which changes one
+policy number in the English answers only. The recording is legitimate and
+properly sealed — nothing was tampered with — and `cross_language` still fails,
+because English now says 900 where Spanish says 850. That is the tamper drill
+arriving through the live path.
+
+**The gate never records.** The `[adapter]` table is read by `plumbline record`
+and by nothing else. A full `gate` run does not import the adapter package at
+all, and the tests assert it: one runs the gate in a subprocess and inspects
+`sys.modules`, another blocks `socket.socket` and audits anyway. Everything
+that opens a socket lives in one module, and a test reads the source tree to
+keep it there. An adapter cannot become a hidden network dependency of your
+merge gate, because there is no code path for it.
+
+Adapters are bounded on purpose: http/https only, no redirects, no credentials
+in the URL, an explicit timeout, a response-size ceiling, retries off by
+default, a minimum interval between calls, and a ceiling on how many items may
+be sent at all. A failed call aborts the recording and seals nothing — a
+broken integration must never read as a target that merely did badly. Secrets
+come from the environment (`Authorization = { env = "TOKEN" }`); header values
+are never written into a bundle, and a literal-looking credential in a config
+file warns.
+
+A recorded bundle says so on its face. Its manifest carries the endpoint, the
+call shape, every bound, the question set's hash, and when the recording was
+made; every report of it repeats that above the scores.
+
 ## What is not implemented
 
-Two things, both deliberate and both on the roadmap in `DESIGN.md`:
+One thing, deliberate, and on the roadmap in `DESIGN.md`:
 
-- **Live-target adapters.** Plumbline grades recorded transcripts. Something
-  else has to produce `responses.jsonl` by talking to the system under test;
-  the bundle format separates items from responses precisely so an adapter can
-  slot in without changing anything that is scored.
 - **Model-based judges.** The default judge is lexical, which is what makes
   the harness deterministic and keyless. A model judge would be optional,
   clearly separated, and flagged in every report that used one — a report that

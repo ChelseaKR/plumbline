@@ -24,8 +24,15 @@ from .baseline import (
     summarize_for_terminal,
     write_baseline,
 )
-from .bundle import BundleError, IntegrityError, load as load_bundle, seal as seal_bundle
+from .bundle import (
+    BundleError,
+    IntegrityError,
+    load as load_bundle,
+    load_questions as load_bundle_questions,
+    seal as seal_bundle,
+)
 from .config import ConfigError, load_config
+from .errors import OutboundError
 from .suites import EmptyPopulationError
 
 EXIT_PASS = 0
@@ -83,6 +90,52 @@ def cmd_baseline(args: argparse.Namespace) -> int:
     print(f"judge:    {record['judge_config_sha256'][:12]}")
     print("note:     comparison against this baseline is refused if either "
           "hash changes")
+    return EXIT_PASS
+
+
+def cmd_record(args: argparse.Namespace) -> int:
+    """Ask a live target every question in a question set and write a new,
+    sealed evidence bundle. The only command in Plumbline that opens a socket;
+    `audit` and `gate` grade what this leaves behind."""
+    from .adapters import make_adapter          # imported here, and only here,
+    from .recording import record               # so the gate path never can
+
+    config = load_config(Path(args.config))
+    adapter, adapter_warnings = make_adapter(config.adapter)
+    _warn(adapter_warnings)
+
+    # One config, both commands: by default the recording is written where
+    # `[dataset].path` says the graded bundle lives, and the question set is
+    # whatever `[adapter].questions` names. Recording into the question set is
+    # refused, so a config that sets neither gets a legible error rather than
+    # a bundle that overwrote its own questions.
+    questions_path = (Path(args.questions) if args.questions
+                      else config.questions_path or config.dataset_path)
+    out_dir = Path(args.out) if args.out else config.dataset_path
+    questions = load_bundle_questions(questions_path)
+    _warn(questions.unreviewed_translation_warnings())
+
+    print(f"target:    {config.name}")
+    print(f"adapter:   {adapter.kind} -> {adapter.describe()['endpoint']}")
+    print(f"questions: {questions.name} ({len(questions.items)} items, "
+          f"dataset {questions.dataset_id})")
+
+    result = record(questions=questions, adapter=adapter,
+                    out_dir=out_dir, overwrite=args.overwrite,
+                    synthetic=args.synthetic, note=args.note)
+
+    print(f"recorded:  {result.recorded} responses")
+    if result.empty:
+        _warn([f"item {e['id']} recorded an empty response: {e['error']}"
+               for e in result.empty])
+        print(f"empty:     {len(result.empty)} "
+              f"(the smoke suite fails on these; nothing was skipped)")
+    print(f"bundle:    {result.out_dir}")
+    print(f"dataset:   {result.dataset_id} (sha256 {result.dataset_sha256})")
+    print(f"recorded at {result.manifest['recording']['recorded_at']}; audit "
+          f"this bundle with `plumbline audit`")
+    print("note:      its dataset hash is new, so comparison against a "
+          "baseline built from other evidence will be refused, as it should be")
     return EXIT_PASS
 
 
@@ -220,6 +273,31 @@ def build_parser() -> argparse.ArgumentParser:
     _add_baseline_arguments(p_gate)
     p_gate.set_defaults(func=cmd_gate)
 
+    p_record = sub.add_parser(
+        "record",
+        help="ask a live target every question in a question set and write a "
+             "new sealed evidence bundle (the only command that uses the "
+             "network)")
+    p_record.add_argument("--config", required=True,
+                          help="target configuration (TOML) with an [adapter] table")
+    p_record.add_argument("--out",
+                          help="directory to write the recorded bundle to; "
+                               "defaults to [dataset].path, so `record` and "
+                               "`audit` can share one config file")
+    p_record.add_argument("--questions",
+                          help="question set to record against; defaults to "
+                               "[adapter].questions, then [dataset].path")
+    p_record.add_argument("--overwrite", action="store_true",
+                          help="replace an existing recording at --out")
+    p_record.add_argument(
+        "--synthetic", action="store_true",
+        help="mark the recorded bundle synthetic: the target was a fixture or "
+             "a demonstration, not a real service")
+    p_record.add_argument("--note",
+                          help="a line recorded in the bundle manifest saying "
+                               "what this recording was for")
+    p_record.set_defaults(func=cmd_record)
+
     p_baseline = sub.add_parser(
         "baseline",
         help="write the committed baseline record distilled from a report")
@@ -255,7 +333,7 @@ def main(argv: list[str] | None = None) -> int:
               file=sys.stderr)
         return EXIT_INTEGRITY_REFUSAL
     except (ConfigError, BundleError, BaselineError, EmptyPopulationError,
-            ValueError, KeyError) as e:
+            OutboundError, ValueError, KeyError) as e:
         msg = e.args[0] if e.args else e
         print(f"CONFIGURATION ERROR: {msg}", file=sys.stderr)
         return EXIT_CONFIG_ERROR
