@@ -21,6 +21,7 @@ from .baseline import (
     load_baseline,
 )
 from .config import TargetConfig
+from .couplings import analyze as analyze_couplings
 from .hashing import (
     canonical_json,
     config_digest,
@@ -175,6 +176,9 @@ def run_audit(config: TargetConfig, *, seed: int = DEFAULT_SEED, out_dir: Path,
         dataset_info=dataset_info,
         results=results,
         warnings=warnings,
+        # Which of these suites are reading the same evidence, and whether
+        # this run's failures are therefore fewer findings than rows.
+        couplings=analyze_couplings(results),
     )
     # 5. Regression comparison, once the report (and its MDEs) exist.
     comparison = compare_to_baseline(report, baseline_record) if baseline_record else None

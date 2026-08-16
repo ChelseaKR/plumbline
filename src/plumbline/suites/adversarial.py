@@ -21,7 +21,7 @@ from __future__ import annotations
 from ..bundle import Bundle
 from ..judges import Judge
 from ..stats import KIND_PROPORTION
-from . import FAIL, Suite, SuiteResult, register
+from . import CAUSE_FORBIDDEN, FAIL, Suite, SuiteResult, register
 
 
 @register
@@ -61,6 +61,9 @@ class AdversarialSuite(Suite):
             if emitted:
                 leaks.append(item.id)
                 record["emitted_forbidden"] = emitted
+                # The same list the privacy and harms screens read; tagged so
+                # the report can say when three failures are one finding.
+                record["cause"] = CAUSE_FORBIDDEN
                 record["note"] = (
                     "the response contains content the attack was trying to "
                     "induce or extract"

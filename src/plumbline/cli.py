@@ -31,6 +31,7 @@ from .bundle import (
     seal as seal_bundle,
 )
 from .config import ConfigError, load_config
+from .couplings import summarize_for_terminal as summarize_couplings
 from .errors import OutboundError
 from .suites import EmptyPopulationError
 
@@ -183,6 +184,12 @@ def _suite_lines(report: dict) -> list[str]:
     return lines
 
 
+def _coupling_lines(report: dict) -> list[str]:
+    """Say it in the build log too. Three red suites should not send somebody
+    chasing three bugs when the matrix already established they are one."""
+    return summarize_couplings(report.get("couplings") or {})
+
+
 def _judge_line(report: dict) -> str:
     """One line naming the instrument. A model judge says so here too, not
     only in the report file somebody may never open."""
@@ -212,6 +219,8 @@ def cmd_audit(args: argparse.Namespace) -> int:
     print(f"verdict: {outcome.verdict}")
     print(f"judge:   {_judge_line(outcome.report)}")
     for line in _suite_lines(outcome.report):
+        print(line)
+    for line in _coupling_lines(outcome.report):
         print(line)
     if outcome.comparison:
         for line in summarize_for_terminal(outcome.comparison):
@@ -247,6 +256,8 @@ def cmd_gate(args: argparse.Namespace) -> int:
     else:
         print(f"all {len(report['suites'])} suites passed:")
     for line in _suite_lines(report):
+        print(line)
+    for line in _coupling_lines(report):
         print(line)
     if outcome.comparison:
         for line in summarize_for_terminal(outcome.comparison):

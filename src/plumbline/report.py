@@ -13,6 +13,7 @@ import json
 from pathlib import Path
 
 from .baseline import render_markdown as render_baseline_markdown
+from .couplings import render_markdown as render_couplings_markdown
 from .suites import SuiteResult
 
 REPORT_JSON = "report.json"
@@ -28,6 +29,7 @@ def build_report(
     dataset_info: dict,
     results: list[SuiteResult],
     warnings: list[str],
+    couplings: dict | None = None,
 ) -> dict:
     return {
         "verdict": verdict,  # first key, per spec: overall verdict first
@@ -54,6 +56,10 @@ def build_report(
             }
             for r in results
         ],
+        # Which enabled suites are not independent signals, and what that
+        # means for this run's failures. A reader counting red rows would
+        # otherwise count one finding several times.
+        "couplings": couplings,
         "warnings": warnings,
         # Filled in by the audit runner after the suites are scored, because a
         # comparison needs the finished report (its MDEs in particular).
@@ -62,6 +68,7 @@ def build_report(
             "mde": "mde is the smallest true drop in a suite's score that a same-sized future run could tell apart from noise; a regression smaller than it would not be detectable at this sample size",
             "hard_failures": "a suite with hard_failures fails regardless of its pooled score: a load-bearing policy fact was wrong, and pooled averages absorb single-item fabrications",
             "reproducibility": "identical inputs and seed produce byte-identical reports; reports carry no timestamps by design",
+            "couplings": "suites that read the same evidence are not independent signals; where two of them failed, the couplings block says whether that is one finding or two",
         },
     }
 
@@ -212,6 +219,8 @@ def render_markdown(report: dict) -> str:
     if any((s.get("stats") or {}).get("reason") for s in report["suites"]
            if s["ci"] is None):
         lines.append("")
+    if report.get("couplings"):
+        lines.extend(render_couplings_markdown(report["couplings"]))
     if report.get("baseline"):
         lines.extend(render_baseline_markdown(report["baseline"]))
     lines.append("## Warnings")

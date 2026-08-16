@@ -17,6 +17,12 @@ from ..stats import KIND_PROPORTION
 PASS = "PASS"
 FAIL = "FAIL"
 
+# A shared input, tagged on the per-item record of any suite that failed an
+# item because of it. `couplings.py` reads these tags to say, from the run's
+# own evidence rather than from an assertion, when several failing suites are
+# one finding. Three suites screen every response against `item.forbidden`.
+CAUSE_FORBIDDEN = "forbidden"
+
 # Not a third verdict. A suite's verdict stays PASS or FAIL, because a third
 # state at that level would be a silent skip wearing a label. UNVERIFIABLE is
 # a per-ITEM outcome: the evidence does not let this item be checked, so it is
