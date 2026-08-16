@@ -938,12 +938,14 @@ And it says nothing whatever about any real chat system.
 | **M6** | ✅ Live-target adapters: `plumbline record`, the bounded `http_json` adapter, a question-set loader, recording provenance in the manifest and in every report, and tests proving the gate cannot reach any of it (2026-08-16). | R2, R7 |
 | **M7** | ✅ Optional model-based judge: separated module, cached-by-default recorded judgments, refused inside the gate, named on the face of every report and baseline it produces, and folded into the judge configuration hash so differently-judged runs cannot compare as equal (2026-08-16). **Every capability in the specification is now implemented.** | R2 |
 
-## Acceptance record (verified 2026-08-16, clean checkout)
+## Acceptance record (verified 2026-08-17, clean checkout)
 
 Every line below is an observed result from `git clone`-ing this repository
 into a temporary directory and running the commands, not a claim about what
-the code should do. Figures that moved since the 2026-08-15 record moved for
-reasons named here.
+the code should do. Figures that moved since the 2026-08-16 record moved for
+reasons named here: the demo bundle grew from 26 items to 174, the judge
+configuration gained language rules, and the provenance block gained a harness
+source digest.
 
 **Clean checkout, one documented command, offline, identical re-run.**
 `PYTHONPATH=src python3 -m plumbline gate --config examples/riverbend.toml
@@ -952,76 +954,98 @@ reasons named here.
 reports were byte-identical to the committed ones.
 
 **Every enabled suite reports score, floor, verdict, CI and MDE.** All
-thirteen, in the committed report. Nine score a perfect 1.0000, with MDEs from
-0.115 to 0.750 — the demonstration bundle saying out loud what it cannot
-detect. `accessibility` reports `n/a` for both figures with the reason in the
-report: five fixed checks are a census, not a sample.
+thirteen, in the committed report, with MDEs between **0.017 and 0.064** —
+down from 0.115–0.750 before the bundle was grown, which is the difference
+between statistics a reader can see and statistics a reader can use.
+`accessibility` reports `n/a` for both figures with the reason in the report:
+five fixed checks are a census, not a sample.
 
 **Reports carry the provenance block.** Committed
-`audits/67beb984aa4536b7/report.{json,md}`: run id `67beb984aa4536b7`, harness
-`0.1.0.dev0`, seed `1729`, dataset `1c14ef2522da`, judge `lexical`
-(*deterministic*), judge config `ca2a9ce20387…`, verdict as the first key and
-the first heading. The run id moved from `1682f39507e03965` because the
-baseline record gained `judge_kind` and the baseline is part of the run's
-identity — the trace working as designed, visible as a rename in git.
+`audits/eb7f6fd58e3e8428/report.{json,md}`: run id `eb7f6fd58e3e8428`, harness
+`0.1.0.dev0`, harness source `9fc43433f12a…`, seed `1729`, dataset
+`a827533387cb`, judge `lexical` (*deterministic*), judge config
+`23c0fd04690d…`, language profiles `ar, en, es`, verdict as the first key and
+the first heading.
 
-**Unreviewed-translation warning on every run, never fatal.** `rb-004` warns on
-`validate`, on `audit`, on `gate` and on `record`, on first runs and re-runs,
-and the exit code stayed 0.
+**The committed artifacts cannot go stale silently.**
+`tests/test_self_application.py` re-runs the documented command and compares
+the committed report byte for byte, checks that exactly one audit directory
+exists, and checks the baseline against the bundle and judge that actually
+exist. `tests/test_demo_bundle.py` regenerates the demo bundle and compares
+bytes. `tests/test_defect_matrix.py` rebuilds the defect-injection proof.
+
+**Every suite was observed failing on a defect it exists to catch.**
+`python3 tools/defect_matrix.py` → **17 of 17 cases held**, all 13 suites
+covered, committed to `proof/matrix.md`. In the clean checkout,
+`tools/defect_matrix.py --check` reported `proof/ is current`.
+
+**Unreviewed-translation warning on every run, never fatal.**
+`deadline-es-formal` and `hearing-es-plain` warn on `validate`, on `audit`, on
+`gate` and on `record`, on first runs and re-runs, and the exit code stayed 0.
 
 **Tamper drill, end to end** (the README documents it verbatim and it is
 repeatable):
 
 | Step | Observed |
 |---|---|
-| Plant `900` over `850` in `responses.jsonl` | — |
+| Plant `900` over `850` in `responses.jsonl` (3 responses) | — |
 | First run | exit **3**, `INTEGRITY REFUSAL … content mismatch: responses.jsonl`, **no report written** |
-| `plumbline seal` | dataset hash `1c14ef2522da` → `44f59018fbe4` — the trace |
+| `plumbline seal` | dataset hash `a827533387cb` → `967dc13e1f32` — the trace |
 | Second run | exit **1**, `GATE: FAIL`, 3 of 13 suites failed |
 
-The three that failed are `accuracy` (0.8680, **above** its 0.75 floor, failed
-on load-bearing items rb-001/rb-014/rb-021), `groundedness` (0.8166, above its
-0.70 floor, because 900 appears in no source) and `cross_language` (0.6250,
-floor 1.00: English says 900, Spanish still says 850). The regression block in
-the same report refused numeric comparison, named the moved hash, and reported
-`PASS → FAIL` with all three flips.
+The three that failed are `accuracy` (0.8622, **above** its 0.75 floor),
+`groundedness` (0.8518, above its 0.70 floor) and `cross_language` (0.9286,
+floor 1.00). Across 174 items the planted fabrication moves the accuracy mean
+by **0.0016**: the pooled averages absorb it almost entirely and all three
+suites fail on the load-bearing severity rule instead. That is the
+specification's R3 argument as a measurement rather than an assertion. The
+regression block in the same report refused numeric comparison, named the
+moved hash, and reported `PASS → FAIL` with all three flips.
 
 **The same fabrication caught through the live path, with nothing tampered.**
 `python3 examples/fixture_target.py --fabricate` serves the demo answers with
 one English number changed. `plumbline record` produced a legitimate, properly
-sealed bundle (`f2189eb4d3fc`); `plumbline gate` on it exited **1** with the
-same three suites failing. No integrity refusal, because nothing was tampered
-with — the evidence is exactly what the target said.
+sealed bundle; `plumbline gate` on it exited **1** with the same three suites
+failing. No integrity refusal, because nothing was tampered with — the
+evidence is exactly what the target said.
 
-**Record then audit, from the clean checkout, offline.** Against the bundled
-fixture target on the loopback interface: 26 responses recorded, new dataset
-`4b6b1c3c0a6a`, manifest carrying the endpoint, call shape, bounds, question
-set hash `1c14ef2522da` and the recording timestamp; `plumbline audit` on the
-result → exit **0**, and the report names the recording above the scores.
+**Record then audit against a program, with no socket anywhere.** From the
+clean checkout: `plumbline record --config examples/riverbend-cli.toml
+--synthetic` ran `examples/fixture_cli_target.py` 174 times, recorded 174
+responses, and sealed a new bundle whose manifest carries the argv, the
+working directory's program, its `program_sha256`, the declared environment
+variable *names*, every bound and the recording timestamp; `plumbline audit`
+on the result → exit **0**.
 
-**The gate cannot reach the adapters or a live model judge.** A full `gate` run
-in a subprocess imports neither `plumbline.adapters` nor `plumbline.network`
-nor `plumbline.recording` nor `plumbline.model_judge`; the same run completes
-with `socket.socket` replaced by a function that raises. A `gate` against a
-config whose judge is in `mode = "live"` exits **4** with `not a gate` on
-stderr, having made zero requests to the (running, reachable) server.
+**The gate cannot reach an adapter, a program, a socket or a live model
+judge.** A full `gate` run in a subprocess imports none of
+`plumbline.adapters`, `plumbline.network`, `plumbline.recording`,
+`plumbline.model_judge` — nor the standard library's `subprocess` or
+`socket`. The same run completes with `socket.socket` replaced by a function
+that raises, and again with `subprocess.Popen` replaced by one that raises. A
+`gate` against a config whose judge is in `mode = "live"` exits **4** with
+`not a gate` on stderr, having made zero requests to the (running, reachable)
+server.
 
 **A model-judged report says so on its face.** Judgments recorded live against
 a local server, then replayed in cached mode against an endpoint nothing is
-listening on: exit **0**, `judge: model NOT DETERMINISTIC — model
-test-grader-1, mode cached` on the terminal, the notice on stderr, `**Scored
-by a model judge.**` above the provenance table, `"deterministic": false` in
-the JSON, and `judge_kind: model` in any baseline built from it. Compared
-against a lexical baseline, the run refused numeric comparison naming the
-judge hash and still reported `accuracy: FAIL → PASS`.
+listening on: exit **0**, `judge: model NOT DETERMINISTIC` on the terminal,
+the notice on stderr, `**Scored by a model judge.**` above the provenance
+table, `"deterministic": false` in the JSON, and `judge_kind: model` in any
+baseline built from it.
+
+**Arabic, and languages nobody shipped a profile for.** `ar` is detected by
+script, including diacritized text that the normalizer shreds into single
+letters; `[judge.languages]` puts a consumer's own profile in force, by script
+or by word list, and the profiles in force are named in both report formats
+and covered by the judge configuration hash.
 
 **A consuming repository, pinned to this commit, gates on it.** The bumped
 `gate/plumbline.pin.example` was exercised rather than only edited: copied
 into a scratch repository alongside `plumbline-gate.sh` and a target config,
 `./plumbline-gate.sh` resolved the pinned commit from GitHub at run time,
-scored the bundle and exited **0**; with one number edited in the consuming
-repo's own evidence it exited **3** with an integrity refusal, naming both the
-changed file and a stray unlisted one.
+scored the consuming repo's own copy of the bundle and exited **0**; with one
+number edited in that copy it exited **3** with an integrity refusal.
 
 **With the harness unreachable, a consuming repo's gate fails rather than
 skips.** `tests/test_gate.py` runs `gate/plumbline-gate.sh` as a real
@@ -1031,10 +1055,12 @@ directory was never created. The same file covers a missing pin, a pin missing
 `config` or `ref`, a branch name where a commit hash is required, and an
 unknown pin key — all exit 4.
 
-**Tests**: `PYTHONPATH=src:tests python3 -m unittest discover -s tests` → **275
-tests, OK**, in about two seconds, offline, with no third-party packages. The
-HTTP paths are exercised against real servers on the loopback interface, not
-against mocked openers.
+**Tests**: `PYTHONPATH=src:tests python3 -m unittest discover -s tests` →
+**377 tests, OK**, in about fifteen seconds, offline, with no third-party
+packages. Nine of those seconds are the defect-injection matrix rebuilding
+itself, which is the right price for a proof that cannot go stale. The HTTP
+paths are exercised against real servers on the loopback interface and the
+subprocess paths against real child processes, not against mocks.
 
 **Continuous integration**: deliberately none. `.github/workflows/tests.yml.disabled`
 says what this repository's own gate would be and is inert — GitHub Actions
@@ -1042,6 +1068,19 @@ reads only `.yml`/`.yaml`, so it never runs and never queues. The account's
 Actions budget is exhausted, and a permanently red or queued check teaches
 people to ignore checks, which is the habit this project argues against.
 Renaming the file is the entire act of enabling it.
+
+## Pointing it at something real
+
+Not done, deliberately, and `docs/first-real-target.md` is the reason written
+down rather than the omission left unexplained. Auditing a real public-sector
+chat system involves a third party's service, their terms of use, their
+bandwidth, and members of the public who depend on the thing being graded.
+That document records what would have to be true first: target selection
+criteria, the split between a quality question set and an adversarial one that
+needs written permission, rate and robots discipline, what may and may not be
+published about a named agency, and two disclosure tracks with timelines. The
+decision to run belongs to the repository owner and the document is explicit
+that it is not that decision.
 
 ## Decisions the spec left open (recorded)
 

@@ -26,9 +26,16 @@ third party could defend:
 Pre-release (`0.1.0.dev0`). Every capability in the functional specification
 is implemented: thirteen scoring suites, per-suite confidence intervals and
 minimum detectable effect, baseline regression comparison, a pinned
-fail-closed CI gate, live-target recording, and an optional model judge —
-neither of which the gate can reach. 275 tests, standard library only,
+fail-closed CI gate, live-target recording over HTTP or against a local
+program, and an optional model judge — none of which the gate can reach. Every
+suite has been **observed failing** on a defect it exists to catch; see
+[`proof/matrix.md`](proof/matrix.md). 377 tests, standard library only,
 offline.
+
+Not done, deliberately: nothing here has been pointed at a real public-sector
+system. [`docs/first-real-target.md`](docs/first-real-target.md) records what
+would have to be true first — target selection, rate and disclosure
+discipline, and what may and may not be published about a named agency.
 
 There is deliberately no CI badge here: this repository runs no GitHub Actions
 workflow. `.github/workflows/tests.yml.disabled` says what its own gate would
@@ -267,6 +274,12 @@ valid. Pass `--require-comparable-baseline` if you want it to.
   suppressed.
 - **Statistical honesty**: every suite reports a 95% confidence interval and a
   minimum detectable effect at the sample size used.
+- **A committed proof that every suite can fail**, regenerated and checked on
+  every test run: [`proof/matrix.md`](proof/matrix.md).
+- **The harness held to its own standard**: the demo bundle is regenerated
+  from a committed script and byte-checked, the committed report is
+  byte-checked against a fresh run, and every report names the sha256 of the
+  harness source that produced it, not just a version string.
 
 ## Languages
 
