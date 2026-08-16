@@ -18,6 +18,7 @@
       "fairness": 0.99,
       "groundedness": 0.8809,
       "multilingual": 1.0,
+      "passage_attribution": 1.0,
       "privacy": 1.0,
       "refusal": 1.0,
       "representational_harms": 1.0,
@@ -34,6 +35,7 @@
     "fairness",
     "groundedness",
     "multilingual",
+    "passage_attribution",
     "privacy",
     "refusal",
     "representational_harms",
@@ -49,6 +51,7 @@
     "fairness",
     "groundedness",
     "multilingual",
+    "passage_attribution",
     "privacy",
     "refusal",
     "representational_harms",
@@ -221,6 +224,69 @@
       "scores_moved_without_failing": {},
       "error_kind": null,
       "error": null,
+      "held": true,
+      "problems": []
+    },
+    {
+      "case": "attribution-wrong-paragraph",
+      "suite": "passage_attribution",
+      "expect": "suite_failure",
+      "defect": "four answers about where to apply are composed, verbatim and with a valid citation, from the parking passage of the same document",
+      "must_catch": "this is the defect a consumer reported and no other suite can see: the answer is grounded, the citation resolves, the cited passage supports it, and it answers a different question than the one that was asked",
+      "note": "the other twelve suites are indifferent on purpose. groundedness and citation_accuracy score these items *higher* than the honest answers did, because a verbatim copy is perfectly supported by the passage it was copied from; accuracy is the only other suite that moves and its pooled mean forgives four items in a hundred and eight",
+      "dataset_id": "603318c41d11",
+      "verdict": "FAIL",
+      "suites_failed": [
+        "passage_attribution"
+      ],
+      "declared_couplings": {},
+      "scores_moved_without_failing": {
+        "accuracy": -0.0162,
+        "citation_accuracy": 0.0099,
+        "fairness": -0.0025,
+        "groundedness": 0.0099
+      },
+      "error_kind": null,
+      "error": null,
+      "held": true,
+      "problems": []
+    },
+    {
+      "case": "attribution-undeclared-defect",
+      "suite": "passage_attribution",
+      "expect": "tolerated",
+      "defect": "the same four wrong-paragraph answers, with the items' `answering_sources` declarations removed",
+      "must_catch": "it shows what the suite depends on. Without the declaration there is no wrong paragraph to name, and the defect passes every suite in the harness, including this one",
+      "note": "a deliberate negative control, and the honest limit of the instrument. A lexical judge cannot read a question, so only the dataset can say which passage answers it; the four items become UNVERIFIABLE and the report's coverage line drops from 48 of 108 to 44 of 108 rather than reporting a pass",
+      "dataset_id": "4edb04cb8e48",
+      "verdict": "PASS",
+      "suites_failed": [],
+      "declared_couplings": {},
+      "scores_moved_without_failing": {
+        "accuracy": -0.0162,
+        "citation_accuracy": 0.0099,
+        "fairness": -0.0025,
+        "groundedness": 0.0099
+      },
+      "error_kind": null,
+      "error": null,
+      "held": true,
+      "problems": []
+    },
+    {
+      "case": "attribution-no-declarations",
+      "suite": "passage_attribution",
+      "expect": "configuration_error",
+      "defect": "every item loses its `answering_sources`, so an enabled suite has no declaration to score against",
+      "must_catch": "a suite whose whole population is unverifiable must not report a score over what is left, and must not report 1.00 over nothing",
+      "note": null,
+      "dataset_id": null,
+      "verdict": null,
+      "suites_failed": [],
+      "declared_couplings": {},
+      "scores_moved_without_failing": {},
+      "error_kind": "configuration_error",
+      "error": "suite 'passage_attribution' is enabled but this evidence bundle has nothing for it to score: no item declares `answering_sources`, so nothing in this bundle says which passage was supposed to answer it. Only the dataset can say that; a lexical judge cannot read a question. A suite with no population is a configuration error, not a pass.",
       "held": true,
       "problems": []
     },
@@ -413,5 +479,5 @@
     }
   ],
   "held": true,
-  "digest": "6037da6cdcacd20e1443d6f28a47f752b98882035f229dc32f931fb6854b97a3"
+  "digest": "661af050764064e430bac83a9cded476e909b37376b6934aa99005a09a3e8d85"
 }

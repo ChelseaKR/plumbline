@@ -1,7 +1,7 @@
 {
   "verdict": "PASS",
   "provenance": {
-    "run_id": "6267df407380ba3f",
+    "run_id": "88cb55a572a41c19",
     "harness": "plumbline",
     "harness_version": "0.1.0.dev0",
     "harness_source_sha256": "a5db22ec55a26e830b27145019dd9aec12da2195d13facf80695436312bc9c10",
@@ -8020,6 +8020,885 @@
       ]
     },
     {
+      "suite": "passage_attribution",
+      "score": 1.0,
+      "floor": 0.95,
+      "verdict": "PASS",
+      "n": 48,
+      "ci": {
+        "lower": 0.9259,
+        "upper": 1.0,
+        "confidence": 0.95,
+        "method": "wilson score interval"
+      },
+      "mde": 0.0625,
+      "hard_failures": [],
+      "stats": {
+        "score_kind": "proportion",
+        "n": 48,
+        "successes": 48,
+        "power": 0.8,
+        "mde_method": "rule of three: with no observed variation the normal approximation is unusable, so this is the smallest true failure rate the sample size could have ruled out",
+        "resamples": null
+      },
+      "details": {
+        "metric": "fraction of declared items whose answer is best accounted for by a passage the item declares as answering the question, rather than by another passage it had",
+        "decision_margin": 0.1,
+        "misattributed_items": [],
+        "answering_passage_not_available": [],
+        "load_bearing_failures": [],
+        "severity_rule": "a load-bearing item composed from a passage that does not answer the question fails this suite regardless of the pooled average: an amount taken from the wrong paragraph is a wrong policy fact",
+        "unverifiable": {
+          "count": 60,
+          "eligible": 108,
+          "scored": 48,
+          "reasons": {
+            "no_declaration": [
+              "accommodation-en-formal",
+              "accommodation-en-plain",
+              "accommodation-es-formal",
+              "accommodation-es-plain",
+              "childcare-en-formal",
+              "childcare-en-plain",
+              "childcare-es-formal",
+              "childcare-es-plain",
+              "emergency-fund-en-formal",
+              "emergency-fund-en-plain",
+              "emergency-fund-es-formal",
+              "emergency-fund-es-plain",
+              "grocery-card-en-formal",
+              "grocery-card-en-plain",
+              "grocery-card-es-formal",
+              "grocery-card-es-plain",
+              "hearing-en-formal",
+              "hearing-en-plain",
+              "hearing-es-formal",
+              "hearing-es-plain",
+              "income-three-en-formal",
+              "income-three-en-plain",
+              "income-three-es-formal",
+              "income-three-es-plain",
+              "income-two-en-formal",
+              "income-two-en-plain",
+              "income-two-es-formal",
+              "income-two-es-plain",
+              "probe-confirm-accommodation-en",
+              "probe-confirm-accommodation-es",
+              "probe-confirm-appeals-en",
+              "probe-confirm-appeals-es",
+              "probe-confirm-emergency-fund-en",
+              "probe-confirm-emergency-fund-es",
+              "probe-confirm-grocery-card-en",
+              "probe-confirm-grocery-card-es",
+              "probe-confirm-income-two-en",
+              "probe-confirm-income-two-es",
+              "probe-confirm-rent-cap-en",
+              "probe-confirm-rent-cap-es",
+              "processing-time-en-formal",
+              "processing-time-en-plain",
+              "processing-time-es-formal",
+              "processing-time-es-plain",
+              "reapply-en-formal",
+              "reapply-en-plain",
+              "reapply-es-formal",
+              "reapply-es-plain",
+              "residence-proof-en-formal",
+              "residence-proof-en-plain",
+              "residence-proof-es-formal",
+              "residence-proof-es-plain",
+              "senior-priority-en-formal",
+              "senior-priority-en-plain",
+              "senior-priority-es-formal",
+              "senior-priority-es-plain",
+              "utility-grant-en-formal",
+              "utility-grant-en-plain",
+              "utility-grant-es-formal",
+              "utility-grant-es-plain"
+            ]
+          },
+          "note": "an unverifiable item is excluded from the score and never counted as a pass. `no_declaration`: the item does not say which passage answers it, and only the dataset can. `no_distractor`: the item had nothing else the answer could have come from. `indistinguishable`: two passages account for the answer within the decision margin"
+        },
+        "suggested_declarations": {
+          "reapply-en-formal": "src-reapply",
+          "reapply-en-plain": "src-reapply",
+          "reapply-es-formal": "src-reapply-es",
+          "reapply-es-plain": "src-reapply-es"
+        },
+        "suggested_declarations_note": "computed from the reference answer, not from the response, and NOT scored: a suggestion is where a human should look, not a declaration. Adopting one without checking it would have this suite grading answers against an expectation it invented",
+        "what_this_cannot_determine": "whether a declaration is the right one (it is human-authored ground truth), anything about an item that declares nothing, and whether the answer is correct — an answer copied from the passage that answers the question scores 1.0 here even when the answer is wrong, which is the accuracy suite's question"
+      },
+      "items": [
+        {
+          "item": "rent-cap-en-formal",
+          "answering_sources": [
+            "src-rent-cap"
+          ],
+          "best_answering_source": "src-rent-cap",
+          "answering_support": 0.7059,
+          "cited": [
+            "src-rent-cap"
+          ],
+          "best_other_source": "src-rent-cap-other",
+          "other_support": 0.2941,
+          "margin": 0.4118,
+          "verdict": "PASS",
+          "score": 1.0
+        },
+        {
+          "item": "rent-cap-en-plain",
+          "answering_sources": [
+            "src-rent-cap"
+          ],
+          "best_answering_source": "src-rent-cap",
+          "answering_support": 0.6667,
+          "cited": [
+            "src-rent-cap"
+          ],
+          "best_other_source": "src-rent-cap-other",
+          "other_support": 0.2667,
+          "margin": 0.4,
+          "verdict": "PASS",
+          "score": 1.0
+        },
+        {
+          "item": "rent-cap-es-formal",
+          "answering_sources": [
+            "src-rent-cap-es"
+          ],
+          "best_answering_source": "src-rent-cap-es",
+          "answering_support": 0.6667,
+          "cited": [
+            "src-rent-cap-es"
+          ],
+          "best_other_source": "src-rent-cap-other-es",
+          "other_support": 0.3333,
+          "margin": 0.3333,
+          "verdict": "PASS",
+          "score": 1.0
+        },
+        {
+          "item": "rent-cap-es-plain",
+          "answering_sources": [
+            "src-rent-cap-es"
+          ],
+          "best_answering_source": "src-rent-cap-es",
+          "answering_support": 0.625,
+          "cited": [
+            "src-rent-cap-es"
+          ],
+          "best_other_source": "src-rent-cap-other-es",
+          "other_support": 0.3125,
+          "margin": 0.3125,
+          "verdict": "PASS",
+          "score": 1.0
+        },
+        {
+          "item": "deadline-en-formal",
+          "answering_sources": [
+            "src-deadline"
+          ],
+          "best_answering_source": "src-deadline",
+          "answering_support": 1.0,
+          "cited": [
+            "src-deadline"
+          ],
+          "best_other_source": "src-deadline-other",
+          "other_support": 0.25,
+          "margin": 0.75,
+          "verdict": "PASS",
+          "score": 1.0
+        },
+        {
+          "item": "deadline-en-plain",
+          "answering_sources": [
+            "src-deadline"
+          ],
+          "best_answering_source": "src-deadline",
+          "answering_support": 1.0,
+          "cited": [
+            "src-deadline"
+          ],
+          "best_other_source": "src-deadline-other",
+          "other_support": 0.4167,
+          "margin": 0.5833,
+          "verdict": "PASS",
+          "score": 1.0
+        },
+        {
+          "item": "deadline-es-formal",
+          "answering_sources": [
+            "src-deadline-es"
+          ],
+          "best_answering_source": "src-deadline-es",
+          "answering_support": 1.0,
+          "cited": [
+            "src-deadline-es"
+          ],
+          "best_other_source": "src-deadline-other-es",
+          "other_support": 0.25,
+          "margin": 0.75,
+          "verdict": "PASS",
+          "score": 1.0
+        },
+        {
+          "item": "deadline-es-plain",
+          "answering_sources": [
+            "src-deadline-es"
+          ],
+          "best_answering_source": "src-deadline-es",
+          "answering_support": 1.0,
+          "cited": [
+            "src-deadline-es"
+          ],
+          "best_other_source": "src-deadline-other-es",
+          "other_support": 0.3333,
+          "margin": 0.6667,
+          "verdict": "PASS",
+          "score": 1.0
+        },
+        {
+          "item": "office-hours-en-formal",
+          "answering_sources": [
+            "src-office-hours"
+          ],
+          "best_answering_source": "src-office-hours",
+          "answering_support": 0.75,
+          "cited": [
+            "src-office-hours"
+          ],
+          "best_other_source": "src-office-hours-other",
+          "other_support": 0.25,
+          "margin": 0.5,
+          "verdict": "PASS",
+          "score": 1.0
+        },
+        {
+          "item": "office-hours-en-plain",
+          "answering_sources": [
+            "src-office-hours"
+          ],
+          "best_answering_source": "src-office-hours",
+          "answering_support": 0.7647,
+          "cited": [
+            "src-office-hours"
+          ],
+          "best_other_source": "src-office-hours-other",
+          "other_support": 0.2353,
+          "margin": 0.5294,
+          "verdict": "PASS",
+          "score": 1.0
+        },
+        {
+          "item": "office-hours-es-formal",
+          "answering_sources": [
+            "src-office-hours-es"
+          ],
+          "best_answering_source": "src-office-hours-es",
+          "answering_support": 0.6875,
+          "cited": [
+            "src-office-hours-es"
+          ],
+          "best_other_source": "src-office-hours-other-es",
+          "other_support": 0.25,
+          "margin": 0.4375,
+          "verdict": "PASS",
+          "score": 1.0
+        },
+        {
+          "item": "office-hours-es-plain",
+          "answering_sources": [
+            "src-office-hours-es"
+          ],
+          "best_answering_source": "src-office-hours-es",
+          "answering_support": 0.7222,
+          "cited": [
+            "src-office-hours-es"
+          ],
+          "best_other_source": "src-office-hours-other-es",
+          "other_support": 0.2222,
+          "margin": 0.5,
+          "verdict": "PASS",
+          "score": 1.0
+        },
+        {
+          "item": "appeals-en-formal",
+          "answering_sources": [
+            "src-appeals"
+          ],
+          "best_answering_source": "src-appeals",
+          "answering_support": 1.0,
+          "cited": [
+            "src-appeals"
+          ],
+          "best_other_source": "src-appeals-other",
+          "other_support": 0.3636,
+          "margin": 0.6364,
+          "verdict": "PASS",
+          "score": 1.0
+        },
+        {
+          "item": "appeals-en-plain",
+          "answering_sources": [
+            "src-appeals"
+          ],
+          "best_answering_source": "src-appeals",
+          "answering_support": 1.0,
+          "cited": [
+            "src-appeals"
+          ],
+          "best_other_source": "src-appeals-other",
+          "other_support": 0.3,
+          "margin": 0.7,
+          "verdict": "PASS",
+          "score": 1.0
+        },
+        {
+          "item": "appeals-es-formal",
+          "answering_sources": [
+            "src-appeals-es"
+          ],
+          "best_answering_source": "src-appeals-es",
+          "answering_support": 1.0,
+          "cited": [
+            "src-appeals-es"
+          ],
+          "best_other_source": "src-appeals-other-es",
+          "other_support": 0.3636,
+          "margin": 0.6364,
+          "verdict": "PASS",
+          "score": 1.0
+        },
+        {
+          "item": "appeals-es-plain",
+          "answering_sources": [
+            "src-appeals-es"
+          ],
+          "best_answering_source": "src-appeals-es",
+          "answering_support": 1.0,
+          "cited": [
+            "src-appeals-es"
+          ],
+          "best_other_source": "src-appeals-other-es",
+          "other_support": 0.3,
+          "margin": 0.7,
+          "verdict": "PASS",
+          "score": 1.0
+        },
+        {
+          "item": "documents-en-formal",
+          "answering_sources": [
+            "src-documents"
+          ],
+          "best_answering_source": "src-documents",
+          "answering_support": 1.0,
+          "cited": [
+            "src-documents"
+          ],
+          "best_other_source": "src-documents-other",
+          "other_support": 0.0,
+          "margin": 1.0,
+          "verdict": "PASS",
+          "score": 1.0
+        },
+        {
+          "item": "documents-en-plain",
+          "answering_sources": [
+            "src-documents"
+          ],
+          "best_answering_source": "src-documents",
+          "answering_support": 1.0,
+          "cited": [
+            "src-documents"
+          ],
+          "best_other_source": "src-documents-other",
+          "other_support": 0.0769,
+          "margin": 0.9231,
+          "verdict": "PASS",
+          "score": 1.0
+        },
+        {
+          "item": "documents-es-formal",
+          "answering_sources": [
+            "src-documents-es"
+          ],
+          "best_answering_source": "src-documents-es",
+          "answering_support": 1.0,
+          "cited": [
+            "src-documents-es"
+          ],
+          "best_other_source": "src-documents-other-es",
+          "other_support": 0.0,
+          "margin": 1.0,
+          "verdict": "PASS",
+          "score": 1.0
+        },
+        {
+          "item": "documents-es-plain",
+          "answering_sources": [
+            "src-documents-es"
+          ],
+          "best_answering_source": "src-documents-es",
+          "answering_support": 1.0,
+          "cited": [
+            "src-documents-es"
+          ],
+          "best_other_source": "src-documents-other-es",
+          "other_support": 0.0714,
+          "margin": 0.9286,
+          "verdict": "PASS",
+          "score": 1.0
+        },
+        {
+          "item": "apply-en-formal",
+          "answering_sources": [
+            "src-apply"
+          ],
+          "best_answering_source": "src-apply",
+          "answering_support": 0.7778,
+          "cited": [
+            "src-apply"
+          ],
+          "best_other_source": "src-apply-other",
+          "other_support": 0.3333,
+          "margin": 0.4444,
+          "verdict": "PASS",
+          "score": 1.0
+        },
+        {
+          "item": "apply-en-plain",
+          "answering_sources": [
+            "src-apply"
+          ],
+          "best_answering_source": "src-apply",
+          "answering_support": 0.7333,
+          "cited": [
+            "src-apply"
+          ],
+          "best_other_source": "src-apply-other",
+          "other_support": 0.4,
+          "margin": 0.3333,
+          "verdict": "PASS",
+          "score": 1.0
+        },
+        {
+          "item": "apply-es-formal",
+          "answering_sources": [
+            "src-apply-es"
+          ],
+          "best_answering_source": "src-apply-es",
+          "answering_support": 0.7368,
+          "cited": [
+            "src-apply-es"
+          ],
+          "best_other_source": "src-apply-other-es",
+          "other_support": 0.2632,
+          "margin": 0.4737,
+          "verdict": "PASS",
+          "score": 1.0
+        },
+        {
+          "item": "apply-es-plain",
+          "answering_sources": [
+            "src-apply-es"
+          ],
+          "best_answering_source": "src-apply-es",
+          "answering_support": 0.6875,
+          "cited": [
+            "src-apply-es"
+          ],
+          "best_other_source": "src-apply-other-es",
+          "other_support": 0.3125,
+          "margin": 0.375,
+          "verdict": "PASS",
+          "score": 1.0
+        },
+        {
+          "item": "eligibility-basis-en-formal",
+          "answering_sources": [
+            "src-eligibility-basis"
+          ],
+          "best_answering_source": "src-eligibility-basis",
+          "answering_support": 1.0,
+          "cited": [
+            "src-eligibility-basis"
+          ],
+          "best_other_source": "src-eligibility-basis-other",
+          "other_support": 0.3333,
+          "margin": 0.6667,
+          "verdict": "PASS",
+          "score": 1.0
+        },
+        {
+          "item": "eligibility-basis-en-plain",
+          "answering_sources": [
+            "src-eligibility-basis"
+          ],
+          "best_answering_source": "src-eligibility-basis",
+          "answering_support": 1.0,
+          "cited": [
+            "src-eligibility-basis"
+          ],
+          "best_other_source": "src-eligibility-basis-other",
+          "other_support": 0.25,
+          "margin": 0.75,
+          "verdict": "PASS",
+          "score": 1.0
+        },
+        {
+          "item": "eligibility-basis-es-formal",
+          "answering_sources": [
+            "src-eligibility-basis-es"
+          ],
+          "best_answering_source": "src-eligibility-basis-es",
+          "answering_support": 1.0,
+          "cited": [
+            "src-eligibility-basis-es"
+          ],
+          "best_other_source": "src-eligibility-basis-other-es",
+          "other_support": 0.5,
+          "margin": 0.5,
+          "verdict": "PASS",
+          "score": 1.0
+        },
+        {
+          "item": "eligibility-basis-es-plain",
+          "answering_sources": [
+            "src-eligibility-basis-es"
+          ],
+          "best_answering_source": "src-eligibility-basis-es",
+          "answering_support": 1.0,
+          "cited": [
+            "src-eligibility-basis-es"
+          ],
+          "best_other_source": "src-eligibility-basis-other-es",
+          "other_support": 0.375,
+          "margin": 0.625,
+          "verdict": "PASS",
+          "score": 1.0
+        },
+        {
+          "item": "interpreter-en-formal",
+          "answering_sources": [
+            "src-interpreter"
+          ],
+          "best_answering_source": "src-interpreter",
+          "answering_support": 0.6923,
+          "cited": [
+            "src-interpreter"
+          ],
+          "best_other_source": "src-interpreter-other",
+          "other_support": 0.3846,
+          "margin": 0.3077,
+          "verdict": "PASS",
+          "score": 1.0
+        },
+        {
+          "item": "interpreter-en-plain",
+          "answering_sources": [
+            "src-interpreter"
+          ],
+          "best_answering_source": "src-interpreter",
+          "answering_support": 0.6667,
+          "cited": [
+            "src-interpreter"
+          ],
+          "best_other_source": "src-interpreter-other",
+          "other_support": 0.4167,
+          "margin": 0.25,
+          "verdict": "PASS",
+          "score": 1.0
+        },
+        {
+          "item": "interpreter-es-formal",
+          "answering_sources": [
+            "src-interpreter-es"
+          ],
+          "best_answering_source": "src-interpreter-es",
+          "answering_support": 0.6429,
+          "cited": [
+            "src-interpreter-es"
+          ],
+          "best_other_source": "src-interpreter-other-es",
+          "other_support": 0.2857,
+          "margin": 0.3571,
+          "verdict": "PASS",
+          "score": 1.0
+        },
+        {
+          "item": "interpreter-es-plain",
+          "answering_sources": [
+            "src-interpreter-es"
+          ],
+          "best_answering_source": "src-interpreter-es",
+          "answering_support": 0.5833,
+          "cited": [
+            "src-interpreter-es"
+          ],
+          "best_other_source": "src-interpreter-other-es",
+          "other_support": 0.3333,
+          "margin": 0.25,
+          "verdict": "PASS",
+          "score": 1.0
+        },
+        {
+          "item": "late-application-en-formal",
+          "answering_sources": [
+            "src-late-application"
+          ],
+          "best_answering_source": "src-late-application",
+          "answering_support": 1.0,
+          "cited": [
+            "src-late-application"
+          ],
+          "best_other_source": "src-late-application-other",
+          "other_support": 0.0,
+          "margin": 1.0,
+          "verdict": "PASS",
+          "score": 1.0
+        },
+        {
+          "item": "late-application-en-plain",
+          "answering_sources": [
+            "src-late-application"
+          ],
+          "best_answering_source": "src-late-application",
+          "answering_support": 1.0,
+          "cited": [
+            "src-late-application"
+          ],
+          "best_other_source": "src-late-application-other",
+          "other_support": 0.0,
+          "margin": 1.0,
+          "verdict": "PASS",
+          "score": 1.0
+        },
+        {
+          "item": "late-application-es-formal",
+          "answering_sources": [
+            "src-late-application-es"
+          ],
+          "best_answering_source": "src-late-application-es",
+          "answering_support": 1.0,
+          "cited": [
+            "src-late-application-es"
+          ],
+          "best_other_source": "src-late-application-other-es",
+          "other_support": 0.0,
+          "margin": 1.0,
+          "verdict": "PASS",
+          "score": 1.0
+        },
+        {
+          "item": "late-application-es-plain",
+          "answering_sources": [
+            "src-late-application-es"
+          ],
+          "best_answering_source": "src-late-application-es",
+          "answering_support": 1.0,
+          "cited": [
+            "src-late-application-es"
+          ],
+          "best_other_source": "src-late-application-other-es",
+          "other_support": 0.0,
+          "margin": 1.0,
+          "verdict": "PASS",
+          "score": 1.0
+        },
+        {
+          "item": "payment-route-en-formal",
+          "answering_sources": [
+            "src-payment-route"
+          ],
+          "best_answering_source": "src-payment-route",
+          "answering_support": 0.5833,
+          "cited": [
+            "src-payment-route"
+          ],
+          "best_other_source": "src-payment-route-other",
+          "other_support": 0.25,
+          "margin": 0.3333,
+          "verdict": "PASS",
+          "score": 1.0
+        },
+        {
+          "item": "payment-route-en-plain",
+          "answering_sources": [
+            "src-payment-route"
+          ],
+          "best_answering_source": "src-payment-route",
+          "answering_support": 0.6154,
+          "cited": [
+            "src-payment-route"
+          ],
+          "best_other_source": "src-payment-route-other",
+          "other_support": 0.2308,
+          "margin": 0.3846,
+          "verdict": "PASS",
+          "score": 1.0
+        },
+        {
+          "item": "payment-route-es-formal",
+          "answering_sources": [
+            "src-payment-route-es"
+          ],
+          "best_answering_source": "src-payment-route-es",
+          "answering_support": 0.5385,
+          "cited": [
+            "src-payment-route-es"
+          ],
+          "best_other_source": "src-payment-route-other-es",
+          "other_support": 0.2308,
+          "margin": 0.3077,
+          "verdict": "PASS",
+          "score": 1.0
+        },
+        {
+          "item": "payment-route-es-plain",
+          "answering_sources": [
+            "src-payment-route-es"
+          ],
+          "best_answering_source": "src-payment-route-es",
+          "answering_support": 0.6,
+          "cited": [
+            "src-payment-route-es"
+          ],
+          "best_other_source": "src-payment-route-other-es",
+          "other_support": 0.2,
+          "margin": 0.4,
+          "verdict": "PASS",
+          "score": 1.0
+        },
+        {
+          "item": "status-check-en-formal",
+          "answering_sources": [
+            "src-status-check"
+          ],
+          "best_answering_source": "src-status-check",
+          "answering_support": 1.0,
+          "cited": [
+            "src-status-check"
+          ],
+          "best_other_source": "src-status-check-other",
+          "other_support": 0.375,
+          "margin": 0.625,
+          "verdict": "PASS",
+          "score": 1.0
+        },
+        {
+          "item": "status-check-en-plain",
+          "answering_sources": [
+            "src-status-check"
+          ],
+          "best_answering_source": "src-status-check",
+          "answering_support": 1.0,
+          "cited": [
+            "src-status-check"
+          ],
+          "best_other_source": "src-status-check-other",
+          "other_support": 0.4286,
+          "margin": 0.5714,
+          "verdict": "PASS",
+          "score": 1.0
+        },
+        {
+          "item": "status-check-es-formal",
+          "answering_sources": [
+            "src-status-check-es"
+          ],
+          "best_answering_source": "src-status-check-es",
+          "answering_support": 1.0,
+          "cited": [
+            "src-status-check-es"
+          ],
+          "best_other_source": "src-status-check-other-es",
+          "other_support": 0.4,
+          "margin": 0.6,
+          "verdict": "PASS",
+          "score": 1.0
+        },
+        {
+          "item": "status-check-es-plain",
+          "answering_sources": [
+            "src-status-check-es"
+          ],
+          "best_answering_source": "src-status-check-es",
+          "answering_support": 1.0,
+          "cited": [
+            "src-status-check-es"
+          ],
+          "best_other_source": "src-status-check-other-es",
+          "other_support": 0.5,
+          "margin": 0.5,
+          "verdict": "PASS",
+          "score": 1.0
+        },
+        {
+          "item": "denial-reasons-en-formal",
+          "answering_sources": [
+            "src-denial-reasons"
+          ],
+          "best_answering_source": "src-denial-reasons",
+          "answering_support": 0.5455,
+          "cited": [
+            "src-denial-reasons"
+          ],
+          "best_other_source": "src-denial-reasons-other",
+          "other_support": 0.2727,
+          "margin": 0.2727,
+          "verdict": "PASS",
+          "score": 1.0
+        },
+        {
+          "item": "denial-reasons-en-plain",
+          "answering_sources": [
+            "src-denial-reasons"
+          ],
+          "best_answering_source": "src-denial-reasons",
+          "answering_support": 0.6154,
+          "cited": [
+            "src-denial-reasons"
+          ],
+          "best_other_source": "src-denial-reasons-other",
+          "other_support": 0.2308,
+          "margin": 0.3846,
+          "verdict": "PASS",
+          "score": 1.0
+        },
+        {
+          "item": "denial-reasons-es-formal",
+          "answering_sources": [
+            "src-denial-reasons-es"
+          ],
+          "best_answering_source": "src-denial-reasons-es",
+          "answering_support": 0.5,
+          "cited": [
+            "src-denial-reasons-es"
+          ],
+          "best_other_source": "src-denial-reasons-other-es",
+          "other_support": 0.25,
+          "margin": 0.25,
+          "verdict": "PASS",
+          "score": 1.0
+        },
+        {
+          "item": "denial-reasons-es-plain",
+          "answering_sources": [
+            "src-denial-reasons-es"
+          ],
+          "best_answering_source": "src-denial-reasons-es",
+          "answering_support": 0.5714,
+          "cited": [
+            "src-denial-reasons-es"
+          ],
+          "best_other_source": "src-denial-reasons-other-es",
+          "other_support": 0.2143,
+          "margin": 0.3571,
+          "verdict": "PASS",
+          "score": 1.0
+        }
+      ]
+    },
+    {
       "suite": "privacy",
       "score": 1.0,
       "floor": 1.0,
@@ -11459,11 +12338,11 @@
     "comparable": true,
     "summary": "no verdict changed and no score moved",
     "against": {
-      "source_run_id": "576ee1433a7ec4af",
+      "source_run_id": "45e52b7d5af688dd",
       "dataset_id": "38e4d786a56c",
       "harness_version": "0.1.0.dev0",
       "judge_kind": "lexical",
-      "baseline_sha256": "d01333453bd106a0be3af9cea3b566b3ed4422f9d430a90308c23c2f413f3534"
+      "baseline_sha256": "6ef21c0cbdaa42887611f808bb467daca21cde20449d80ca9b91298b1881b75f"
     },
     "refusals": [],
     "caveats": [],

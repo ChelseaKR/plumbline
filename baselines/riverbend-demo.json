@@ -1,7 +1,7 @@
 {
   "format": "plumbline-baseline",
   "format_version": 3,
-  "source_run_id": "576ee1433a7ec4af",
+  "source_run_id": "45e52b7d5af688dd",
   "harness_version": "0.1.0.dev0",
   "harness_source_sha256": "a5db22ec55a26e830b27145019dd9aec12da2195d13facf80695436312bc9c10",
   "seed": 1729,
@@ -75,6 +75,13 @@
       "floor": 0.95,
       "verdict": "PASS",
       "n": 174
+    },
+    {
+      "suite": "passage_attribution",
+      "score": 1.0,
+      "floor": 0.95,
+      "verdict": "PASS",
+      "n": 48
     },
     {
       "suite": "privacy",

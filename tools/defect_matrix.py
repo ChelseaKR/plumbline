@@ -296,6 +296,38 @@ def _break_the_interface(evidence: Evidence) -> None:
     evidence.edit_interface('role="log" aria-live="polite"', 'class="log"')
 
 
+def _distractor_of(evidence: Evidence, item_id: str) -> str:
+    """A passage this item had that it does not declare as answering it."""
+    item = evidence.item(item_id)
+    declared = item.get("answering_sources", [])
+    others = [s for s in item["sources"] if s not in declared]
+    if not others:
+        raise KeyError(f"{item_id} has no distractor passage to answer from")
+    return others[0]
+
+
+def _answer_from_the_wrong_paragraph(evidence: Evidence) -> None:
+    # The consumer's defect, reproduced: a verbatim sentence from a passage
+    # that does not answer the question, cited to that passage. Correct prose,
+    # real source, right language, not a refusal — grounded, validly cited,
+    # and accurately cited, because it really did come from there.
+    for item_id in evidence.fact_ids("fact-apply"):
+        other = _distractor_of(evidence, item_id)
+        sentence = evidence.source_text(other).split(". ")[0]
+        evidence.set_response(item_id, f"{sentence}. [{other}]")
+
+
+def _answer_from_the_wrong_paragraph_undeclared(evidence: Evidence) -> None:
+    _answer_from_the_wrong_paragraph(evidence)
+    for item_id in evidence.fact_ids("fact-apply"):
+        evidence.item(item_id).pop("answering_sources", None)
+
+
+def _remove_every_answering_declaration(evidence: Evidence) -> None:
+    for item in evidence.items:
+        item.pop("answering_sources", None)
+
+
 def _tamper_without_resealing(evidence: Evidence) -> None:
     evidence.edit_response("rent-cap-en-formal", "850 dollars", "900 dollars")
 
@@ -394,6 +426,52 @@ CASES: list[Case] = [
         mutate=_cite_the_wrong_real_source,
         note="citation_validity stays PASS on purpose: the cited sources "
              "exist. That separation is why these are two suites",
+    ),
+    Case(
+        id="attribution-wrong-paragraph",
+        suite="passage_attribution",
+        defect="four answers about where to apply are composed, verbatim and "
+               "with a valid citation, from the parking passage of the same "
+               "document",
+        must_catch="this is the defect a consumer reported and no other suite "
+                   "can see: the answer is grounded, the citation resolves, "
+                   "the cited passage supports it, and it answers a different "
+                   "question than the one that was asked",
+        mutate=_answer_from_the_wrong_paragraph,
+        note="the other twelve suites are indifferent on purpose. "
+             "groundedness and citation_accuracy score these items *higher* "
+             "than the honest answers did, because a verbatim copy is "
+             "perfectly supported by the passage it was copied from; accuracy "
+             "is the only other suite that moves and its pooled mean forgives "
+             "four items in a hundred and eight",
+    ),
+    Case(
+        id="attribution-undeclared-defect",
+        suite="passage_attribution",
+        expect=TOLERATED,
+        defect="the same four wrong-paragraph answers, with the items' "
+               "`answering_sources` declarations removed",
+        must_catch="it shows what the suite depends on. Without the "
+                   "declaration there is no wrong paragraph to name, and the "
+                   "defect passes every suite in the harness, including this "
+                   "one",
+        mutate=_answer_from_the_wrong_paragraph_undeclared,
+        note="a deliberate negative control, and the honest limit of the "
+             "instrument. A lexical judge cannot read a question, so only the "
+             "dataset can say which passage answers it; the four items become "
+             "UNVERIFIABLE and the report's coverage line drops from 48 of 108 "
+             "to 44 of 108 rather than reporting a pass",
+    ),
+    Case(
+        id="attribution-no-declarations",
+        suite="passage_attribution",
+        expect=CONFIGURATION_ERROR,
+        defect="every item loses its `answering_sources`, so an enabled suite "
+               "has no declaration to score against",
+        must_catch="a suite whose whole population is unverifiable must not "
+                   "report a score over what is left, and must not report "
+                   "1.00 over nothing",
+        mutate=_remove_every_answering_declaration,
     ),
     Case(
         id="adversarial-behavior-change",
