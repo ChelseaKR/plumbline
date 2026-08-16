@@ -55,6 +55,11 @@ class Item:
     group: str | None = None
     translation: dict | None = None
     sources: list[str] = field(default_factory=list)  # source ids retrieved for this item
+    # Opt-in: the source ids that actually ANSWER this question, as opposed to
+    # the ones that were merely retrieved. Only the `passage_attribution`
+    # suite reads it, and an item that declares nothing is reported
+    # UNVERIFIABLE there rather than passed.
+    answering_sources: list[str] = field(default_factory=list)
     adversarial: bool = False  # this prompt is an attack probe
     forbidden: list[str] = field(default_factory=list)  # must not appear in the response
 
@@ -77,6 +82,22 @@ class Bundle:
 
     def source_text_for(self, item: Item) -> str:
         return "\n".join(s.text for s in self.sources_for(item))
+
+    def answering_sources_for(self, item: Item) -> list[Source]:
+        """The passages the item declares as answering its question.
+
+        Not necessarily a subset of the passages it had: an answering passage
+        the target never retrieved is a retrieval failure, and the attribution
+        suite names it as one instead of pretending it was on the desk.
+        """
+        return [self.sources[sid] for sid in item.answering_sources
+                if sid in self.sources]
+
+    def distractor_sources_for(self, item: Item) -> list[Source]:
+        """The passages the item had that it does *not* declare as answering
+        the question: what a wrong-paragraph answer would have come from."""
+        return [self.sources[sid] for sid in item.sources
+                if sid in self.sources and sid not in item.answering_sources]
 
     @property
     def dataset_id(self) -> str:
@@ -225,6 +246,28 @@ def _parse_items(path: Path) -> list[Item]:
                     f"{path.name}:{lineno}: 'sources' must be a list of "
                     f"source ids"
                 )
+            answering = raw.get("answering_sources")
+            if answering is not None:
+                if not isinstance(answering, list) or not all(
+                        isinstance(s, str) for s in answering):
+                    raise BundleError(
+                        f"{path.name}:{lineno}: 'answering_sources' must be a "
+                        f"list of source ids"
+                    )
+                if not answering:
+                    raise BundleError(
+                        f"{path.name}:{lineno}: item '{raw['id']}' declares an "
+                        f"empty 'answering_sources'. An answer item with no "
+                        f"passage that answers it is a contradiction; omit the "
+                        f"field and the attribution suite reports the item as "
+                        f"unverifiable instead"
+                    )
+                if raw["behavior"] != "answer":
+                    raise BundleError(
+                        f"{path.name}:{lineno}: item '{raw['id']}' expects a "
+                        f"refusal and declares 'answering_sources'. Nothing "
+                        f"answers a question that should not be answered"
+                    )
             forbidden = raw.get("forbidden", [])
             if not isinstance(forbidden, list) or not all(
                     isinstance(s, str) for s in forbidden):
@@ -249,6 +292,7 @@ def _parse_items(path: Path) -> list[Item]:
                 group=raw.get("group"),
                 translation=t,
                 sources=item_sources,
+                answering_sources=list(answering or []),
                 adversarial=bool(raw.get("adversarial", False)),
                 forbidden=forbidden,
             ))
@@ -375,6 +419,16 @@ def _load(bundle_dir: Path, *, require_responses: bool) -> Bundle:
             raise BundleError(
                 f"item '{item.id}' cites source ids that are not in the "
                 f"corpus: {', '.join(missing)}"
+                + ("" if sources_name else
+                   " (the manifest declares no files.sources)")
+            )
+        # An answering passage nobody can read is a declaration that cannot be
+        # checked, and the suite would grade every answer against nothing.
+        unresolved = [sid for sid in item.answering_sources if sid not in sources]
+        if unresolved:
+            raise BundleError(
+                f"item '{item.id}' declares answering_sources that are not in "
+                f"the corpus: {', '.join(unresolved)}"
                 + ("" if sources_name else
                    " (the manifest declares no files.sources)")
             )

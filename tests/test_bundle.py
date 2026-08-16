@@ -132,5 +132,82 @@ class ParsingTests(unittest.TestCase):
         self.assertEqual(bundle.unreviewed_translation_warnings(), [])
 
 
+class AnsweringSourceDeclarationTests(unittest.TestCase):
+    """`answering_sources`: which passage actually answers the question.
+
+    Opt-in, and unusable unless it resolves — a declaration nobody can read
+    would have the attribution suite grading answers against nothing.
+    """
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.root = Path(self._tmp.name)
+        self.sources = [
+            {"id": "s-eligibility", "text": "Eligibility depends on household income."},
+            {"id": "s-fare", "text": "The household fare is 2 dollars per ride."},
+        ]
+
+    def _load(self, **extra):
+        items = [answer_item("a1", "Eligibility depends on household income.",
+                             sources=["s-eligibility", "s-fare"], **extra)]
+        return load(write_bundle(self.root, items, [response("a1", "x")],
+                                 sources=self.sources))
+
+    def test_absent_by_default(self):
+        bundle = self._load()
+        self.assertEqual(bundle.items[0].answering_sources, [])
+        self.assertEqual(bundle.distractor_sources_for(bundle.items[0]),
+                         list(bundle.sources_for(bundle.items[0])))
+
+    def test_declared_passages_resolve(self):
+        bundle = self._load(answering_sources=["s-eligibility"])
+        item = bundle.items[0]
+        self.assertEqual([s.id for s in bundle.answering_sources_for(item)],
+                         ["s-eligibility"])
+        self.assertEqual([s.id for s in bundle.distractor_sources_for(item)],
+                         ["s-fare"])
+
+    def test_a_declaration_outside_the_corpus_is_a_bundle_error(self):
+        with self.assertRaises(BundleError) as caught:
+            self._load(answering_sources=["s-nowhere"])
+        self.assertIn("answering_sources that are not in the corpus",
+                      str(caught.exception))
+
+    def test_an_empty_declaration_is_a_bundle_error(self):
+        with self.assertRaises(BundleError) as caught:
+            self._load(answering_sources=[])
+        self.assertIn("empty 'answering_sources'", str(caught.exception))
+
+    def test_a_declaration_that_is_not_a_list_of_ids_is_a_bundle_error(self):
+        with self.assertRaises(BundleError) as caught:
+            self._load(answering_sources="s-eligibility")
+        self.assertIn("must be a list of source ids", str(caught.exception))
+
+    def test_a_refusal_item_may_not_declare_one(self):
+        items = [refuse_item("r1")]
+        items[0]["answering_sources"] = ["s-fare"]
+        with self.assertRaises(BundleError) as caught:
+            load(write_bundle(self.root, items, [response("r1", "no")],
+                              sources=self.sources))
+        self.assertIn("Nothing answers a question that should not be answered",
+                      str(caught.exception))
+
+    def test_a_declaration_need_not_have_been_retrieved(self):
+        # Not an error: the passage that answers the question existing and
+        # never reaching the target is a retrieval failure the attribution
+        # suite reports, not a malformed bundle.
+        items = [answer_item("a1", "Eligibility depends on household income.",
+                             sources=["s-fare"],
+                             answering_sources=["s-eligibility"])]
+        bundle = load(write_bundle(self.root, items, [response("a1", "x")],
+                                   sources=self.sources))
+        item = bundle.items[0]
+        self.assertEqual([s.id for s in bundle.answering_sources_for(item)],
+                         ["s-eligibility"])
+        self.assertEqual([s.id for s in bundle.distractor_sources_for(item)],
+                         ["s-fare"])
+
+
 if __name__ == "__main__":
     unittest.main()
