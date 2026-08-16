@@ -1150,6 +1150,29 @@ work:
 5. **The demonstration lexicons.** The refusal marker list in particular is
    narrow enough that writing this repository's own corpus had to work around
    it; a real target needs the list written from its transcripts first.
+6. **`answering_sources` is human work, on every item.** The suite is only as
+   good as the declarations, and declaring them for a large corpus is real
+   effort with no shortcut this harness is willing to take. The report's
+   coverage line is the honest handling: it says how little was checked rather
+   than implying more.
+7. **A model judge could answer "which passage answers this question".**
+   Deliberately not built. It would remove the declaration requirement by
+   moving a semantic judgment into the non-deterministic instrument, which is
+   the right trade for some consumers and the wrong default for a harness
+   whose first principle is reproducibility. The cached-judgment machinery
+   that would make it defensible already exists; the case for using it here
+   has not been made by anyone with a real corpus.
+8. **Attribution is compared on the single best passage per side.** An answer
+   legitimately synthesised from two passages is judged on whichever accounts
+   for most of it. Sentence-level attribution would handle that properly and
+   nobody has asked for it; building it on speculation would be adding surface
+   this file would then have to defend.
+9. **Coupling declarations are written by hand.** `couplings.py` does not
+   discover couplings; the matrix does. The guard in
+   `tests/test_couplings.py` is what stops the two drifting apart — it fails
+   if the matrix ever observes a multi-suite failure the report does not
+   disclose — but a coupling that no planted defect provokes is a coupling
+   nobody has found yet.
 
 ## Pointing it at something real
 
