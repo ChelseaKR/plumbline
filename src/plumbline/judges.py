@@ -30,6 +30,7 @@ REFUSAL_MARKERS = lexicons.REFUSAL_MARKERS
 
 class Judge(Protocol):
     def config(self) -> dict: ...
+    def describe(self) -> dict: ...
     def answer_score(self, expected: str, actual: str) -> float: ...
     def is_refusal(self, text: str) -> bool: ...
 
@@ -92,6 +93,11 @@ class LexicalJudge:
 
     def config_hash(self) -> str:
         return config_digest(self.config())
+
+    def describe(self) -> dict:
+        """What the report says about the instrument on its face. The lexical
+        judge's answer is the boring one, and that is the point."""
+        return {"kind": self.kind, "deterministic": True, "notice": None}
 
     # --- factual accuracy ---------------------------------------------------
 
@@ -181,13 +187,41 @@ class LexicalJudge:
         return [m for m in lexicons.PII_SOLICITATION_MARKERS if m in lowered]
 
 
-def make_judge(judge_config: dict) -> LexicalJudge:
-    """Build a judge from target configuration. Unknown kinds are a
-    configuration error — never a silent fallback."""
+def make_judge(judge_config: dict, *, offline_only: bool = False
+               ) -> tuple[Judge, list[str]]:
+    """Build a judge from target configuration, with any warnings.
+
+    Unknown kinds are a configuration error — never a silent fallback to the
+    lexical default, because a run that silently used a different instrument
+    than the config asked for would be exactly the kind of quiet substitution
+    this harness exists to make impossible.
+
+    `offline_only` is set by `plumbline gate`: a model judge in live mode is
+    refused there. The gate is the CI entry point, and a gate that reaches the
+    network is not a gate.
+    """
     kind = judge_config.get("kind", "lexical")
     if kind == "lexical":
-        return LexicalJudge()
+        unknown = sorted(set(judge_config) - {"kind"})
+        if unknown:
+            raise ValueError(
+                f"[judge] has key(s) the lexical judge does not understand: "
+                f"{', '.join(unknown)} (did you mean kind = \"model\"?)"
+            )
+        return LexicalJudge(), []
+    if kind == "model":
+        # Imported here, and only here: a lexical run never loads the model
+        # judge, and therefore never loads the network module underneath it.
+        from .model_judge import ModelJudge, ModelJudgeError
+
+        if offline_only and judge_config.get("mode", "cached") == "live":
+            raise ModelJudgeError(
+                "the model judge is configured with mode = \"live\", and "
+                "`plumbline gate` will not make network calls: a gate that "
+                "reaches the network is not a gate. Record the judgments with "
+                "`plumbline audit`, commit the cache, and gate in cached mode."
+            )
+        return ModelJudge.from_config(judge_config)
     raise ValueError(
-        f"unknown judge kind '{kind}' (implemented: lexical; model-based "
-        f"judges are on the roadmap and will be flagged in reports when used)"
+        f"unknown judge kind '{kind}' (implemented: lexical, model)"
     )

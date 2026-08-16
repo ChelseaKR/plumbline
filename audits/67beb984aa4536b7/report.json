@@ -1,7 +1,7 @@
 {
   "verdict": "PASS",
   "provenance": {
-    "run_id": "1682f39507e03965",
+    "run_id": "67beb984aa4536b7",
     "harness": "plumbline",
     "harness_version": "0.1.0.dev0",
     "seed": 1729,
@@ -9,6 +9,11 @@
     "dataset_id": "1c14ef2522da",
     "judge_kind": "lexical",
     "judge_config_sha256": "ca2a9ce203871e17cd57dd9585e72c68716b59144a6e8bb2986a92a4920b32d5"
+  },
+  "judge": {
+    "kind": "lexical",
+    "deterministic": true,
+    "notice": null
   },
   "target": "riverbend-demo",
   "dataset": {
@@ -1962,7 +1967,8 @@
       "source_run_id": "fc1aea8a350a11f7",
       "dataset_id": "1c14ef2522da",
       "harness_version": "0.1.0.dev0",
-      "baseline_sha256": "3c4f588d217b9978fc7944cf7616eb0bce5ab91a77767c1563dd3b214d88941c"
+      "judge_kind": "lexical",
+      "baseline_sha256": "8ce10d18416d810bfd62578042ed824cff747855d59c9020b584b820b7723da0"
     },
     "refusals": [],
     "caveats": [],

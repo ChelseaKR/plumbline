@@ -67,9 +67,17 @@ def load_config(path: Path) -> TargetConfig:
         raise ConfigError(f"{path}: [baseline].path must be a string")
     baseline_path = _resolve(path, baseline_raw) if baseline_raw else None
 
-    judge = raw.get("judge", {"kind": "lexical"})
-    if not isinstance(judge, dict):
+    judge = dict(raw.get("judge", {"kind": "lexical"}))
+    if not isinstance(raw.get("judge", {}), dict):
         raise ConfigError(f"{path}: [judge] must be a table")
+    # A judgment cache is a path like any other: resolved against the config
+    # file's directory so the same config works from any working directory.
+    # The resolved path never reaches the judge configuration hash — reports
+    # carry no filesystem paths; the cache's *contents* are what is hashed.
+    if "cache" in judge:
+        if not isinstance(judge["cache"], str):
+            raise ConfigError(f"{path}: [judge].cache must be a string path")
+        judge["cache"] = str(_resolve(path, judge["cache"]))
 
     adapter = raw.get("adapter", {})
     if not isinstance(adapter, dict):

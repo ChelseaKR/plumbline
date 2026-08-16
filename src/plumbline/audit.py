@@ -81,9 +81,11 @@ def compute_run_id(
 
 
 def run_audit(config: TargetConfig, *, seed: int = DEFAULT_SEED, out_dir: Path,
-              baseline_path: Path | None = None) -> AuditOutcome:
+              baseline_path: Path | None = None,
+              offline_only: bool = False) -> AuditOutcome:
     # 1. Construction first: a misconfigured run should not touch evidence.
-    judge = make_judge(config.judge)  # ValueError on unknown kind -> exit 4
+    #    `offline_only` is set by the gate, which refuses a live model judge.
+    judge, judge_warnings = make_judge(config.judge, offline_only=offline_only)
     suites = {suite_id: get_suite(suite_id) for suite_id in sorted(config.suites)}
 
     # A requested comparison that cannot be loaded is an error, not a skipped
@@ -95,8 +97,14 @@ def run_audit(config: TargetConfig, *, seed: int = DEFAULT_SEED, out_dir: Path,
     #    IntegrityError propagates to the CLI as exit 3, nothing scored.
     bundle = bundle_mod.load(config.dataset_path)
 
-    # 3. Warnings: visible on every run, never fatal, never suppressed.
-    warnings = bundle.unreviewed_translation_warnings()
+    # 3. Warnings: visible on every run, never fatal, never suppressed. A
+    #    model judge's notice rides the same channel, so a reader who only
+    #    ever looks at the warnings still learns a model produced the scores.
+    judge_description = judge.describe()
+    warnings = list(judge_warnings)
+    if judge_description.get("notice"):
+        warnings.append(judge_description["notice"])
+    warnings.extend(bundle.unreviewed_translation_warnings())
 
     # 4. Evaluate enabled suites, deterministically ordered, and attach
     #    statistics centrally so no suite can ship without a CI and an MDE.
@@ -145,6 +153,7 @@ def run_audit(config: TargetConfig, *, seed: int = DEFAULT_SEED, out_dir: Path,
     report = build_report(
         verdict=verdict,
         provenance=provenance,
+        judge=judge_description,
         target=config.name,
         dataset_info=dataset_info,
         results=results,

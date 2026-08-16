@@ -1,12 +1,14 @@
 {
   "format": "plumbline-baseline",
-  "format_version": 1,
+  "format_version": 2,
   "source_run_id": "fc1aea8a350a11f7",
   "harness_version": "0.1.0.dev0",
   "seed": 1729,
   "dataset_sha256": "1c14ef2522dae65254c3acd895358eef65e43993c7d915d80d7edff51cf723a7",
   "dataset_id": "1c14ef2522da",
   "judge_config_sha256": "ca2a9ce203871e17cd57dd9585e72c68716b59144a6e8bb2986a92a4920b32d5",
+  "judge_kind": "lexical",
+  "judge_deterministic": true,
   "target": "riverbend-demo",
   "verdict": "PASS",
   "suites": [

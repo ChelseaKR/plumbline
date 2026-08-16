@@ -23,6 +23,7 @@ def build_report(
     *,
     verdict: str,
     provenance: dict,
+    judge: dict,
     target: str,
     dataset_info: dict,
     results: list[SuiteResult],
@@ -31,6 +32,10 @@ def build_report(
     return {
         "verdict": verdict,  # first key, per spec: overall verdict first
         "provenance": provenance,
+        # What instrument produced these scores, in the reader's terms rather
+        # than as a hash. `deterministic: false` is the machine-readable form
+        # of the banner the Markdown report prints under its title.
+        "judge": judge,
         "target": target,
         "dataset": dataset_info,
         "suites": [
@@ -109,6 +114,13 @@ def render_markdown(report: dict) -> str:
     lines: list[str] = []
     lines.append(f"# Audit verdict: {report['verdict']}")
     lines.append("")
+    # A non-deterministic judge announces itself above everything else except
+    # the verdict. A reader should never have to reach the provenance table to
+    # discover that a model produced the scores.
+    judge = report.get("judge") or {}
+    if judge.get("notice"):
+        lines.append(f"> **Scored by a model judge.** {judge['notice']}")
+        lines.append("")
     lines.append(f"Plumbline audit of target `{report['target']}`.")
     lines.append("")
     lines.append("## Provenance")
@@ -119,7 +131,10 @@ def render_markdown(report: dict) -> str:
     lines.append(f"| Harness version | `{p['harness_version']}` |")
     lines.append(f"| Seed | `{p['seed']}` |")
     lines.append(f"| Dataset hash | `{p['dataset_sha256']}` (short: `{p['dataset_id']}`) |")
-    lines.append(f"| Judge | `{p['judge_kind']}`, config hash `{p['judge_config_sha256']}` |")
+    determinism = ("deterministic" if judge.get("deterministic", True)
+                   else "**not deterministic**")
+    lines.append(f"| Judge | `{p['judge_kind']}` ({determinism}), config hash "
+                 f"`{p['judge_config_sha256']}` |")
     lines.append("")
     ds = report["dataset"]
     synthetic = " **(synthetic demonstration data — not a benchmark)**" if ds.get("synthetic") else ""

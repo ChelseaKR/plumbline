@@ -139,11 +139,11 @@ def cmd_record(args: argparse.Namespace) -> int:
     return EXIT_PASS
 
 
-def _audit_from_args(args: argparse.Namespace):
+def _audit_from_args(args: argparse.Namespace, *, offline_only: bool = False):
     config = load_config(Path(args.config))
     baseline_path = Path(args.baseline) if args.baseline else None
     return run_audit(config, seed=args.seed, out_dir=Path(args.out),
-                     baseline_path=baseline_path)
+                     baseline_path=baseline_path, offline_only=offline_only)
 
 
 def _suite_lines(report: dict) -> list[str]:
@@ -157,6 +157,17 @@ def _suite_lines(report: dict) -> list[str]:
             f"  {s['suite']:<22} score {s['score']:.4f}  floor {s['floor']:.2f}  "
             f"{s['verdict']:<4}  n={s['n']:<3} {ci}  {mde}{severity}")
     return lines
+
+
+def _judge_line(report: dict) -> str:
+    """One line naming the instrument. A model judge says so here too, not
+    only in the report file somebody may never open."""
+    judge = report.get("judge") or {}
+    kind = judge.get("kind", "lexical")
+    if judge.get("deterministic", True):
+        return f"{kind} (deterministic)"
+    return (f"{kind} NOT DETERMINISTIC — model {judge.get('model')}, "
+            f"mode {judge.get('mode')}")
 
 
 def _baseline_exit(outcome, args) -> int | None:
@@ -175,6 +186,7 @@ def cmd_audit(args: argparse.Namespace) -> int:
     outcome = _audit_from_args(args)
     _warn(outcome.warnings)
     print(f"verdict: {outcome.verdict}")
+    print(f"judge:   {_judge_line(outcome.report)}")
     for line in _suite_lines(outcome.report):
         print(line)
     if outcome.comparison:
@@ -190,11 +202,14 @@ def cmd_gate(args: argparse.Namespace) -> int:
     """The CI entry point. Same audit, same exit codes, output shaped for a
     build log: the verdict on the first and last line, and every failing
     suite named in between."""
-    outcome = _audit_from_args(args)
+    # offline_only: the gate refuses a model judge in live mode. Everything
+    # else about the run is identical to `audit`.
+    outcome = _audit_from_args(args, offline_only=True)
     report = outcome.report
     print(f"GATE: {report['verdict']} — target {report['target']}, "
           f"dataset {report['provenance']['dataset_id']}, "
           f"run {report['provenance']['run_id']}")
+    print(f"judge: {_judge_line(report)}")
     _warn(outcome.warnings)
 
     failed = [s for s in report["suites"] if s["verdict"] != "PASS"]

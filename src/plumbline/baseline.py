@@ -36,7 +36,7 @@ from pathlib import Path
 from .hashing import canonical_json, sha256_text
 
 BASELINE_FORMAT = "plumbline-baseline"
-BASELINE_FORMAT_VERSION = 1
+BASELINE_FORMAT_VERSION = 2
 
 
 class BaselineError(Exception):
@@ -55,6 +55,12 @@ def build_baseline(report: dict) -> dict:
         "dataset_sha256": provenance["dataset_sha256"],
         "dataset_id": provenance["dataset_id"],
         "judge_config_sha256": provenance["judge_config_sha256"],
+        # A hash cannot tell a reader what kind of instrument set this bar.
+        # A committed baseline produced by a model judge should say so on its
+        # own face, not only in the report it came from.
+        "judge_kind": provenance.get("judge_kind"),
+        "judge_deterministic": bool(
+            (report.get("judge") or {}).get("deterministic", True)),
         "target": report.get("target"),
         "verdict": report["verdict"],
         "suites": [
@@ -219,6 +225,7 @@ def compare(report: dict, baseline: dict) -> dict:
             "dataset_id": baseline.get("dataset_id",
                                        baseline["dataset_sha256"][:12]),
             "harness_version": baseline.get("harness_version"),
+            "judge_kind": baseline.get("judge_kind"),
             "baseline_sha256": baseline_digest(baseline),
         },
         "refusals": refusals,
@@ -240,7 +247,8 @@ def render_markdown(comparison: dict) -> list[str]:
     against = comparison["against"]
     lines.append(
         f"Baseline run `{against['source_run_id']}`, dataset "
-        f"`{against['dataset_id']}`, harness `{against['harness_version']}`."
+        f"`{against['dataset_id']}`, harness `{against['harness_version']}`, "
+        f"judge `{against.get('judge_kind')}`."
     )
     lines.append("")
     if not comparison["comparable"]:

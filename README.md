@@ -26,8 +26,9 @@ third party could defend:
 Pre-release (`0.1.0.dev0`). Every capability in the functional specification
 is implemented: thirteen scoring suites, per-suite confidence intervals and
 minimum detectable effect, baseline regression comparison, a pinned
-fail-closed CI gate, and live-target recording that the gate cannot reach.
-241 tests, standard library only, offline.
+fail-closed CI gate, live-target recording, and an optional model judge —
+neither of which the gate can reach. 270 tests, standard library only,
+offline.
 
 Built from a functional specification, started 2026-08-15, implemented with AI
 agents (Claude Code), reviewed and directed by a human. `DESIGN.md` carries
@@ -290,14 +291,42 @@ A recorded bundle says so on its face. Its manifest carries the endpoint, the
 call shape, every bound, the question set's hash, and when the recording was
 made; every report of it repeats that above the scores.
 
-## What is not implemented
+## The optional model judge
 
-One thing, deliberate, and on the roadmap in `DESIGN.md`:
+The default judge is lexical, and that is what makes the harness deterministic
+and keyless. Token overlap is weak at exactly one thing, though — deciding
+whether a paraphrase says the same thing — so `kind = "model"` is available
+for that one judgment.
 
-- **Model-based judges.** The default judge is lexical, which is what makes
-  the harness deterministic and keyless. A model judge would be optional,
-  clearly separated, and flagged in every report that used one — a report that
-  hid which judge produced it would not be a report worth defending.
+Everything about it is arranged so that using it cannot quietly weaken the
+report:
+
+- **Only answer scoring is the model's.** Refusal detection, source support,
+  number extraction, language identification, and the harm and privacy screens
+  stay lexical, and the judge configuration lists which is which.
+- **Judgments are recorded evidence.** The default mode is `cached`: every
+  score must already be in a committed judgment cache, so the audit stays
+  offline and byte-reproducible and a reviewer can read what the model decided
+  in a small sorted JSON file. A cache miss is a loud configuration error, not
+  a zero.
+- **The gate refuses `mode = "live"`.** Record with `audit`, commit the cache,
+  gate offline forever after. A gate that reaches the network is not a gate.
+- **The report says so on its face.** A bold callout under the verdict, the
+  word "not deterministic" in the provenance table, a warning on stderr, a
+  line on the terminal, and the judge kind written into any baseline the run
+  produces.
+- **Differently-judged runs cannot compare as equal.** The judge configuration
+  hash covers the model, the prompt, the call shape *and* a digest of the
+  judgments actually used — so it lands in the run id, and the baseline
+  comparison refuses to subtract scores across it. Verdict flips are still
+  named, because those stay meaningful.
+- **Out-of-range scores are refused, not clipped.** A judge that answered 4.2
+  did not understand the question.
+
+`examples/riverbend-model-judge.toml` is a worked configuration against a real
+API. See `DESIGN.md` for the prompt-injection surface a model judge adds — the
+judge reads text a possibly-attacked system produced — and for why that is one
+more reason the default is lexical.
 
 Every suite in the specification's taxonomy is implemented, and every suite is
 exercised by the bundled demo.
