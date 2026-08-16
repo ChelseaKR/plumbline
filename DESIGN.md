@@ -355,8 +355,9 @@ Design notes:
   variance is zero, which would claim the run could detect an arbitrarily
   small regression. It cannot. Those cases fall back to the 95% *rule of
   three*: `3/n`, the largest true failure rate consistent with having seen no
-  failures at all. On the 12-item demo bundle that is 0.25 — a quarter of the
-  scale — which is the point.
+  failures at all. On a 12-item population that is 0.25 — a quarter of the
+  scale — which is exactly the point, and exactly why the demo bundle was
+  later grown (see "Demo dataset").
 - **Some scores are not sample statistics.** The accessibility suite runs a
   fixed, exhaustive checklist; there is no sampling error to report and a
   wider checklist would not narrow one. It reports `null` for both figures
@@ -554,8 +555,8 @@ evidence moved.
 Where comparison *is* possible, each moved suite is checked against **its own
 MDE**: a delta smaller than the suite's minimum detectable effect is reported
 as not distinguishable from noise. This is where R4's two halves meet — the
-statistics stop a team chasing a two-point wobble a 26-item sample could never
-have resolved.
+statistics stop a team chasing a two-point wobble the sample could never have
+resolved.
 
 Decisions recorded here:
 
@@ -665,6 +666,8 @@ src/plumbline/          # package: cli, bundle, hashing, judges, lexicons,
 src/plumbline/suites/   # 13 suites + an (empty) skeletons module
 src/plumbline/adapters/ # live-target adapters; imported by `record` only
 datasets/riverbend-demo/  # synthetic demo bundle (clearly labeled)
+tools/                  # build_riverbend_demo.py: the committed, deterministic
+                        #   generator for that bundle
 examples/riverbend.toml # demo target config, all suites enabled
 examples/riverbend-live.toml  # the same, recorded from a live target
 examples/fixture_target.py    # a local target to record against, offline
@@ -678,19 +681,58 @@ tests/                  # stdlib unittest
 
 ## Demo dataset
 
-`riverbend-demo`: a fully synthetic bundle about the fictional "Riverbend County
-Benefits Navigator" — invented jurisdiction, invented programs, invented
-amounts, `.example` domains only. 26 items (20 en, 6 es), a bilingual corpus of
-13 source passages, and a captured interface snapshot. It exists to exercise
-every suite: paired facts across languages, two phrasing registers for the
-fairness axis, load-bearing numeric facts, adversarial probes, expected
-refusals, and one deliberately unreviewed translation so the warning path runs
-on every demo audit. See `datasets/riverbend-demo/DATASET.md`.
+`riverbend-demo`: a fully synthetic bundle about the fictional "Riverbend
+County Benefits Navigator" — invented jurisdiction, invented programs,
+invented amounts, `.example.gov` domains only. **174 items (87 en, 87 es)**, a
+bilingual corpus of 48 source passages over 24 facts, and a captured interface
+snapshot. It exercises every suite: paired facts across languages, two
+phrasing registers for the fairness axis, load-bearing numeric facts, 48
+adversarial probes, expected refusals, and two deliberately unreviewed
+translations so the warning path runs on every demo audit. See
+`datasets/riverbend-demo/DATASET.md`.
 
-Its scores are also a demonstration of the statistics. Nine suites score a
-perfect 1.00 and report a minimum detectable effect between 0.115 and 0.750:
-this dataset is far too small to catch a modest regression, and the report
-says so on every line rather than letting a wall of 1.0000 imply otherwise.
+**It is generated, not maintained by hand.** `tools/build_riverbend_demo.py`
+emits the bundle deterministically and `tests/test_demo_bundle.py` fails if the
+committed bytes and a fresh generation differ. Plumbline demands reproducible,
+hash-protected evidence from the systems it grades; its own demonstration
+evidence is held to the same standard rather than being trusted because it is
+in the repository. The generator also refuses to emit a bundle whose failures
+would be artefacts of the generator: undetectable refusals, answers that read
+as refusals, responses in the wrong language.
+
+**Why it was grown (2026-08-17).** At 26 items the bundle produced honest but
+useless statistics: nine suites at a perfect 1.00, with MDEs from 0.115 to
+0.750. A reader could see the statistical machinery and could not see it do
+any work — a suite that can only detect a three-in-four failure rate is not
+measuring anything, and a report full of `1.0000` next to `mde 0.750` is a
+demonstration of a caveat rather than of an instrument. At 174 items the same
+suites report 0.017 to 0.064. Nothing but sample size moves that number, which
+is the honest lesson the bundle now carries.
+
+Growing it also sharpened the tamper drill. Across 174 items a single planted
+fabrication moves `accuracy` by 0.0016 and `groundedness` by 0.0204: the
+pooled averages absorb it almost entirely, and the suites fail purely on the
+load-bearing severity rule. That is the specification's R3 argument, visible in
+a number rather than asserted.
+
+### What the refusal marker list cannot do
+
+Writing 66 refusals for this bundle surfaced a limitation worth stating
+plainly. Refusal detection is a substring match against a marker list, and the
+shipped list covers six English verbs and five Spanish ones. Perfectly
+ordinary declines — "I can't store personal identifiers", "No puedo adivinar
+las reglas de otro condado" — are invisible to it and score as under-refusals.
+Two thirds of the demo's declines had to be rewritten into the classifier's
+vocabulary before the suite would pass, and the generator now asserts that
+invariant rather than letting a future edit reintroduce the problem quietly.
+
+The fix was **not** to widen the list to `"i can't"`, which would classify
+"I can't wait to help you" as a refusal, nor to paste this corpus's phrasings
+into `lexicons.py`, which would be tuning the instrument to the demonstration.
+The list stays a demonstration list and says so. What this means for a real
+target is in `DATASET.md` and worth repeating: write the marker list from the
+service's own transcripts before trusting the refusal suite, or the score
+measures the list's coverage rather than the system's behavior.
 
 ## Roadmap (spec requirement → milestone)
 
