@@ -6,11 +6,12 @@ Plumbline audit of target `riverbend-demo`.
 
 | Field | Value |
 |---|---|
-| Run id | `67beb984aa4536b7` |
+| Run id | `a7f6f7bcd88a1be7` |
 | Harness version | `0.1.0.dev0` |
 | Seed | `1729` |
 | Dataset hash | `1c14ef2522dae65254c3acd895358eef65e43993c7d915d80d7edff51cf723a7` (short: `1c14ef2522da`) |
-| Judge | `lexical` (deterministic), config hash `ca2a9ce203871e17cd57dd9585e72c68716b59144a6e8bb2986a92a4920b32d5` |
+| Judge | `lexical` (deterministic), config hash `23c0fd04690d804cfa662492e26d9ca4f015eedd3e56e9b0f1cde239e169d423` |
+| Language profiles | `ar`, `en`, `es` |
 
 Dataset: `riverbend-demo`, 26 items. **(synthetic demonstration data — not a benchmark)**
 
@@ -40,7 +41,7 @@ Overall verdict fails if any enabled suite fails.
 
 ## Regression against baseline
 
-Baseline run `fc1aea8a350a11f7`, dataset `1c14ef2522da`, harness `0.1.0.dev0`, judge `lexical`.
+Baseline run `0eb1657bc777645c`, dataset `1c14ef2522da`, harness `0.1.0.dev0`, judge `lexical`.
 
 No suite verdict changed.
 

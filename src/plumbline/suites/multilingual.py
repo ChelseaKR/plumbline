@@ -40,10 +40,14 @@ class MultilingualSuite(Suite):
         if unsupported:
             raise ValueError(
                 f"suite '{self.id}' cannot judge items written in "
-                f"{', '.join(unsupported)}: no language profile is shipped for "
-                f"them (available: {', '.join(sorted(supported))}). Scoring "
-                f"them would mean scoring nothing and calling it a pass; add a "
-                f"profile in lexicons.py or disable this suite for this target."
+                f"{', '.join(unsupported)}: no language profile is in force "
+                f"for them (available: {', '.join(sorted(supported))}). "
+                f"Scoring them would mean scoring nothing and calling it a "
+                f"pass. Declare the language in your target configuration — "
+                f"[judge.languages." + unsupported[0] + "] with `script` "
+                f"(a distinctive script, e.g. script = [\"0600-06FF\"]) or "
+                f"`words` (a list of function words) — rather than disabling "
+                f"the suite for the language communities it exists to serve."
             )
 
         records, sample = [], []

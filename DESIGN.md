@@ -892,3 +892,69 @@ Renaming the file is the entire act of enabling it.
     committed bar set by a model judge should say so where a reviewer reads
     it. This bumped the baseline format to version 2; an old baseline is
     refused with a legible message rather than silently reinterpreted.
+28. **Language profiles are declarable in target configuration, and script
+    beats vocabulary.** See "Language identification" below.
+
+## Language identification (2026-08-17)
+
+A consumer serving Arabic could not enable `multilingual` at all: no `ar`
+profile existed, an item in an unprofiled language is a configuration error,
+and so the only way forward was to declare the suite unscored. That is a
+silent skip wearing a configuration setting's clothes, in a harness whose
+first principle is that there are none.
+
+Two fixes were possible and both were taken, because they answer different
+questions.
+
+**Ship `ar`, as a script rule rather than a word list.** Arabic script is a
+stronger signal than Arabic vocabulary, and two properties of this codebase
+make a word list actively wrong here:
+
+- `normalize()` is `[^\w\s] → " "`. Arabic diacritics are nonspacing marks and
+  therefore not `\w`, so each one is replaced by a *space*: `يُمْكِنُكَ`
+  normalizes to `ي م ك ن ك`. A diacriticized answer does not merely fail to
+  match a word list, it is shredded into single letters first. A script check
+  is untouched by this, because the letters are still there.
+- Detection resolves a tie to `None`, and `None` counts as a failure. Any
+  profile word shared with `en` or `es` could turn a correct Arabic answer
+  into `undetermined`. Script cannot tie with a Latin-script profile.
+
+So `detect_language` now checks script first — a language whose ranges hold a
+**majority of the response's letters** is that language — and falls back to the
+function-word vote for languages that share a script. Only letters count:
+Arabic-Indic digits sit inside the Arabic block and say nothing about prose.
+Two scripts matching is `None`, as ambiguity always is here.
+
+**Let a target declare its own languages**, which is the part that generalises
+past Arabic and past the language after it:
+
+```toml
+[judge.languages.ar]
+script = ["0600-06FF", "0750-077F"]
+
+[judge.languages.pt]
+words = ["voce", "pedido", "beneficios"]
+```
+
+A declared tag replaces the shipped profile for that tag; half-overriding a
+lexicon produces a profile nobody wrote. The rules go into the judge
+configuration hash like every other scoring rule, and both report formats name
+the profiles in force — a run that judged three languages and a run that
+judged two are not the same measurement.
+
+Fail-closed decisions inside it:
+
+- **A profile word that does not survive normalization is refused**, with the
+  reason. It could never match, so accepting it would classify every response
+  in that language as undetermined and fail them all.
+- **An entry declaring neither `words` nor `script` is refused.** A language
+  that can never be detected is worse than one never declared: the suite would
+  accept items in it and then fail every one.
+- **Unknown keys are refused**, as everywhere else in this codebase.
+- **Overlapping vocabularies warn rather than refuse.** Related languages
+  genuinely share function words and the operator may know their corpus
+  separates; but ties become failures, so they should hear about it.
+
+Not done: shipping profiles for further languages. Plumbline cannot enumerate
+the world's languages and should not pretend to. The shipped three are a
+demonstration of the two mechanisms; the config table is the answer.

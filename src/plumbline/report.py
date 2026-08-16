@@ -135,6 +135,9 @@ def render_markdown(report: dict) -> str:
                    else "**not deterministic**")
     lines.append(f"| Judge | `{p['judge_kind']}` ({determinism}), config hash "
                  f"`{p['judge_config_sha256']}` |")
+    languages = judge.get("languages")
+    if languages:
+        lines.append(f"| Language profiles | {', '.join(f'`{t}`' for t in languages)} |")
     lines.append("")
     ds = report["dataset"]
     synthetic = " **(synthetic demonstration data — not a benchmark)**" if ds.get("synthetic") else ""

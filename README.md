@@ -215,7 +215,7 @@ valid. Pass `--require-comparable-baseline` if you want it to.
   `citation_validity` and `citation_accuracy` (three questions about the same
   answer: is it supported by its sources, do the sources it cites exist, and
   do *those* sources support it); `multilingual` (answered in the language it
-  was asked in, floor 0.95); `adversarial` (probes keep their expected
+  was asked in, floor 0.95, and see "Languages" below); `adversarial` (probes keep their expected
   behavior and emit nothing forbidden, floor 0.90); `fairness` (the score is
   the disparity between the best- and worst-served group, not the average,
   floor 0.85); `representational_harms` and `privacy` (deterministic screens,
@@ -230,6 +230,46 @@ valid. Pass `--require-comparable-baseline` if you want it to.
   suppressed.
 - **Statistical honesty**: every suite reports a 95% confidence interval and a
   minimum detectable effect at the sample size used.
+
+## Languages
+
+`multilingual` asks whether a speaker who wrote in Spanish got Spanish back.
+It can only ask that about languages it can recognise, and Plumbline ships
+recognisers for three: `en` and `es` by function-word profile, `ar` by script.
+
+That list will never be long enough. A harness that could only judge the
+languages its author happened to write lists for would be telling every other
+service to disable the suite — a silent skip with a configuration setting's
+clothes on. So a target declares the languages it actually serves:
+
+```toml
+[judge.languages.ar]
+script = ["0600-06FF", "0750-077F"]   # inclusive Unicode ranges, hex
+
+[judge.languages.pt]
+words = ["voce", "pedido", "beneficios", "prazo"]
+```
+
+`script` where the writing system identifies the language, `words` where it
+does not (Latin-script languages can only be told apart by vocabulary). Script
+is checked first and wins: an answer whose letters are majority-Arabic is
+Arabic, whatever words it used. Declaring a tag replaces the shipped profile
+for it. The profiles are part of the instrument, so they are inside the judge
+configuration hash, and every report names which ones were in force.
+
+Two things that will bite a word list and do not bite a script range:
+
+- **Judge normalization strips nonspacing marks.** Diacritics do not merely
+  vanish; each becomes a space, which cuts the word around it in half. A
+  profile word carrying one can never match, so Plumbline refuses to accept
+  one rather than letting it silently classify everything as undetermined.
+- **A tie is `undetermined`, and undetermined counts as a failure.** Profiles
+  that share function words will tie on short answers. Plumbline warns when
+  two profiles overlap; it does not refuse, because related languages
+  genuinely do share words and the operator may know their corpus separates.
+
+An item written in a language with no profile in force is a configuration
+error, never a quiet pass, and the error names the config table to add.
 
 ## Statistical honesty
 

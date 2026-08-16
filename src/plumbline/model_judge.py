@@ -51,7 +51,7 @@ from pathlib import Path
 from . import network
 from .errors import OutboundError
 from .hashing import canonical_json, config_digest, sha256_text
-from .judges import LexicalJudge, strip_citations
+from .judges import LexicalJudge, language_rules, strip_citations
 
 CACHE_FORMAT = "plumbline-judgments"
 CACHE_FORMAT_VERSION = 1
@@ -71,7 +71,7 @@ TEMPLATE_KEYS = ("expected", "actual")
 KNOWN_KEYS = frozenset({
     "kind", "model", "endpoint", "method", "headers", "body",
     "response_pointer", "timeout_seconds", "max_response_bytes", "retries",
-    "retry_delay_seconds", "mode", "cache",
+    "retry_delay_seconds", "mode", "cache", "languages",
 })
 
 
@@ -316,8 +316,12 @@ class ModelJudge:
                 "the same questions again. Set [judge].cache."
             )
         cache = JudgmentCache(Path(cache_path) if cache_path else None, identity)
+        # Language identification stays lexical even here, so the language
+        # profiles a target declares apply to a model-judged run too.
+        rules, language_warnings = language_rules(cfg)
+        warnings.extend(language_warnings)
         return cls(model=model, shape=shape, headers=headers, mode=mode,
-                   cache=cache), warnings
+                   cache=cache, delegate=LexicalJudge(languages=rules)), warnings
 
     # --- identity -----------------------------------------------------------
 
@@ -341,6 +345,7 @@ class ModelJudge:
             "judgments_sha256": self._cache.digest(),
             "judgment_count": len(self._cache.judgments),
             "model_decides": list(MODEL_DECIDES),
+            "languages": list(self._lexical.supported_languages()),
             "delegated_to_lexical": list(DELEGATED_TO_LEXICAL),
             "strips_citations": True,
             "lexical": self._lexical.config(),
@@ -358,6 +363,7 @@ class ModelJudge:
             "mode": self.mode,
             "endpoint": network.public_endpoint(self._shape.url),
             "model_decides": list(MODEL_DECIDES),
+            "languages": list(self._lexical.supported_languages()),
             "notice": (
                 f"Answer scoring in this report was performed by a model "
                 f"judge (model `{self.model}`, mode `{self.mode}`), not by "

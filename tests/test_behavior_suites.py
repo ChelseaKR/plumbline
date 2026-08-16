@@ -72,7 +72,9 @@ class MultilingualTests(SuiteTestCase):
         bundle = self.bundle(items, [response("fr-1", "le plafond")])
         with self.assertRaises(ValueError) as caught:
             get_suite("multilingual").evaluate(bundle, self.judge, 0.95)
-        self.assertIn("no language profile is shipped", str(caught.exception))
+        self.assertIn("no language profile is in force", str(caught.exception))
+        # And the error points at the fix rather than at disabling the suite.
+        self.assertIn("[judge.languages.fr]", str(caught.exception))
 
     def test_unreviewed_translations_are_reported_but_do_not_score(self):
         bundle = self.bundle(

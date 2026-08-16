@@ -79,16 +79,24 @@ class LexicalJudge:
 
     kind = "lexical"
 
+    def __init__(self, languages: lexicons.LanguageRules | None = None) -> None:
+        # The language rules in force for this run: the shipped profiles, or
+        # those plus whatever `[judge.languages]` declared. They are part of
+        # the instrument, so they are inside config() and therefore inside the
+        # judge configuration hash on every report.
+        self._languages = languages or lexicons.default_language_rules()
+
     def config(self) -> dict:
         return {
             "kind": self.kind,
-            "version": 2,
+            "version": 3,
             "normalization": ["lowercase", "strip_punctuation", "collapse_whitespace"],
             "answer_metric": "token_f1",
             "support_metric": "content_token_recall",
             "number_extraction": "digits_with_commas_stripped",
             "citation_marker": "square_bracketed_source_id",
-            "lexicons": lexicons.as_config(),
+            "language_detection": "script majority first, then function-word profile",
+            "lexicons": lexicons.as_config(self._languages),
         }
 
     def config_hash(self) -> str:
@@ -96,8 +104,13 @@ class LexicalJudge:
 
     def describe(self) -> dict:
         """What the report says about the instrument on its face. The lexical
-        judge's answer is the boring one, and that is the point."""
-        return {"kind": self.kind, "deterministic": True, "notice": None}
+        judge's answer is the boring one, and that is the point.
+
+        `languages` is there because a reader checking a multilingual score
+        needs to know which profiles were in force: a run that judged three
+        languages and a run that judged two are not the same measurement."""
+        return {"kind": self.kind, "deterministic": True, "notice": None,
+                "languages": list(self._languages.tags())}
 
     # --- factual accuracy ---------------------------------------------------
 
@@ -150,23 +163,31 @@ class LexicalJudge:
     # --- language identification -------------------------------------------
 
     def supported_languages(self) -> tuple[str, ...]:
-        return tuple(sorted(lexicons.LANGUAGE_PROFILES))
+        return self._languages.tags()
 
     def detect_language(self, text: str) -> str | None:
-        """Best-matching shipped language profile, or None when the evidence
-        does not separate them. None is never treated as a pass."""
-        tokens = normalize(strip_citations(text)).split()
+        """The language of a recorded response, or None when the evidence does
+        not separate the profiles in force. None is never treated as a pass.
+
+        **Script first.** A language whose script holds a majority of the
+        response's letters is that language, and no vocabulary check can
+        overrule it. Script is a property of the characters rather than a
+        curated list, so it does not go stale, it does not care which function
+        words the answer happened to use, and it survives normalization —
+        which strips the diacritics an Arabic or Hebrew word list would
+        otherwise have to be written without.
+
+        **Vocabulary second**, for the languages that share a script and can
+        only be told apart by their words.
+        """
+        cleaned = normalize(strip_citations(text))
+        tokens = cleaned.split()
         if not tokens:
             return None
-        scores = {
-            lang: sum(1 for t in tokens if t in profile)
-            for lang, profile in lexicons.LANGUAGE_PROFILES.items()
-        }
-        best = max(scores.values())
-        if best == 0:
-            return None
-        winners = [lang for lang, hits in scores.items() if hits == best]
-        return winners[0] if len(winners) == 1 else None
+        by_script = self._languages.script_of(cleaned)
+        if by_script is not None:
+            return by_script
+        return self._languages.vocabulary_of(tokens)
 
     # --- harms and privacy --------------------------------------------------
 
@@ -187,6 +208,21 @@ class LexicalJudge:
         return [m for m in lexicons.PII_SOLICITATION_MARKERS if m in lowered]
 
 
+def language_rules(judge_config: dict) -> tuple[lexicons.LanguageRules, list[str]]:
+    """The language profiles a target configuration puts in force.
+
+    Plumbline cannot enumerate the world's languages, and a harness that
+    shipped a fixed list would be telling every service outside it to disable
+    the multilingual suite — which is a silent skip wearing a configuration
+    setting's clothes. `[judge.languages]` is the way out: a consumer declares
+    the languages it actually serves, they go into the judge configuration
+    hash like every other scoring rule, and the report says which profiles
+    judged the run.
+    """
+    return lexicons.rules_from_config(judge_config.get("languages"),
+                                      normalizer=normalize)
+
+
 def make_judge(judge_config: dict, *, offline_only: bool = False
                ) -> tuple[Judge, list[str]]:
     """Build a judge from target configuration, with any warnings.
@@ -202,13 +238,14 @@ def make_judge(judge_config: dict, *, offline_only: bool = False
     """
     kind = judge_config.get("kind", "lexical")
     if kind == "lexical":
-        unknown = sorted(set(judge_config) - {"kind"})
+        unknown = sorted(set(judge_config) - {"kind", "languages"})
         if unknown:
             raise ValueError(
                 f"[judge] has key(s) the lexical judge does not understand: "
                 f"{', '.join(unknown)} (did you mean kind = \"model\"?)"
             )
-        return LexicalJudge(), []
+        rules, warnings = language_rules(judge_config)
+        return LexicalJudge(languages=rules), warnings
     if kind == "model":
         # Imported here, and only here: a lexical run never loads the model
         # judge, and therefore never loads the network module underneath it.
