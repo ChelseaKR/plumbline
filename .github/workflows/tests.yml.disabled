@@ -1,0 +1,77 @@
+# DISABLED ON PURPOSE — this file does not run, and is not meant to yet.
+#
+# GitHub Actions only reads `.yml` / `.yaml` files in this directory, so the
+# `.disabled` suffix means this workflow is never scheduled and consumes no
+# Actions minutes. Renaming it to `tests.yml` is the entire act of enabling it.
+#
+# Why it is off: this account's Actions budget is exhausted. A workflow that
+# cannot run is worse than no workflow — a red or perpetually-queued check
+# teaches everyone who sees it to ignore checks, which is the exact habit this
+# project exists to argue against.
+#
+# Why it is here at all: a harness whose thesis is "a gate that could not run
+# is not a gate that passed" should be able to say what its own gate would be,
+# and should not make the next person reinvent it. This is that statement,
+# written down and inert.
+#
+# Until it is enabled, the suite is run locally before every push, and the
+# acceptance record in DESIGN.md reports observed results from an actual clean
+# checkout rather than a badge.
+#
+#   PYTHONPATH=src:tests python3 -m unittest discover -s tests
+#
+# Nothing here needs a key, a network, or a third-party package: the tests
+# bind a local HTTP server on the loopback interface for the adapter and
+# model-judge paths, and everything else is standard library.
+
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Run the suite
+        run: PYTHONPATH=src:tests python3 -m unittest discover -s tests
+
+      # The audit of the bundled demo is committed. If a change to the harness
+      # moves a score, a hash, or a byte of the report, this step fails with a
+      # diff — which is the reproducibility claim, enforced.
+      - name: The committed demo audit must still reproduce byte for byte
+        run: |
+          PYTHONPATH=src python3 -m plumbline gate \
+            --config examples/riverbend.toml --out audits
+          git diff --exit-code -- audits baselines
+
+      # The tamper drill, as documented in the README.
+      - name: Tamper drill — integrity refusal, then a caught fabrication
+        run: |
+          python3 - <<'PY'
+          import pathlib
+          p = pathlib.Path("datasets/riverbend-demo/responses.jsonl")
+          p.write_text(p.read_text().replace("850 dollars", "900 dollars"))
+          PY
+          PYTHONPATH=src python3 -m plumbline gate \
+            --config examples/riverbend.toml --out /tmp/tamper && exit 1
+          test $? -eq 3 || exit 1
+          PYTHONPATH=src python3 -m plumbline seal datasets/riverbend-demo
+          PYTHONPATH=src python3 -m plumbline gate \
+            --config examples/riverbend.toml --out /tmp/tamper && exit 1
+          git checkout -- datasets/riverbend-demo

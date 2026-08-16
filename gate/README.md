@@ -58,6 +58,9 @@ Every way this can go wrong exits **4** with a reason on stderr:
 - the harness repository unreachable, or the pinned commit absent from it
 - a resolved checkout that is not at the pinned commit
 - a resolved checkout with no `src/`
+- a model judge configured with `mode = "live"` — the gate does not make
+  network calls. Record the judgments with `plumbline audit`, commit the
+  judgment cache, and gate against it offline.
 
 There is no path through the runner that skips the gate or reports success
 without having run it. If the harness cannot be reached, the job fails. A gate

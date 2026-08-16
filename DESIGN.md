@@ -703,17 +703,18 @@ says so on every line rather than letting a wall of 1.0000 imply otherwise.
 | **M6** | ✅ Live-target adapters: `plumbline record`, the bounded `http_json` adapter, a question-set loader, recording provenance in the manifest and in every report, and tests proving the gate cannot reach any of it (2026-08-16). | R2, R7 |
 | **M7** | ✅ Optional model-based judge: separated module, cached-by-default recorded judgments, refused inside the gate, named on the face of every report and baseline it produces, and folded into the judge configuration hash so differently-judged runs cannot compare as equal (2026-08-16). **Every capability in the specification is now implemented.** | R2 |
 
-## Acceptance record (verified 2026-08-15, clean checkout)
+## Acceptance record (verified 2026-08-16, clean checkout)
 
 Every line below is an observed result from `git clone`-ing this repository
-into a temporary directory and running the commands offline, not a claim about
-what the code should do.
+into a temporary directory and running the commands, not a claim about what
+the code should do. Figures that moved since the 2026-08-15 record moved for
+reasons named here.
 
 **Clean checkout, one documented command, offline, identical re-run.**
 `PYTHONPATH=src python3 -m plumbline gate --config examples/riverbend.toml
---out audits` → exit **0**, `GATE: PASS`, 13 of 13 suites. `git status` was
-empty afterwards: the freshly generated reports were byte-identical to the
-committed ones.
+--out audits` → exit **0**, `GATE: PASS`, 13 of 13 suites, `judge: lexical
+(deterministic)`. `git status` was empty afterwards: the freshly generated
+reports were byte-identical to the committed ones.
 
 **Every enabled suite reports score, floor, verdict, CI and MDE.** All
 thirteen, in the committed report. Nine score a perfect 1.0000, with MDEs from
@@ -722,13 +723,16 @@ detect. `accessibility` reports `n/a` for both figures with the reason in the
 report: five fixed checks are a census, not a sample.
 
 **Reports carry the provenance block.** Committed
-`audits/1682f39507e03965/report.{json,md}`: run id `1682f39507e03965`, harness
-`0.1.0.dev0`, seed `1729`, dataset `1c14ef2522da`, judge config
-`ca2a9ce20387…`, verdict as the first key and the first heading.
+`audits/67beb984aa4536b7/report.{json,md}`: run id `67beb984aa4536b7`, harness
+`0.1.0.dev0`, seed `1729`, dataset `1c14ef2522da`, judge `lexical`
+(*deterministic*), judge config `ca2a9ce20387…`, verdict as the first key and
+the first heading. The run id moved from `1682f39507e03965` because the
+baseline record gained `judge_kind` and the baseline is part of the run's
+identity — the trace working as designed, visible as a rename in git.
 
 **Unreviewed-translation warning on every run, never fatal.** `rb-004` warns on
-`validate`, on `audit` and on `gate`, on first runs and re-runs, and the exit
-code stayed 0.
+`validate`, on `audit`, on `gate` and on `record`, on first runs and re-runs,
+and the exit code stayed 0.
 
 **Tamper drill, end to end** (the README documents it verbatim and it is
 repeatable):
@@ -740,27 +744,41 @@ repeatable):
 | `plumbline seal` | dataset hash `1c14ef2522da` → `44f59018fbe4` — the trace |
 | Second run | exit **1**, `GATE: FAIL`, 3 of 13 suites failed |
 
-The three that failed, and why they are the right three:
+The three that failed are `accuracy` (0.8680, **above** its 0.75 floor, failed
+on load-bearing items rb-001/rb-014/rb-021), `groundedness` (0.8166, above its
+0.70 floor, because 900 appears in no source) and `cross_language` (0.6250,
+floor 1.00: English says 900, Spanish still says 850). The regression block in
+the same report refused numeric comparison, named the moved hash, and reported
+`PASS → FAIL` with all three flips.
 
-| Suite | Score | Floor | Why it failed |
-|---|---|---|---|
-| `accuracy` | 0.8680 | 0.75 | **above its floor**; failed on load-bearing items rb-001, rb-014, rb-021 |
-| `groundedness` | 0.8166 | 0.70 | **above its floor**; 900 appears in no source |
-| `cross_language` | 0.6250 | 1.00 | en says 900, es still says 850 |
+**The same fabrication caught through the live path, with nothing tampered.**
+`python3 examples/fixture_target.py --fabricate` serves the demo answers with
+one English number changed. `plumbline record` produced a legitimate, properly
+sealed bundle (`f2189eb4d3fc`); `plumbline gate` on it exited **1** with the
+same three suites failing. No integrity refusal, because nothing was tampered
+with — the evidence is exactly what the target said.
 
-And the regression block in the same report:
+**Record then audit, from the clean checkout, offline.** Against the bundled
+fixture target on the loopback interface: 26 responses recorded, new dataset
+`4b6b1c3c0a6a`, manifest carrying the endpoint, call shape, bounds, question
+set hash `1c14ef2522da` and the recording timestamp; `plumbline audit` on the
+result → exit **0**, and the report names the recording above the scores.
 
-```
-**Numeric comparison refused.**
-- the dataset hash differs: this run scored 44f59018fbe4, the baseline scored
-  1c14ef2522da. The evidence changed, so the scores are not comparable numbers.
+**The gate cannot reach the adapters or a live model judge.** A full `gate` run
+in a subprocess imports neither `plumbline.adapters` nor `plumbline.network`
+nor `plumbline.recording` nor `plumbline.model_judge`; the same run completes
+with `socket.socket` replaced by a function that raises. A `gate` against a
+config whose judge is in `mode = "live"` exits **4** with `not a gate` on
+stderr, having made zero requests to the (running, reachable) server.
 
-Overall verdict: PASS → FAIL.
-Suites whose verdict changed:
-- `accuracy`: PASS → FAIL
-- `cross_language`: PASS → FAIL
-- `groundedness`: PASS → FAIL
-```
+**A model-judged report says so on its face.** Judgments recorded live against
+a local server, then replayed in cached mode against an endpoint nothing is
+listening on: exit **0**, `judge: model NOT DETERMINISTIC — model
+test-grader-1, mode cached` on the terminal, the notice on stderr, `**Scored
+by a model judge.**` above the provenance table, `"deterministic": false` in
+the JSON, and `judge_kind: model` in any baseline built from it. Compared
+against a lexical baseline, the run refused numeric comparison naming the
+judge hash and still reported `accuracy: FAIL → PASS`.
 
 **With the harness unreachable, a consuming repo's gate fails rather than
 skips.** `tests/test_gate.py` runs `gate/plumbline-gate.sh` as a real
@@ -770,8 +788,17 @@ directory was never created. The same file covers a missing pin, a pin missing
 `config` or `ref`, a branch name where a commit hash is required, and an
 unknown pin key — all exit 4.
 
-**Tests**: `PYTHONPATH=src:tests python3 -m unittest discover -s tests` → **172
-tests, OK**, in about one second, offline, with no third-party packages.
+**Tests**: `PYTHONPATH=src:tests python3 -m unittest discover -s tests` → **270
+tests, OK**, in about two seconds, offline, with no third-party packages. The
+HTTP paths are exercised against real servers on the loopback interface, not
+against mocked openers.
+
+**Continuous integration**: deliberately none. `.github/workflows/tests.yml.disabled`
+says what this repository's own gate would be and is inert — GitHub Actions
+reads only `.yml`/`.yaml`, so it never runs and never queues. The account's
+Actions budget is exhausted, and a permanently red or queued check teaches
+people to ignore checks, which is the habit this project argues against.
+Renaming the file is the entire act of enabling it.
 
 ## Decisions the spec left open (recorded)
 

@@ -30,6 +30,11 @@ fail-closed CI gate, live-target recording, and an optional model judge —
 neither of which the gate can reach. 270 tests, standard library only,
 offline.
 
+There is deliberately no CI badge here: this repository runs no GitHub Actions
+workflow. `.github/workflows/tests.yml.disabled` says what its own gate would
+be and is inert by design — see the acceptance record in `DESIGN.md` for why,
+and for observed results from an actual clean checkout instead.
+
 Built from a functional specification, started 2026-08-15, implemented with AI
 agents (Claude Code), reviewed and directed by a human. `DESIGN.md` carries
 the architecture, every design decision the specification left open, and an
@@ -77,7 +82,7 @@ PYTHONPATH=src python3 -m plumbline gate --config examples/riverbend.toml \
 | 1 | At least one enabled suite failed — overall FAIL | block; read the named suites |
 | 2 | Command-line usage error | fix the command |
 | 3 | **Integrity refusal**: evidence checksums missing or mismatched, nothing was scored | block; the evidence is untrustworthy, which is a different problem from a regression |
-| 4 | Configuration or environment error, including an unresolvable harness | block; the gate did not run |
+| 4 | Configuration or environment error, including an unresolvable harness or a model judge asked to make live calls inside the gate | block; the gate did not run |
 
 The separation of 1, 3 and 4 is deliberate. "The target got worse", "the
 evidence is untrustworthy" and "the gate was misconfigured" need three
