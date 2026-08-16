@@ -982,8 +982,8 @@ between statistics a reader can see and statistics a reader can use.
 five fixed checks are a census, not a sample.
 
 **Reports carry the provenance block.** Committed
-`audits/f49a0533c061e401/report.{json,md}`: run id `f49a0533c061e401`, harness
-`0.1.0.dev0`, harness source `56c4b5851d68…`, seed `1729`, dataset
+`audits/a9abe724a805f956/report.{json,md}`: run id `a9abe724a805f956`, harness
+`0.1.0.dev0`, harness source `7c3810fcf92c…`, seed `1729`, dataset
 `38e4d786a56c`, judge `lexical` (*deterministic*), judge config
 `23c0fd04690d…`, language profiles `ar, en, es`, verdict as the first key and
 the first heading.
