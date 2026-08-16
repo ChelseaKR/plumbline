@@ -24,13 +24,19 @@ third party could defend:
 ## Status
 
 Pre-release (`0.1.0.dev0`). Every capability in the functional specification
-is implemented: thirteen scoring suites, per-suite confidence intervals and
+is implemented: fourteen scoring suites, per-suite confidence intervals and
 minimum detectable effect, baseline regression comparison, a pinned
 fail-closed CI gate, live-target recording over HTTP or against a local
 program, and an optional model judge — none of which the gate can reach. Every
 suite has been **observed failing** on a defect it exists to catch; see
-[`proof/matrix.md`](proof/matrix.md). 377 tests, standard library only,
+[`proof/matrix.md`](proof/matrix.md). 414 tests, standard library only,
 offline.
+
+The fourteenth suite is beyond the specification and came from a consumer's
+bug report: an answer can be grounded, cited, in the right language and not a
+refusal, and still be composed from the **wrong paragraph** of the right
+document. See "Wrong paragraph, right document" below for what
+`passage_attribution` can and cannot determine.
 
 Not done, deliberately: nothing here has been pointed at a real public-sector
 system. [`docs/first-real-target.md`](docs/first-real-target.md) records what
@@ -119,7 +125,7 @@ run is not a gate that passed. See [`gate/README.md`](gate/README.md).
 
 ## Proof that the gate bites
 
-Thirteen suites reporting PASS proves nothing about whether any of them *can*
+Fourteen suites reporting PASS proves nothing about whether any of them *can*
 report FAIL. A suite nobody has watched fail is indistinguishable from a suite
 that cannot fail, and "fail closed" is this project's entire claim.
 
@@ -134,8 +140,8 @@ python3 tools/defect_matrix.py --check   # verify the committed proof is current
 ```
 
 Read the result in [`proof/matrix.md`](proof/matrix.md) rather than taking
-this paragraph's word for it. Seventeen cases, all thirteen suites covered,
-plus an integrity refusal and an empty-population configuration error. The
+this paragraph's word for it. Twenty cases, all fourteen suites covered, plus
+an integrity refusal and two empty-population configuration errors. The
 matrix is regenerated and checked on every test run, so it cannot go stale
 while the code moves under it.
 
@@ -144,7 +150,8 @@ Three things it deliberately reports rather than hides:
 - **Couplings.** Making one probe leak its system prompt fails `adversarial`
   *and* `representational_harms` *and* `privacy`, because all three read the
   item's `forbidden` list. That is a fact about the design; the matrix names
-  it instead of tuning it away.
+  it instead of tuning it away, and since it is a fact a *reader* needs, every
+  report now names it too — see "Two red rows are not two problems" below.
 - **What the floors tolerate.** One under-refusal out of 174 items scores
   0.9943 and passes. That case is in the matrix as a declared non-failure, so
   a reader can see the size of the smallest defect the configuration catches.
@@ -172,7 +179,7 @@ echo $?   # 3
 
 # 3. "Regenerate" legitimately — the hash change is the trace.
 PYTHONPATH=src python3 -m plumbline seal datasets/riverbend-demo
-#    dataset: a827533387cb -> 967dc13e1f32
+#    dataset: 38e4d786a56c -> 50d3aa206014
 
 # 4. Second run: three independent checks catch the planted fact, exit code 1.
 PYTHONPATH=src python3 -m plumbline gate --config examples/riverbend.toml --out audits
@@ -188,7 +195,7 @@ floors when they do:
 | Suite | Score | Floor | Verdict | Why |
 |---|---|---|---|---|
 | `accuracy` | 0.8622 | 0.75 | **FAIL** | above its floor; the planted number is on load-bearing items |
-| `groundedness` | 0.8518 | 0.70 | **FAIL** | above its floor; 900 appears in no source |
+| `groundedness` | 0.8605 | 0.70 | **FAIL** | above its floor; 900 appears in no source |
 | `cross_language` | 0.9286 | 1.00 | **FAIL** | English now says 900, Spanish still says 850 |
 
 That is the whole argument for the design, and the larger the evidence set
@@ -205,8 +212,8 @@ The regression block in the same report closes the loop:
 
 **Numeric comparison refused.**
 
-- the dataset hash differs: this run scored 967dc13e1f32, the baseline scored
-  a827533387cb. The evidence changed, so the scores are not comparable numbers.
+- the dataset hash differs: this run scored 50d3aa206014, the baseline scored
+  38e4d786a56c. The evidence changed, so the scores are not comparable numbers.
 
 Overall verdict: **PASS → FAIL**.
 
@@ -249,8 +256,9 @@ valid. Pass `--require-comparable-baseline` if you want it to.
 
 - Evidence bundle format v1: versioned dataset with per-item language,
   expected behavior class (answer vs. refusal), translation review status,
-  load-bearing flags, cross-language fact links, retrieved source ids; a
-  source corpus; recorded responses; SHA-256 integrity manifest.
+  load-bearing flags, cross-language fact links, retrieved source ids, an
+  opt-in declaration of which passage answers each question; a source corpus;
+  recorded responses; SHA-256 integrity manifest.
 - Suites: `smoke` (target is testable at all, floor 1.00); `accuracy`
   (token-F1 with a load-bearing per-item override that can fail the suite
   regardless of the pooled average, floor 0.75); `refusal` (both directions,
@@ -258,7 +266,9 @@ valid. Pass `--require-comparable-baseline` if you want it to.
   their numbers and on whether they refused, floor 1.00); `groundedness`,
   `citation_validity` and `citation_accuracy` (three questions about the same
   answer: is it supported by its sources, do the sources it cites exist, and
-  do *those* sources support it); `multilingual` (answered in the language it
+  do *those* sources support it); `passage_attribution` (of the passages the
+  item had, does the answer come from one that answers the question, floor
+  0.95, opt-in per item, see below); `multilingual` (answered in the language it
   was asked in, floor 0.95, and see "Languages" below); `adversarial` (probes keep their expected
   behavior and emit nothing forbidden, floor 0.90); `fairness` (the score is
   the disparity between the best- and worst-served group, not the average,
@@ -280,6 +290,93 @@ valid. Pass `--require-comparable-baseline` if you want it to.
   from a committed script and byte-checked, the committed report is
   byte-checked against a fresh run, and every report names the sha256 of the
   harness source that produced it, not just a version string.
+- **A disclosure of which suites are not independent signals**, in every
+  report, computed from that run's own per-item records.
+
+## Wrong paragraph, right document
+
+A consumer grading a grounded-answering engine found an answer this harness
+scored clean and a human reviewer would reject: the question asked about
+eligibility, and the answer was composed from the **fare paragraph of the same
+document**, which happens to share a word with the question. Their report's
+sentence was the problem in one line — *the audit passes that item, because no
+suite it runs can say "wrong paragraph."*
+
+They were right. `groundedness` scores support against the union of the item's
+sources, and the fare paragraph was one of them. `citation_validity` resolves
+the cited id, which exists. `citation_accuracy` asks whether the cited passage
+supports the answer, and it does — completely, because that is where the
+answer came from. `accuracy` sees one item's token-F1 sink into a pooled mean,
+and cannot tell it apart from a paraphrase.
+
+`passage_attribution` asks the missing question: of the passages this item had,
+which one best accounts for the answer, and is it one that answers the
+question?
+
+**It needs the dataset's help, and says so when it does not get it.** A
+lexical judge can compare passages; it cannot read a question. So an item
+declares which of its passages answers it:
+
+```json
+{"id": "elig-en", "lang": "en", "behavior": "answer",
+ "prompt": "Who is eligible for Rent Relief?",
+ "expected": "Eligibility is based on household income.",
+ "sources": ["src-eligibility", "src-fare"],
+ "answering_sources": ["src-eligibility"]}
+```
+
+An item that declares nothing is reported **UNVERIFIABLE**, never passed, and
+every report carries the coverage line:
+
+```
+- `passage_attribution` scored 48 of 108 eligible items. 60 are UNVERIFIABLE
+  (no_declaration 60) — excluded from the score, and not counted as passes.
+```
+
+What it can determine: which of two passages better accounts for the words of
+an answer. That is a comparison between passages, and the paraphrase penalty
+and the normalizer's quirks apply to both sides and largely cancel. An answer
+whose content sits in a passage that does not answer the question fails, and a
+load-bearing item that does so fails the suite regardless of the pooled mean.
+
+What it cannot determine: which passage answers a question — that is the
+declaration's job, and a wrong declaration produces a wrong verdict.
+Anything about an undeclared item. Whether the answer is *correct*: an answer
+copied from the right passage scores 1.0 here even when the answer is wrong,
+which is `accuracy`'s question. And when two passages account for an answer
+within 0.10 of each other, it reports UNVERIFIABLE rather than guessing.
+
+Reference answers are used to *suggest* declarations for undeclared items, and
+never to score them. The inference is often right, unsound, and silent when it
+is wrong.
+
+`proof/matrix.md` carries three cases for it, including one that plants the
+defect with the declaration removed and expects **everything to pass** — the
+honest limit of the instrument, executable.
+
+## Two red rows are not two problems
+
+Suites are not independent instruments. Where two enabled suites read the same
+evidence, one defect fails both, and a reader counting red rows overcounts the
+findings. The defect-injection matrix discovered two such couplings; every
+report now discloses them under the suite table, with the reading computed
+from that run's own per-item records:
+
+```
+- `adversarial`, `privacy`, `representational_harms` — shared input: each
+  item's `forbidden` list. …
+  **In this run: all three failed on the same 1 item(s)
+  (`probe-print-system-prompt-en`) … ONE finding wearing 3 hats, not 3
+  findings.**
+- `accuracy`, `fairness` — shared input: the judge's per-item answer score. …
+```
+
+`fairness` cannot be isolated from `accuracy` even in principle: per-item
+service quality *is* the accuracy measure, so a disparity wide enough to
+breach the fairness floor necessarily moves the accuracy mean. When two
+coupled suites fail on *different* items the report says that too — those are
+separate findings that happen to read the same input. `plumbline gate` prints
+the same line into the build log.
 
 ## Languages
 
