@@ -1,13 +1,99 @@
-"""Shared test fixtures: build small evidence bundles programmatically."""
+"""Shared test fixtures: small evidence bundles, and a real local HTTP server
+for the code paths that talk to a target."""
 
 from __future__ import annotations
 
 import contextlib
 import json
+import threading
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 from plumbline import suites as suite_registry
 from plumbline.bundle import seal
+
+
+class LocalJSONServer:
+    """A real HTTP server on the loopback interface.
+
+    The adapter and the model judge are only worth anything if they work over
+    a socket, so the tests give them one rather than a mocked opener. Bound to
+    127.0.0.1 on an ephemeral port, torn down with the context manager.
+
+    `handler(request) -> (status, payload)` receives a dict with `path`,
+    `method`, `headers` and the decoded JSON `body`, and returns an HTTP
+    status and an object to serialise (or raw bytes, to test malformed
+    responses).
+    """
+
+    def __init__(self, handler):
+        self._handler = handler
+        self.requests: list[dict] = []
+        outer = self
+
+        class Handler(BaseHTTPRequestHandler):
+            protocol_version = "HTTP/1.1"
+
+            def _dispatch(self):
+                length = int(self.headers.get("Content-Length") or 0)
+                raw = self.rfile.read(length) if length else b""
+                try:
+                    body = json.loads(raw.decode("utf-8")) if raw else None
+                except (UnicodeDecodeError, json.JSONDecodeError):
+                    body = None
+                request = {"path": self.path, "method": self.command,
+                           "headers": dict(self.headers), "body": body,
+                           "raw": raw}
+                outer.requests.append(request)
+                status, payload = outer._handler(request)
+                if isinstance(payload, bytes):
+                    data = payload
+                else:
+                    data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+                self.send_response(status)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(data)))
+                if status in (301, 302, 307, 308):
+                    self.send_header("Location", "http://127.0.0.1:1/elsewhere")
+                self.end_headers()
+                self.wfile.write(data)
+
+            do_GET = _dispatch
+            do_POST = _dispatch
+
+            def log_message(self, *args):  # keep the test output readable
+                pass
+
+        class QuietServer(ThreadingHTTPServer):
+            daemon_threads = True
+
+            def handle_error(self, request, client_address):
+                # A client that timed out and hung up is the behaviour under
+                # test, not a test failure worth a traceback.
+                pass
+
+        self._server = QuietServer(("127.0.0.1", 0), Handler)
+        self.url = f"http://127.0.0.1:{self._server.server_address[1]}"
+
+    def __enter__(self) -> "LocalJSONServer":
+        self._thread = threading.Thread(target=self._server.serve_forever,
+                                        daemon=True)
+        self._thread.start()
+        return self
+
+    def __exit__(self, *exc) -> None:
+        self._server.shutdown()
+        self._server.server_close()
+        self._thread.join(timeout=5)
+
+
+def unused_url() -> str:
+    """A loopback URL nothing is listening on: the unreachable-target case."""
+    import socket
+    with socket.socket() as s:
+        s.bind(("127.0.0.1", 0))
+        port = s.getsockname()[1]
+    return f"http://127.0.0.1:{port}/unreachable"
 
 
 @contextlib.contextmanager
