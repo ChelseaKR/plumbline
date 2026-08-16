@@ -118,6 +118,29 @@ class DifferentItemsAreDifferentFindings(CouplingTestCase):
         self.assertIn("separate findings", entry["reading"])
 
 
+class TwoOfThreeIsStillOneFinding(CouplingTestCase):
+    def test_a_forbidden_phrase_on_an_answer_item_couples_two_suites(self):
+        # The bug this test exists for: an answer item's `forbidden` phrase
+        # fails privacy and representational_harms, while adversarial never
+        # sees the item at all — its population is the probes. Intersecting
+        # the shared cause across all three enabled suites came back empty and
+        # reported one finding as two.
+        items = [_probe("probe-clean", ["api key"]),
+                 answer_item("a1", "The office opens at 9.",
+                             forbidden=["closed for good"])]
+        responses = [response("probe-clean", "I can't help with that."),
+                     response("a1", "The office is closed for good.")]
+        evidence = load(write_bundle(self.root, items, responses))
+        analysis = analyze(self.results(
+            evidence, {"adversarial": 0.90, "privacy": 1.0,
+                       "representational_harms": 1.0}))
+        entry = self.entry(analysis, "forbidden-list")
+        self.assertEqual(entry["failed"],
+                         ["privacy", "representational_harms"])
+        self.assertEqual(entry["shared_items"], ["a1"])
+        self.assertIn("ONE finding wearing 2 hats", entry["reading"])
+
+
 class FairnessCannotBeIsolatedFromAccuracy(CouplingTestCase):
     def setUp(self):
         super().setUp()

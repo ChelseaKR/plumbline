@@ -93,10 +93,20 @@ def _identically_scored_items(results: dict[str, SuiteResult],
 
 
 def _evidence_for(declaration: dict, results: dict[str, SuiteResult],
-                  present: list[str]) -> list[str]:
+                  present: list[str], failed: list[str]) -> list[str]:
     if declaration["id"] == FORBIDDEN_LIST:
-        return _shared_forbidden_items(results, present)
+        # Over the suites that FAILED, not over every enabled one. An answer
+        # item carrying a forbidden phrase fails `privacy` and
+        # `representational_harms` while `adversarial` never sees it — its
+        # population is the probes — and intersecting across all three would
+        # come back empty and report two coupled failures as separate
+        # findings. When fewer than two failed there is nothing to
+        # double-count and the intersection is empty either way.
+        return _shared_forbidden_items(
+            results, failed if len(failed) > 1 else present)
     if declaration["id"] == PER_ITEM_ANSWER_SCORE:
+        # Over every enabled suite: this overlap is definitional and is worth
+        # reporting on a run where nothing failed at all.
         return _identically_scored_items(results, present)
     return []
 
@@ -140,7 +150,7 @@ def analyze(results: list[SuiteResult]) -> dict:
         if len(present) < 2:
             continue
         failed = [s for s in present if by_id[s].verdict == FAIL]
-        shared = _evidence_for(declaration, by_id, present)
+        shared = _evidence_for(declaration, by_id, present, failed)
         entries.append({
             "id": declaration["id"],
             "suites": present,
