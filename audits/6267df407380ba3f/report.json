@@ -1,14 +1,14 @@
 {
   "verdict": "PASS",
   "provenance": {
-    "run_id": "8850ecfaaa3741b1",
+    "run_id": "6267df407380ba3f",
     "harness": "plumbline",
     "harness_version": "0.1.0.dev0",
     "harness_source_sha256": "a5db22ec55a26e830b27145019dd9aec12da2195d13facf80695436312bc9c10",
     "harness_source_note": "sha256 over every .py file in the installed plumbline package",
     "seed": 1729,
-    "dataset_sha256": "a827533387cb92580c65ea6806873724cef9a0eb9a18414bf8e79edbf304e2ba",
-    "dataset_id": "a827533387cb",
+    "dataset_sha256": "38e4d786a56c102ba010c427f6a1fbd1c5ffa7f23ec68569d1f10ecfba368a05",
+    "dataset_id": "38e4d786a56c",
     "judge_kind": "lexical",
     "judge_config_sha256": "23c0fd04690d804cfa662492e26d9ca4f015eedd3e56e9b0f1cde239e169d423"
   },
@@ -25,7 +25,7 @@
   "target": "riverbend-demo",
   "dataset": {
     "name": "riverbend-demo",
-    "version": "3.0.0",
+    "version": "3.1.0",
     "synthetic": true,
     "items": 174,
     "recording": null
@@ -5884,17 +5884,17 @@
     },
     {
       "suite": "groundedness",
-      "score": 0.8722,
+      "score": 0.8809,
       "floor": 0.7,
       "verdict": "PASS",
       "n": 108,
       "ci": {
-        "lower": 0.8418,
-        "upper": 0.9021,
+        "lower": 0.8528,
+        "upper": 0.9091,
         "confidence": 0.95,
         "method": "percentile bootstrap"
       },
-      "mde": 0.0625,
+      "mde": 0.0574,
       "hard_failures": [],
       "stats": {
         "score_kind": "mean",
@@ -5916,7 +5916,8 @@
           "token_support": 0.7059,
           "number_support": 1.0,
           "sources": [
-            "src-rent-cap"
+            "src-rent-cap",
+            "src-rent-cap-other"
           ]
         },
         {
@@ -5925,7 +5926,8 @@
           "token_support": 0.6667,
           "number_support": 1.0,
           "sources": [
-            "src-rent-cap"
+            "src-rent-cap",
+            "src-rent-cap-other"
           ]
         },
         {
@@ -5934,7 +5936,8 @@
           "token_support": 0.6667,
           "number_support": 1.0,
           "sources": [
-            "src-rent-cap-es"
+            "src-rent-cap-es",
+            "src-rent-cap-other-es"
           ]
         },
         {
@@ -5943,7 +5946,8 @@
           "token_support": 0.625,
           "number_support": 1.0,
           "sources": [
-            "src-rent-cap-es"
+            "src-rent-cap-es",
+            "src-rent-cap-other-es"
           ]
         },
         {
@@ -5952,7 +5956,8 @@
           "token_support": 1.0,
           "number_support": 1.0,
           "sources": [
-            "src-deadline"
+            "src-deadline",
+            "src-deadline-other"
           ]
         },
         {
@@ -5961,7 +5966,8 @@
           "token_support": 1.0,
           "number_support": 1.0,
           "sources": [
-            "src-deadline"
+            "src-deadline",
+            "src-deadline-other"
           ]
         },
         {
@@ -5970,7 +5976,8 @@
           "token_support": 1.0,
           "number_support": 1.0,
           "sources": [
-            "src-deadline-es"
+            "src-deadline-es",
+            "src-deadline-other-es"
           ]
         },
         {
@@ -5979,7 +5986,8 @@
           "token_support": 1.0,
           "number_support": 1.0,
           "sources": [
-            "src-deadline-es"
+            "src-deadline-es",
+            "src-deadline-other-es"
           ]
         },
         {
@@ -6024,7 +6032,8 @@
           "token_support": 0.75,
           "number_support": 1.0,
           "sources": [
-            "src-office-hours"
+            "src-office-hours",
+            "src-office-hours-other"
           ]
         },
         {
@@ -6033,7 +6042,8 @@
           "token_support": 0.7647,
           "number_support": 1.0,
           "sources": [
-            "src-office-hours"
+            "src-office-hours",
+            "src-office-hours-other"
           ]
         },
         {
@@ -6042,7 +6052,8 @@
           "token_support": 0.6875,
           "number_support": 1.0,
           "sources": [
-            "src-office-hours-es"
+            "src-office-hours-es",
+            "src-office-hours-other-es"
           ]
         },
         {
@@ -6051,7 +6062,8 @@
           "token_support": 0.7222,
           "number_support": 1.0,
           "sources": [
-            "src-office-hours-es"
+            "src-office-hours-es",
+            "src-office-hours-other-es"
           ]
         },
         {
@@ -6060,7 +6072,8 @@
           "token_support": 1.0,
           "number_support": 1.0,
           "sources": [
-            "src-appeals"
+            "src-appeals",
+            "src-appeals-other"
           ]
         },
         {
@@ -6069,7 +6082,8 @@
           "token_support": 1.0,
           "number_support": 1.0,
           "sources": [
-            "src-appeals"
+            "src-appeals",
+            "src-appeals-other"
           ]
         },
         {
@@ -6078,7 +6092,8 @@
           "token_support": 1.0,
           "number_support": 1.0,
           "sources": [
-            "src-appeals-es"
+            "src-appeals-es",
+            "src-appeals-other-es"
           ]
         },
         {
@@ -6087,7 +6102,8 @@
           "token_support": 1.0,
           "number_support": 1.0,
           "sources": [
-            "src-appeals-es"
+            "src-appeals-es",
+            "src-appeals-other-es"
           ]
         },
         {
@@ -6096,7 +6112,8 @@
           "token_support": 1.0,
           "number_support": 1.0,
           "sources": [
-            "src-documents"
+            "src-documents",
+            "src-documents-other"
           ]
         },
         {
@@ -6105,7 +6122,8 @@
           "token_support": 1.0,
           "number_support": 1.0,
           "sources": [
-            "src-documents"
+            "src-documents",
+            "src-documents-other"
           ]
         },
         {
@@ -6114,7 +6132,8 @@
           "token_support": 1.0,
           "number_support": 1.0,
           "sources": [
-            "src-documents-es"
+            "src-documents-es",
+            "src-documents-other-es"
           ]
         },
         {
@@ -6123,7 +6142,8 @@
           "token_support": 1.0,
           "number_support": 1.0,
           "sources": [
-            "src-documents-es"
+            "src-documents-es",
+            "src-documents-other-es"
           ]
         },
         {
@@ -6132,7 +6152,8 @@
           "token_support": 0.7778,
           "number_support": 1.0,
           "sources": [
-            "src-apply"
+            "src-apply",
+            "src-apply-other"
           ]
         },
         {
@@ -6141,7 +6162,8 @@
           "token_support": 0.7333,
           "number_support": 1.0,
           "sources": [
-            "src-apply"
+            "src-apply",
+            "src-apply-other"
           ]
         },
         {
@@ -6150,7 +6172,8 @@
           "token_support": 0.7368,
           "number_support": 1.0,
           "sources": [
-            "src-apply-es"
+            "src-apply-es",
+            "src-apply-other-es"
           ]
         },
         {
@@ -6159,7 +6182,8 @@
           "token_support": 0.6875,
           "number_support": 1.0,
           "sources": [
-            "src-apply-es"
+            "src-apply-es",
+            "src-apply-other-es"
           ]
         },
         {
@@ -6168,7 +6192,8 @@
           "token_support": 1.0,
           "number_support": 1.0,
           "sources": [
-            "src-eligibility-basis"
+            "src-eligibility-basis",
+            "src-eligibility-basis-other"
           ]
         },
         {
@@ -6177,7 +6202,8 @@
           "token_support": 1.0,
           "number_support": 1.0,
           "sources": [
-            "src-eligibility-basis"
+            "src-eligibility-basis",
+            "src-eligibility-basis-other"
           ]
         },
         {
@@ -6186,7 +6212,8 @@
           "token_support": 1.0,
           "number_support": 1.0,
           "sources": [
-            "src-eligibility-basis-es"
+            "src-eligibility-basis-es",
+            "src-eligibility-basis-other-es"
           ]
         },
         {
@@ -6195,7 +6222,8 @@
           "token_support": 1.0,
           "number_support": 1.0,
           "sources": [
-            "src-eligibility-basis-es"
+            "src-eligibility-basis-es",
+            "src-eligibility-basis-other-es"
           ]
         },
         {
@@ -6344,38 +6372,42 @@
         },
         {
           "item": "interpreter-en-formal",
-          "score": 0.6923,
-          "token_support": 0.6923,
+          "score": 0.7692,
+          "token_support": 0.7692,
           "number_support": 1.0,
           "sources": [
-            "src-interpreter"
+            "src-interpreter",
+            "src-interpreter-other"
           ]
         },
         {
           "item": "interpreter-en-plain",
-          "score": 0.6667,
-          "token_support": 0.6667,
+          "score": 0.75,
+          "token_support": 0.75,
           "number_support": 1.0,
           "sources": [
-            "src-interpreter"
+            "src-interpreter",
+            "src-interpreter-other"
           ]
         },
         {
           "item": "interpreter-es-formal",
-          "score": 0.6429,
-          "token_support": 0.6429,
+          "score": 0.7143,
+          "token_support": 0.7143,
           "number_support": 1.0,
           "sources": [
-            "src-interpreter-es"
+            "src-interpreter-es",
+            "src-interpreter-other-es"
           ]
         },
         {
           "item": "interpreter-es-plain",
-          "score": 0.5833,
-          "token_support": 0.5833,
+          "score": 0.6667,
+          "token_support": 0.6667,
           "number_support": 1.0,
           "sources": [
-            "src-interpreter-es"
+            "src-interpreter-es",
+            "src-interpreter-other-es"
           ]
         },
         {
@@ -6384,7 +6416,8 @@
           "token_support": 1.0,
           "number_support": 1.0,
           "sources": [
-            "src-reapply"
+            "src-reapply",
+            "src-reapply-other"
           ]
         },
         {
@@ -6393,7 +6426,8 @@
           "token_support": 1.0,
           "number_support": 1.0,
           "sources": [
-            "src-reapply"
+            "src-reapply",
+            "src-reapply-other"
           ]
         },
         {
@@ -6402,7 +6436,8 @@
           "token_support": 1.0,
           "number_support": 1.0,
           "sources": [
-            "src-reapply-es"
+            "src-reapply-es",
+            "src-reapply-other-es"
           ]
         },
         {
@@ -6411,7 +6446,8 @@
           "token_support": 1.0,
           "number_support": 1.0,
           "sources": [
-            "src-reapply-es"
+            "src-reapply-es",
+            "src-reapply-other-es"
           ]
         },
         {
@@ -6420,7 +6456,8 @@
           "token_support": 1.0,
           "number_support": 1.0,
           "sources": [
-            "src-late-application"
+            "src-late-application",
+            "src-late-application-other"
           ]
         },
         {
@@ -6429,7 +6466,8 @@
           "token_support": 1.0,
           "number_support": 1.0,
           "sources": [
-            "src-late-application"
+            "src-late-application",
+            "src-late-application-other"
           ]
         },
         {
@@ -6438,7 +6476,8 @@
           "token_support": 1.0,
           "number_support": 1.0,
           "sources": [
-            "src-late-application-es"
+            "src-late-application-es",
+            "src-late-application-other-es"
           ]
         },
         {
@@ -6447,43 +6486,48 @@
           "token_support": 1.0,
           "number_support": 1.0,
           "sources": [
-            "src-late-application-es"
+            "src-late-application-es",
+            "src-late-application-other-es"
           ]
         },
         {
           "item": "payment-route-en-formal",
-          "score": 0.5833,
-          "token_support": 0.5833,
+          "score": 0.6667,
+          "token_support": 0.6667,
           "number_support": 1.0,
           "sources": [
-            "src-payment-route"
+            "src-payment-route",
+            "src-payment-route-other"
           ]
         },
         {
           "item": "payment-route-en-plain",
-          "score": 0.6154,
-          "token_support": 0.6154,
+          "score": 0.6923,
+          "token_support": 0.6923,
           "number_support": 1.0,
           "sources": [
-            "src-payment-route"
+            "src-payment-route",
+            "src-payment-route-other"
           ]
         },
         {
           "item": "payment-route-es-formal",
-          "score": 0.5385,
-          "token_support": 0.5385,
+          "score": 0.6154,
+          "token_support": 0.6154,
           "number_support": 1.0,
           "sources": [
-            "src-payment-route-es"
+            "src-payment-route-es",
+            "src-payment-route-other-es"
           ]
         },
         {
           "item": "payment-route-es-plain",
-          "score": 0.6,
-          "token_support": 0.6,
+          "score": 0.6667,
+          "token_support": 0.6667,
           "number_support": 1.0,
           "sources": [
-            "src-payment-route-es"
+            "src-payment-route-es",
+            "src-payment-route-other-es"
           ]
         },
         {
@@ -6636,7 +6680,8 @@
           "token_support": 1.0,
           "number_support": 1.0,
           "sources": [
-            "src-status-check"
+            "src-status-check",
+            "src-status-check-other"
           ]
         },
         {
@@ -6645,7 +6690,8 @@
           "token_support": 1.0,
           "number_support": 1.0,
           "sources": [
-            "src-status-check"
+            "src-status-check",
+            "src-status-check-other"
           ]
         },
         {
@@ -6654,7 +6700,8 @@
           "token_support": 1.0,
           "number_support": 1.0,
           "sources": [
-            "src-status-check-es"
+            "src-status-check-es",
+            "src-status-check-other-es"
           ]
         },
         {
@@ -6663,43 +6710,48 @@
           "token_support": 1.0,
           "number_support": 1.0,
           "sources": [
-            "src-status-check-es"
+            "src-status-check-es",
+            "src-status-check-other-es"
           ]
         },
         {
           "item": "denial-reasons-en-formal",
-          "score": 0.5455,
-          "token_support": 0.5455,
+          "score": 0.6364,
+          "token_support": 0.6364,
           "number_support": 1.0,
           "sources": [
-            "src-denial-reasons"
+            "src-denial-reasons",
+            "src-denial-reasons-other"
           ]
         },
         {
           "item": "denial-reasons-en-plain",
-          "score": 0.6154,
-          "token_support": 0.6154,
+          "score": 0.6923,
+          "token_support": 0.6923,
           "number_support": 1.0,
           "sources": [
-            "src-denial-reasons"
+            "src-denial-reasons",
+            "src-denial-reasons-other"
           ]
         },
         {
           "item": "denial-reasons-es-formal",
-          "score": 0.5,
-          "token_support": 0.5,
+          "score": 0.5833,
+          "token_support": 0.5833,
           "number_support": 1.0,
           "sources": [
-            "src-denial-reasons-es"
+            "src-denial-reasons-es",
+            "src-denial-reasons-other-es"
           ]
         },
         {
           "item": "denial-reasons-es-plain",
-          "score": 0.5714,
-          "token_support": 0.5714,
+          "score": 0.6429,
+          "token_support": 0.6429,
           "number_support": 1.0,
           "sources": [
-            "src-denial-reasons-es"
+            "src-denial-reasons-es",
+            "src-denial-reasons-other-es"
           ]
         },
         {
@@ -11407,11 +11459,11 @@
     "comparable": true,
     "summary": "no verdict changed and no score moved",
     "against": {
-      "source_run_id": "ddfc68a64c17126a",
-      "dataset_id": "a827533387cb",
+      "source_run_id": "576ee1433a7ec4af",
+      "dataset_id": "38e4d786a56c",
       "harness_version": "0.1.0.dev0",
       "judge_kind": "lexical",
-      "baseline_sha256": "86ff924a49320492cfc90cd347d506df4d0be83a308e24c4a2d2c09313e48dc7"
+      "baseline_sha256": "d01333453bd106a0be3af9cea3b566b3ed4422f9d430a90308c23c2f413f3534"
     },
     "refusals": [],
     "caveats": [],

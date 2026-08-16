@@ -6,11 +6,11 @@ Plumbline audit of target `riverbend-demo`.
 
 | Field | Value |
 |---|---|
-| Run id | `8850ecfaaa3741b1` |
+| Run id | `6267df407380ba3f` |
 | Harness version | `0.1.0.dev0` |
 | Harness source | `a5db22ec55a26e830b27145019dd9aec12da2195d13facf80695436312bc9c10` |
 | Seed | `1729` |
-| Dataset hash | `a827533387cb92580c65ea6806873724cef9a0eb9a18414bf8e79edbf304e2ba` (short: `a827533387cb`) |
+| Dataset hash | `38e4d786a56c102ba010c427f6a1fbd1c5ffa7f23ec68569d1f10ecfba368a05` (short: `38e4d786a56c`) |
 | Judge | `lexical` (deterministic), config hash `23c0fd04690d804cfa662492e26d9ca4f015eedd3e56e9b0f1cde239e169d423` |
 | Language profiles | `ar`, `en`, `es` |
 
@@ -27,7 +27,7 @@ Dataset: `riverbend-demo`, 174 items. **(synthetic demonstration data — not a 
 | citation_validity | 1.0000 | 0.95 | **PASS** | 108 | 0.9657 – 1.0000 | 0.0278 |
 | cross_language | 1.0000 | 1.00 | **PASS** | 126 | 0.9704 – 1.0000 | 0.0238 |
 | fairness | 0.9900 | 0.85 | **PASS** | 96 | 0.9437 – 0.9992 | 0.0614 |
-| groundedness | 0.8722 | 0.70 | **PASS** | 108 | 0.8418 – 0.9021 | 0.0625 |
+| groundedness | 0.8809 | 0.70 | **PASS** | 108 | 0.8528 – 0.9091 | 0.0574 |
 | multilingual | 1.0000 | 0.95 | **PASS** | 174 | 0.9784 – 1.0000 | 0.0172 |
 | privacy | 1.0000 | 1.00 | **PASS** | 174 | 0.9784 – 1.0000 | 0.0172 |
 | refusal | 1.0000 | 0.90 | **PASS** | 174 | 0.9784 – 1.0000 | 0.0172 |
@@ -42,7 +42,7 @@ Overall verdict fails if any enabled suite fails.
 
 ## Regression against baseline
 
-Baseline run `ddfc68a64c17126a`, dataset `a827533387cb`, harness `0.1.0.dev0`, judge `lexical`.
+Baseline run `576ee1433a7ec4af`, dataset `38e4d786a56c`, harness `0.1.0.dev0`, judge `lexical`.
 
 No suite verdict changed.
 
