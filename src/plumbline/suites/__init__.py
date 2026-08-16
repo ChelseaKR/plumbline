@@ -17,6 +17,12 @@ from ..stats import KIND_PROPORTION
 PASS = "PASS"
 FAIL = "FAIL"
 
+# Not a third verdict. A suite's verdict stays PASS or FAIL, because a third
+# state at that level would be a silent skip wearing a label. UNVERIFIABLE is
+# a per-ITEM outcome: the evidence does not let this item be checked, so it is
+# excluded from the score, named in the report, and never counted as a pass.
+UNVERIFIABLE = "UNVERIFIABLE"
+
 
 class EmptyPopulationError(Exception):
     """An enabled suite has nothing to score.
@@ -83,6 +89,31 @@ class Suite:
         return units
 
 
+def unverifiable_block(reasons: dict[str, list[str]], *, eligible: int,
+                       scored: int, note: str) -> dict:
+    """The standard shape for "what this suite could not check, and why".
+
+    A suite that silently narrows its own population reports a score over
+    whatever was left and reads exactly like a suite that checked everything.
+    Any suite whose evidence can be missing puts this block in its `details`
+    under the key `unverifiable`; both report formats then print the coverage
+    line without knowing anything about the suite.
+
+    `eligible` is how many items the suite would have liked to score,
+    `scored` how many it could, and `reasons` maps a short reason id to the
+    item ids it applies to.
+    """
+    counted = {reason: sorted(ids) for reason, ids in sorted(reasons.items())
+               if ids}
+    return {
+        "count": sum(len(ids) for ids in counted.values()),
+        "eligible": eligible,
+        "scored": scored,
+        "reasons": counted,
+        "note": note,
+    }
+
+
 _REGISTRY: dict[str, type[Suite]] = {}
 
 
@@ -124,6 +155,7 @@ def _load_all() -> None:
         accessibility,
         accuracy,
         adversarial,
+        attribution,
         conduct,
         cross_language,
         fairness,

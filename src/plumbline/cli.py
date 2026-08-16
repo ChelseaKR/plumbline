@@ -173,9 +173,13 @@ def _suite_lines(report: dict) -> list[str]:
               else f"ci {s['ci']['lower']:.3f}-{s['ci']['upper']:.3f}")
         mde = "mde n/a" if s["mde"] is None else f"mde {s['mde']:.3f}"
         severity = "  !load-bearing" if s.get("hard_failures") else ""
+        block = (s.get("details") or {}).get("unverifiable") or {}
+        unverifiable = (f"  {block['count']} unverifiable"
+                        if block.get("count") else "")
         lines.append(
             f"  {s['suite']:<22} score {s['score']:.4f}  floor {s['floor']:.2f}  "
-            f"{s['verdict']:<4}  n={s['n']:<3} {ci}  {mde}{severity}")
+            f"{s['verdict']:<4}  n={s['n']:<3} {ci}  {mde}"
+            f"{unverifiable}{severity}")
     return lines
 
 

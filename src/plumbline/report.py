@@ -109,6 +109,32 @@ def _recording_lines(recording: dict | None) -> list[str]:
     return lines
 
 
+def _unverifiable_lines(report: dict) -> list[str]:
+    """What each suite could not check, and how much of its population that
+    was.
+
+    A suite that quietly narrowed its own population reads exactly like a
+    suite that checked everything. Any suite whose details carry the standard
+    `unverifiable` block gets a coverage sentence here, whatever it measures.
+    """
+    lines: list[str] = []
+    for s in report["suites"]:
+        block = (s.get("details") or {}).get("unverifiable")
+        if not block or not block.get("count"):
+            continue
+        reasons = ", ".join(f"{reason} {len(ids)}"
+                            for reason, ids in block["reasons"].items())
+        lines.append(
+            f"- `{s['suite']}` scored **{block['scored']} of "
+            f"{block['eligible']}** eligible items. {block['count']} are "
+            f"**UNVERIFIABLE** ({reasons}) — excluded from the score, and not "
+            f"counted as passes."
+        )
+    if lines:
+        lines.append("")
+    return lines
+
+
 def render_markdown(report: dict) -> str:
     p = report["provenance"]
     lines: list[str] = []
@@ -178,6 +204,7 @@ def render_markdown(report: dict) -> str:
         for s in hard:
             lines.append(f"- `{s['suite']}`: {', '.join(s['hard_failures'])}")
         lines.append("")
+    lines.extend(_unverifiable_lines(report))
     for s in report["suites"]:
         reason = (s.get("stats") or {}).get("reason")
         if reason and s["ci"] is None:
