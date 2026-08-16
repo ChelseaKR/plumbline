@@ -10,6 +10,7 @@ integrity exit code. There is no path that scores unverified evidence.
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -17,6 +18,8 @@ from .hashing import bundle_digest, sha256_file, short_id
 
 CHECKSUMS_FILENAME = "checksums.json"
 MANIFEST_FILENAME = "manifest.json"
+
+_SHA256_HEX_RE = re.compile(r"\A[0-9a-f]{64}\Z")
 
 BUNDLE_FORMAT = "plumbline-bundle"
 CHECKSUMS_FORMAT = "plumbline-checksums"
@@ -72,6 +75,20 @@ class Bundle:
     responses: dict[str, str]  # item id -> recorded response text
     dataset_sha256: str
     sources: dict[str, Source] = field(default_factory=dict)
+    # Bundle-relative path -> sha256, exactly as the verified manifest recorded
+    # it. The definitive list of bytes this bundle vouches for; a suite that
+    # wants to open something asks for it through `sealed`.
+    covered: dict[str, str] = field(default_factory=dict)
+
+    def sealed(self, filename: str, role: str) -> Path:
+        """A path inside this bundle that a checksum covers, or a BundleError.
+
+        Any code that opens a file from the bundle goes through here. Joining
+        a manifest-supplied name onto the bundle directory does not: an
+        absolute name escapes, `..` escapes, and a name in a subdirectory used
+        to be readable without any checksum covering it at all.
+        """
+        return sealed_path(self.path, filename, role, self.covered)
 
     def source(self, source_id: str) -> Source | None:
         return self.sources.get(source_id)
@@ -124,16 +141,88 @@ class Bundle:
         return warnings
 
 
-def hashed_files(bundle_dir: Path) -> list[Path]:
-    """Every regular file in the bundle except the checksum manifest itself."""
-    return sorted(
-        p for p in bundle_dir.iterdir()
-        if p.is_file() and p.name != CHECKSUMS_FILENAME
-    )
+def check_hashable_name(name: str) -> str:
+    """Refuse a bundle-relative path the combined bundle hash cannot represent
+    unambiguously. Returns the name.
+
+    `bundle_digest` serialises the manifest as one `"<name>=<64 hex>\\n"` line
+    per file. A name containing a newline could therefore forge a line break
+    and make one file serialise exactly like two, so two different sets of
+    evidence would share a bundle hash. POSIX permits newlines in filenames,
+    so this is a real construction and not a theoretical one; the digest stays
+    injective only because such names are refused at both ends — when a bundle
+    is sealed, and when a recorded manifest is read back.
+    """
+    if not isinstance(name, str) or not name:
+        raise IntegrityError(
+            f"{CHECKSUMS_FILENAME} lists a file name that is not a "
+            f"non-empty string: {name!r}"
+        )
+    bad = [c for c in ("\n", "\r", "\x00") if c in name]
+    if bad:
+        raise IntegrityError(
+            f"bundle contains a path whose name has a line break or NUL in "
+            f"it ({name!r}). The combined bundle hash is line-oriented, so "
+            f"such a name could make two different bundles hash identically. "
+            f"Rename the file."
+        )
+    return name
+
+
+def _walk(bundle_dir: Path):
+    """Every regular file anywhere under the bundle, depth first.
+
+    Symbolic links are refused outright, directories included. A link is a
+    name that points somewhere else, and 'somewhere else' is not evidence this
+    bundle sealed: the target can be swapped, can sit outside the bundle
+    entirely, and need not even be a file. Refusing is the only answer that
+    keeps 'the manifest vouches for every byte read' true.
+    """
+    stack = [Path(bundle_dir)]
+    while stack:
+        current = stack.pop()
+        for entry in sorted(current.iterdir()):
+            if entry.is_symlink():
+                raise IntegrityError(
+                    f"bundle contains a symbolic link "
+                    f"({entry.relative_to(bundle_dir).as_posix()}). Evidence "
+                    f"must be the bytes in the bundle, not a pointer at bytes "
+                    f"somewhere else; replace the link with the file."
+                )
+            if entry.is_dir():
+                stack.append(entry)
+            elif entry.is_file():
+                yield entry
+            else:
+                raise IntegrityError(
+                    f"bundle contains something that is not a regular file "
+                    f"({entry.relative_to(bundle_dir).as_posix()}); it cannot "
+                    f"be hashed, so it cannot be evidence"
+                )
+
+
+def hashed_files(bundle_dir: Path) -> dict[str, Path]:
+    """Every regular file in the bundle, at any depth, except the checksum
+    manifest itself — keyed by its POSIX path relative to the bundle root.
+
+    Recursive on purpose. Hashing only the top level would leave evidence in a
+    subdirectory unsealed: it could be rewritten while the bundle hash, the
+    integrity verdict and the run id all stayed identical, which is precisely
+    the tamper this tool exists to make impossible.
+    """
+    bundle_dir = Path(bundle_dir)
+    found: dict[str, Path] = {}
+    for path in _walk(bundle_dir):
+        name = path.relative_to(bundle_dir).as_posix()
+        if name == CHECKSUMS_FILENAME:
+            continue
+        found[check_hashable_name(name)] = path
+    return dict(sorted(found.items()))
 
 
 def compute_checksums(bundle_dir: Path) -> dict:
-    files = {p.name: sha256_file(p) for p in hashed_files(bundle_dir)}
+    files = {name: sha256_file(p)
+             for name, p in hashed_files(bundle_dir).items()}
     return {
         "format": CHECKSUMS_FORMAT,
         "format_version": FORMAT_VERSION,
@@ -157,12 +246,12 @@ def seal(bundle_dir: Path) -> dict:
     return checksums
 
 
-def verify_integrity(bundle_dir: Path) -> str:
-    """Verify every recorded checksum. Returns the bundle hash on success.
+def _verify(bundle_dir: Path) -> tuple[str, dict[str, str]]:
+    """Verify every recorded checksum.
 
-    Raises IntegrityError on: missing checksums.json, malformed checksums.json,
-    a file listed but absent, a file present but unlisted, or any digest
-    mismatch. Unverifiable evidence fails closed.
+    Returns the bundle hash and the sealed map of bundle-relative path ->
+    sha256, which is the definitive list of bytes this bundle vouches for.
+    Nothing outside that map may be read.
     """
     bundle_dir = Path(bundle_dir)
     checksums_path = bundle_dir / CHECKSUMS_FILENAME
@@ -177,11 +266,37 @@ def verify_integrity(bundle_dir: Path) -> str:
     except (OSError, json.JSONDecodeError) as e:
         raise IntegrityError(f"unreadable {CHECKSUMS_FILENAME}: {e}") from e
 
+    if not isinstance(recorded, dict):
+        raise IntegrityError(f"{CHECKSUMS_FILENAME} is not a JSON object")
     if recorded.get("format") != CHECKSUMS_FORMAT or recorded.get("algorithm") != "sha256":
         raise IntegrityError(f"{CHECKSUMS_FILENAME} is not a recognized checksum manifest")
 
-    recorded_files: dict = recorded.get("files", {})
-    actual = {p.name: sha256_file(p) for p in hashed_files(bundle_dir)}
+    recorded_files = recorded.get("files")
+    if not isinstance(recorded_files, dict):
+        raise IntegrityError(
+            f"{CHECKSUMS_FILENAME} has no 'files' object, so it vouches for "
+            f"nothing"
+        )
+    # A hand-written manifest is untrusted input like any other. Its names must
+    # be ones the combined hash can represent unambiguously, and its digests
+    # must be digests — otherwise a crafted manifest could make the recomputed
+    # bundle hash agree with a set of files it does not describe.
+    for name, digest in recorded_files.items():
+        check_hashable_name(name)
+        if not isinstance(digest, str) or not _SHA256_HEX_RE.match(digest):
+            raise IntegrityError(
+                f"{CHECKSUMS_FILENAME}: the entry for '{name}' is not a "
+                f"lowercase sha256 hex digest"
+            )
+    recorded_bundle = recorded.get("bundle_sha256")
+    if not isinstance(recorded_bundle, str) or not _SHA256_HEX_RE.match(recorded_bundle):
+        raise IntegrityError(
+            f"{CHECKSUMS_FILENAME}: bundle_sha256 is not a lowercase sha256 "
+            f"hex digest"
+        )
+
+    actual = {name: sha256_file(p)
+              for name, p in hashed_files(bundle_dir).items()}
 
     problems = []
     for name in sorted(set(recorded_files) | set(actual)):
@@ -191,25 +306,73 @@ def verify_integrity(bundle_dir: Path) -> str:
             problems.append(f"present but not listed: {name}")
         elif recorded_files[name] != actual[name]:
             problems.append(f"content mismatch: {name}")
-    expected_bundle = bundle_digest(recorded_files)
-    if recorded.get("bundle_sha256") != expected_bundle:
+    if recorded_bundle != bundle_digest(recorded_files):
         problems.append("bundle_sha256 does not match the per-file digests")
 
     if problems:
         raise IntegrityError(
             "evidence bundle failed integrity verification: " + "; ".join(problems)
         )
-    return recorded["bundle_sha256"]
+    return recorded_bundle, dict(recorded_files)
 
 
-def _declared(bundle_dir: Path, filename: str, role: str) -> Path:
-    """A file the manifest declares must actually be there. Named rather than
-    left to raise an unhandled FileNotFoundError deeper in."""
-    path = bundle_dir / filename
-    if not path.is_file():
+def verify_integrity(bundle_dir: Path) -> str:
+    """Verify every recorded checksum. Returns the bundle hash on success.
+
+    Raises IntegrityError on: missing checksums.json, malformed checksums.json,
+    a file listed but absent, a file present but unlisted, a symbolic link
+    anywhere in the tree, or any digest mismatch. Unverifiable evidence fails
+    closed.
+    """
+    return _verify(bundle_dir)[0]
+
+
+def sealed_path(bundle_dir: Path, filename: str, role: str,
+                covered: dict[str, str]) -> Path:
+    """Resolve a path the manifest declares, or refuse.
+
+    Three things have to be true before any byte is read, and none of them was
+    true of `bundle_dir / filename`:
+
+    1. The name is relative. `Path('/etc/passwd')` joined onto a directory is
+       `/etc/passwd`, so an absolute name silently left the bundle.
+    2. It resolves inside the bundle. `../../secrets.jsonl` does not.
+    3. A checksum covers it. Verification only proves the bundle's *own*
+       inventory is intact; reading anything outside that inventory means
+       scoring evidence nothing vouched for.
+    """
+    if not isinstance(filename, str) or not filename:
+        raise BundleError(
+            f"{MANIFEST_FILENAME}: files.{role} must be a non-empty relative "
+            f"path inside the bundle"
+        )
+    bundle_dir = Path(bundle_dir)
+    if Path(filename).is_absolute():
+        raise BundleError(
+            f"{MANIFEST_FILENAME} declares files.{role} = '{filename}', an "
+            f"absolute path. A bundle may only name evidence inside itself."
+        )
+    root = bundle_dir.resolve()
+    try:
+        name = (bundle_dir / filename).resolve().relative_to(root).as_posix()
+    except ValueError:
         raise BundleError(
             f"{MANIFEST_FILENAME} declares files.{role} = '{filename}', which "
-            f"is not in the bundle"
+            f"resolves outside the bundle directory. A bundle may only name "
+            f"evidence inside itself."
+        ) from None
+    if name not in covered:
+        raise BundleError(
+            f"{MANIFEST_FILENAME} declares files.{role} = '{filename}', which "
+            f"no checksum in {CHECKSUMS_FILENAME} covers. Nothing is read from "
+            f"a bundle unless the sealed manifest vouches for its bytes; "
+            f"re-seal the bundle with `plumbline seal`."
+        )
+    path = bundle_dir / name
+    if path.is_symlink() or not path.is_file():
+        raise BundleError(
+            f"{MANIFEST_FILENAME} declares files.{role} = '{filename}', which "
+            f"is not a regular file in the bundle"
         )
     return path
 
@@ -235,7 +398,11 @@ def _parse_items(path: Path) -> list[Item]:
                 )
             if raw["id"] in seen:
                 raise BundleError(f"{path.name}:{lineno}: duplicate item id '{raw['id']}'")
-            if raw["behavior"] == "answer" and not raw.get("expected"):
+            if raw["behavior"] == "answer" and not str(
+                    raw.get("expected") or "").strip():
+                # Blank is checked after stripping: a reference answer of
+                # "   " is not a reference answer, and one that survives to
+                # scoring makes an empty response look like a perfect match.
                 raise BundleError(
                     f"{path.name}:{lineno}: answer item '{raw['id']}' has no expected answer"
                 )
@@ -372,11 +539,11 @@ def _load(bundle_dir: Path, *, require_responses: bool) -> Bundle:
     if not bundle_dir.is_dir():
         raise BundleError(f"bundle path is not a directory: {bundle_dir}")
 
-    dataset_sha256 = verify_integrity(bundle_dir)
+    dataset_sha256, covered = _verify(bundle_dir)
 
-    manifest_path = bundle_dir / MANIFEST_FILENAME
-    if not manifest_path.is_file():
+    if MANIFEST_FILENAME not in covered:
         raise BundleError(f"missing {MANIFEST_FILENAME}")
+    manifest_path = bundle_dir / MANIFEST_FILENAME
     with open(manifest_path, encoding="utf-8") as f:
         manifest = json.load(f)
     if manifest.get("format") != BUNDLE_FORMAT:
@@ -399,16 +566,19 @@ def _load(bundle_dir: Path, *, require_responses: bool) -> Bundle:
             f"against it with `plumbline record`)"
         )
 
-    items = _parse_items(_declared(bundle_dir, items_name, "items"))
+    items = _parse_items(
+        sealed_path(bundle_dir, items_name, "items", covered))
     responses = (
-        _parse_responses(_declared(bundle_dir, responses_name, "responses"),
-                         {i.id for i in items})
+        _parse_responses(
+            sealed_path(bundle_dir, responses_name, "responses", covered),
+            {i.id for i in items})
         if responses_name else {}
     )
 
     sources_name = files.get("sources")
-    sources = (_parse_sources(_declared(bundle_dir, sources_name, "sources"))
-               if sources_name else {})
+    sources = (_parse_sources(
+        sealed_path(bundle_dir, sources_name, "sources", covered))
+        if sources_name else {})
 
     # An item that points at a source which is not in the corpus would make
     # every grounding score meaningless, so it is a bundle error, not a
@@ -440,4 +610,5 @@ def _load(bundle_dir: Path, *, require_responses: bool) -> Bundle:
         responses=responses,
         dataset_sha256=dataset_sha256,
         sources=sources,
+        covered=covered,
     )

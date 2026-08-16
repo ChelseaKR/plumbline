@@ -76,11 +76,13 @@ the same thing is a build with no gate.
 | 2 | Usage error | fix the command |
 | 3 | **Integrity refusal** — the evidence bundle did not verify, nothing was scored | block; the evidence is untrustworthy, which is not the same problem as a regression |
 | 4 | Configuration or environment error, including an unresolvable harness | block; the gate did not run |
+| 5 | **Internal error** — the harness crashed; nothing was measured | block; report the bug. This is deliberately not 1: exit 1 is a verdict, and no verdict was produced |
 
-The separation of 1, 3 and 4 is the point. "The target got worse", "the
-evidence is untrustworthy" and "the gate was misconfigured" need three
-different humans to do three different things, and a single non-zero exit
-tells you which one only if you read the log.
+The separation of 1, 3, 4 and 5 is the point. "The target got worse", "the
+evidence is untrustworthy", "the gate was misconfigured" and "the instrument
+broke" need four different humans to do four different things, and a single
+non-zero exit tells you which one only if you read the log. What they have in
+common is that all of them block.
 
 ## Local harness development
 

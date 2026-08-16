@@ -117,8 +117,14 @@ class LexicalJudge:
     def answer_score(self, expected: str, actual: str) -> float:
         exp_tokens = normalize(expected).split()
         act_tokens = normalize(strip_citations(actual)).split()
+        # No credit for empty against empty. This used to return 1.0 when both
+        # sides normalized away, so a reference answer of "   " or "..." paired
+        # with a target that said nothing scored a perfect match — two absences
+        # agreeing is not a correct answer. A reference with no content cannot
+        # be got right, and a response with no content did not get anything
+        # right, so both are zero.
         if not exp_tokens or not act_tokens:
-            return 1.0 if exp_tokens == act_tokens else 0.0
+            return 0.0
         overlap = sum((Counter(exp_tokens) & Counter(act_tokens)).values())
         if overlap == 0:
             return 0.0

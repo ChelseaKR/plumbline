@@ -7,6 +7,13 @@ Exit codes (see DESIGN.md):
   3  integrity refusal: checksum mismatch or missing manifest; nothing scored
   4  configuration / environment error (malformed config, unknown or
      unimplemented suite, unreadable bundle)
+  5  internal error: the harness itself failed. Distinct from 1 on purpose —
+     exit 1 is a measurement, and a crash is the absence of one. A caller that
+     could not tell them apart would read "plumbline fell over" as "plumbline
+     scored this target and it failed", which is a verdict nobody produced.
+
+Every non-zero code blocks: there is no code that means "could not check,
+carry on".
 """
 
 from __future__ import annotations
@@ -14,10 +21,11 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import traceback
 from pathlib import Path
 
 from . import __version__
-from .audit import DEFAULT_SEED, run_audit
+from .audit import DEFAULT_SEED, ResultError, run_audit
 from .baseline import (
     BaselineError,
     build_baseline,
@@ -33,6 +41,7 @@ from .bundle import (
 from .config import ConfigError, load_config
 from .couplings import summarize_for_terminal as summarize_couplings
 from .errors import OutboundError
+from .report import ReportSealError, verify_report
 from .suites import EmptyPopulationError
 
 EXIT_PASS = 0
@@ -40,6 +49,7 @@ EXIT_SUITE_FAILURE = 1
 EXIT_USAGE = 2
 EXIT_INTEGRITY_REFUSAL = 3
 EXIT_CONFIG_ERROR = 4
+EXIT_INTERNAL_ERROR = 5
 
 
 def _warn(lines: list[str]) -> None:
@@ -92,17 +102,51 @@ def cmd_seal(args: argparse.Namespace) -> int:
     return EXIT_PASS
 
 
-def cmd_baseline(args: argparse.Namespace) -> int:
-    """Distil a finished report into the record a repository commits as its
-    bar for future runs."""
-    source = Path(args.source)
+def _read_report(source: Path) -> dict:
     try:
         with open(source, encoding="utf-8") as f:
             report = json.load(f)
     except (OSError, json.JSONDecodeError) as e:
         raise BaselineError(f"unreadable report {source}: {e}") from e
-    if "provenance" not in report or "suites" not in report:
+    if not isinstance(report, dict) or "provenance" not in report \
+            or "suites" not in report:
         raise BaselineError(f"{source} is not a Plumbline report")
+    return report
+
+
+def cmd_verify(args: argparse.Namespace) -> int:
+    """Check a written report against its own seal.
+
+    A seal nobody checks is decoration, so it gets a command. This is what a
+    reviewer runs on the report.json in a pull request before believing the
+    verdict at the top of it.
+    """
+    source = Path(args.report)
+    report = _read_report(source)
+    digest = verify_report(report, source=str(source))
+    provenance = report["provenance"]
+    print(f"report:  {source}")
+    print(f"verdict: {report['verdict']}")
+    print(f"target:  {report.get('target')}")
+    print(f"run:     {provenance['run_id']}")
+    print(f"seal:    {digest} — matches the report's contents")
+    print(f"dataset: {provenance['dataset_sha256']}")
+    print("note:    the seal covers this report's body. It does not vouch for "
+          "the evidence beyond the dataset hash above; verify that bundle with "
+          "`plumbline validate`.")
+    return EXIT_PASS
+
+
+def cmd_baseline(args: argparse.Namespace) -> int:
+    """Distil a finished report into the record a repository commits as its
+    bar for future runs."""
+    source = Path(args.source)
+    report = _read_report(source)
+    # A baseline is the bar every later run is judged against, so it may only
+    # be cut from a report that still matches its own seal. Distilling an
+    # edited report would launder a hand-written number into the thing the
+    # repository treats as ground truth.
+    verify_report(report, source=str(source))
     record = build_baseline(report)
     out = write_baseline(record, Path(args.out))
     print(f"baseline: {out}")
@@ -301,6 +345,13 @@ def build_parser() -> argparse.ArgumentParser:
     p_seal.add_argument("bundle", help="path to an evidence bundle directory")
     p_seal.set_defaults(func=cmd_seal)
 
+    p_verify = sub.add_parser(
+        "verify",
+        help="check a written report against its own seal: refuse if the "
+             "report was edited after it was produced")
+    p_verify.add_argument("report", help="path to a report.json")
+    p_verify.set_defaults(func=cmd_verify)
+
     p_audit = sub.add_parser("audit", help="run the full audit and write provenance-stamped reports")
     p_audit.add_argument("--config", required=True, help="target configuration (TOML)")
     p_audit.add_argument("--out", default="audits", help="report output directory (default: audits)")
@@ -382,11 +433,32 @@ def main(argv: list[str] | None = None) -> int:
               "re-seal the bundle with `plumbline seal` — the hash change is the trace.",
               file=sys.stderr)
         return EXIT_INTEGRITY_REFUSAL
+    except ReportSealError as e:
+        print(f"INTEGRITY REFUSAL: {e}", file=sys.stderr)
+        return EXIT_INTEGRITY_REFUSAL
+    except ResultError as e:
+        # The instrument malfunctioned. Not exit 1: nothing was measured.
+        print(f"INTERNAL ERROR: {e}", file=sys.stderr)
+        print("The harness produced a result it cannot honestly aggregate, so "
+              "it refused to publish a verdict. This is a bug in Plumbline or "
+              "in a suite; please report it.", file=sys.stderr)
+        return EXIT_INTERNAL_ERROR
     except (ConfigError, BundleError, BaselineError, EmptyPopulationError,
             OutboundError, ValueError, KeyError) as e:
         msg = e.args[0] if e.args else e
         print(f"CONFIGURATION ERROR: {msg}", file=sys.stderr)
         return EXIT_CONFIG_ERROR
+    except Exception:
+        # An unhandled exception used to leave the interpreter, which exits 1 —
+        # the code reserved for "scoring completed and something failed". A
+        # caller cannot tell those apart, so a crashed harness looked exactly
+        # like a graded target. It gets its own code, and the traceback still
+        # goes to stderr so the bug is not swallowed either.
+        print("INTERNAL ERROR: the harness crashed. Nothing was scored, and "
+              "no verdict was produced — this is not a measured failure.",
+              file=sys.stderr)
+        traceback.print_exc()
+        return EXIT_INTERNAL_ERROR
 
 
 if __name__ == "__main__":

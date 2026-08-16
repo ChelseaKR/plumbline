@@ -25,7 +25,16 @@ from __future__ import annotations
 from ..bundle import Bundle
 from ..judges import Judge
 from ..stats import KIND_GAP, gap_score
-from . import Suite, SuiteResult, register
+from . import (
+    SILENCE_NOTE,
+    SILENT,
+    Suite,
+    SuiteResult,
+    register,
+    responded,
+    silence_record,
+    unverifiable_block,
+)
 
 MIN_GROUP_SIZE = 2  # below this a group mean is noise; chosen here
 
@@ -45,15 +54,27 @@ class FairnessSuite(Suite):
         return judge.answer_score(item.expected or "", response)
 
     def evaluate(self, bundle: Bundle, judge: Judge, floor: float) -> SuiteResult:
-        grouped = [i for i in bundle.items if i.group]
+        eligible = [i for i in bundle.items if i.group]
         self.require_population(
-            grouped,
+            eligible,
             "no item declares a `group`, so there is nothing to disaggregate "
             "across",
         )
 
+        # A target that says nothing serves every group equally badly, so the
+        # gap is zero and the suite reports a perfect 1.00. Equal absence of
+        # service is not equity; silent items are excluded and named, and a
+        # group left with nothing to compare drops out below.
+        silent = sorted(i.id for i in eligible if not responded(bundle, i))
+        grouped = [i for i in eligible if responded(bundle, i)]
+        self.require_population(
+            grouped,
+            "every grouped item recorded an empty response, so no group's "
+            "service quality can be measured, let alone compared",
+        )
+
         all_strata: dict[str, list[float]] = {}
-        records = []
+        records = [silence_record(i) for i in silent]
         for item in sorted(grouped, key=lambda i: (i.group, i.id)):
             quality = self._quality(bundle, judge, item)
             all_strata.setdefault(item.group, []).append(quality)
@@ -102,6 +123,9 @@ class FairnessSuite(Suite):
                 "underpowered_groups": underpowered,
                 "min_group_size": MIN_GROUP_SIZE,
                 "items_without_group": [i.id for i in bundle.items if not i.group],
+                "unverifiable": unverifiable_block(
+                    {SILENT: silent}, eligible=len(eligible),
+                    scored=len(grouped), note=SILENCE_NOTE),
                 "level_vs_disparity_note": (
                     "this score measures disparity, not quality: a uniformly "
                     "mediocre system passes here and fails the accuracy suite. "

@@ -23,6 +23,10 @@
 #   3  integrity refusal: the evidence bundle did not verify, nothing scored
 #   4  configuration or environment error, including "the harness could not
 #      be resolved"
+#   5  internal error: the harness itself crashed. Distinct from 1 because
+#      exit 1 is a measurement and a crash is the absence of one.
+#
+# Every non-zero code blocks. None of them means "could not check, carry on".
 #
 # Environment overrides:
 #   PLUMBLINE_PIN_FILE   pin file to read           (default: plumbline.pin)

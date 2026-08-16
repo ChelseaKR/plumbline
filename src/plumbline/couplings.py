@@ -81,7 +81,11 @@ def _identically_scored_items(results: dict[str, SuiteResult],
     Not a heuristic: it is the definitional overlap between `accuracy` and
     `fairness`, counted rather than claimed.
     """
-    tables = [{r["item"]: r.get("score") for r in results[s].item_records}
+    # Only records that actually carry a number. An item excluded as
+    # UNVERIFIABLE has no score, and two suites both declining to score the
+    # same item is not evidence that they scored it the same way.
+    tables = [{r["item"]: r["score"] for r in results[s].item_records
+               if isinstance(r.get("score"), (int, float))}
               for s in suites if s in results]
     if len(tables) < 2:
         return []

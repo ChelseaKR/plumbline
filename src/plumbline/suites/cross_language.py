@@ -32,7 +32,17 @@ from itertools import combinations
 from ..bundle import Bundle
 from ..judges import Judge, extract_numbers, strip_citations
 from ..stats import KIND_PROPORTION
-from . import FAIL, Suite, SuiteResult, register
+from . import (
+    FAIL,
+    SILENCE_NOTE,
+    SILENT,
+    UNVERIFIABLE,
+    Suite,
+    SuiteResult,
+    register,
+    responded,
+    unverifiable_block,
+)
 
 
 @register
@@ -63,13 +73,41 @@ class CrossLanguageSuite(Suite):
                 if left.lang != right.lang:
                     pairs.append((fact_id, left, right))
 
-        self.require_population(
+        eligible = self.require_population(
             pairs,
             "no fact is asked in two languages (items need a shared `fact_id` "
             "and different `lang` values)",
         )
 
+        # Two silences agree perfectly about every fact. Agreement between
+        # answers that were never given is not evidence the two languages are
+        # served the same, so a pair with a silent side is excluded and named
+        # rather than scored 1.0.
         records = []
+        silent_pairs: list[str] = []
+        pairs = []
+        for fact_id, left, right in eligible:
+            if responded(bundle, left) and responded(bundle, right):
+                pairs.append((fact_id, left, right))
+                continue
+            pair_id = f"{left.id}|{right.id}"
+            silent_pairs.append(pair_id)
+            records.append({
+                "fact": fact_id,
+                "pair": [left.id, right.id],
+                "languages": [left.lang, right.lang],
+                "verdict": UNVERIFIABLE,
+                "reason": SILENT,
+                "note": ("at least one side of this pair recorded no response, "
+                         "so the two languages cannot be compared; excluded "
+                         "from the score, and not a pass"),
+            })
+        self.require_population(
+            pairs,
+            "every cross-language pair has a side that recorded no response, "
+            "so no two languages can be compared",
+        )
+
         sample = []
         hard_failures = []
         for fact_id, left, right in pairs:
@@ -137,6 +175,9 @@ class CrossLanguageSuite(Suite):
                 "single_language_facts": single_language_facts,
                 "items_without_fact_id": unlinked,
                 "load_bearing_failures": sorted(set(hard_failures)),
+                "unverifiable": unverifiable_block(
+                    {SILENT: silent_pairs}, eligible=len(eligible),
+                    scored=len(pairs), note=SILENCE_NOTE),
                 "severity_rule": (
                     "a numeric disagreement on a load-bearing fact fails this "
                     "suite regardless of the pooled average"

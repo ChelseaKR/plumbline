@@ -55,6 +55,66 @@ def attach_statistics(result: SuiteResult, *, seed: int) -> None:
     result.stats_meta = stats.meta
 
 
+class ResultError(Exception):
+    """A suite returned something that is not a usable result.
+
+    Not a scoring failure and not a configuration error: the instrument
+    itself misbehaved. It stops the run rather than being folded into a
+    verdict, because a verdict computed from a result nobody can interpret is
+    the silent pass this harness exists to refuse.
+    """
+
+
+def validate_result(result: SuiteResult, *, suite_id: str, floor: float) -> None:
+    """Refuse a suite result the runner cannot honestly aggregate.
+
+    The overall verdict used to be `FAIL if any verdict == FAIL else PASS`,
+    which quietly treated every value that was not the literal string `FAIL` —
+    `"SKIP"`, `"skip"`, `None`, a typo — as a pass. Aggregation is now
+    `all(... == PASS)`, and this makes the remaining ambiguity impossible
+    rather than merely unlikely: a suite that cannot say PASS or FAIL, or that
+    reports a score outside [0,1], or that answers about a different suite,
+    stops the run.
+    """
+    if result.suite_id != suite_id:
+        raise ResultError(
+            f"suite '{suite_id}' returned a result labelled "
+            f"'{result.suite_id}'"
+        )
+    if result.verdict not in (PASS, FAIL):
+        raise ResultError(
+            f"suite '{suite_id}' returned verdict {result.verdict!r}; the only "
+            f"verdicts are {PASS} and {FAIL}. A third state at suite level is "
+            f"a silent skip wearing a label, and an unrecognized one would be "
+            f"counted as a pass."
+        )
+    score = result.score
+    if not isinstance(score, (int, float)) or isinstance(score, bool):
+        raise ResultError(
+            f"suite '{suite_id}' returned a non-numeric score {score!r}")
+    # NaN fails all three comparisons, which is the point: it is not a score.
+    if not (0.0 <= float(score) <= 1.0):
+        raise ResultError(
+            f"suite '{suite_id}' returned score {score!r}, which is not in "
+            f"[0, 1]")
+    if result.floor != floor:
+        raise ResultError(
+            f"suite '{suite_id}' was run against floor {floor} but reported "
+            f"floor {result.floor}; the bar in the report must be the bar that "
+            f"was applied")
+    # The verdict must follow from the numbers a reader can see. A suite may
+    # fail itself on severity despite clearing its floor, and does; it may
+    # never pass itself while below the floor.
+    if result.verdict == PASS and float(score) < floor:
+        raise ResultError(
+            f"suite '{suite_id}' reported {PASS} with score {score} below its "
+            f"floor {floor}")
+    if result.verdict == PASS and result.hard_failures:
+        raise ResultError(
+            f"suite '{suite_id}' reported {PASS} while naming load-bearing "
+            f"failures {result.hard_failures}")
+
+
 @dataclass
 class AuditOutcome:
     verdict: str
@@ -66,7 +126,7 @@ class AuditOutcome:
 
 
 def compute_run_id(
-    *, harness_version: str, seed: int, dataset_sha256: str,
+    *, target: str, harness_version: str, seed: int, dataset_sha256: str,
     judge_config_sha256: str, suite_floors: dict[str, float],
     baseline_sha256: str | None = None,
 ) -> str:
@@ -74,8 +134,16 @@ def compute_run_id(
     id, so identical re-runs write identical bytes to the identical path.
 
     The baseline is one of those inputs. Comparing against a different bar
-    produces a different report, so it must produce a different run id."""
+    produces a different report, so it must produce a different run id.
+
+    So is the target. The run id is also the output directory name, so two
+    different systems audited against the same evidence, judge and floors used
+    to collide: the second run silently overwrote the first, and one report
+    was left standing under an id that named both. Whose behaviour was graded
+    is part of what a run *is*, so it is part of the run's identity.
+    """
     material = canonical_json({
+        "target": target,
         "harness_version": harness_version,
         "seed": seed,
         "dataset_sha256": dataset_sha256,
@@ -116,16 +184,27 @@ def run_audit(config: TargetConfig, *, seed: int = DEFAULT_SEED, out_dir: Path,
     #    statistics centrally so no suite can ship without a CI and an MDE.
     results: list[SuiteResult] = []
     for suite_id, suite in suites.items():
-        result = suite.evaluate(bundle, judge, config.suites[suite_id])
+        floor = config.suites[suite_id]
+        result = suite.evaluate(bundle, judge, floor)
+        validate_result(result, suite_id=suite_id, floor=floor)
         attach_statistics(result, seed=seed)
         results.append(result)
 
-    verdict = FAIL if any(r.verdict == FAIL for r in results) else PASS
+    # Fail closed: PASS only if every enabled suite said PASS, and only if
+    # there were suites to say it. Anything else is FAIL. `validate_result`
+    # has already refused any verdict that is neither PASS nor FAIL, so this
+    # cannot be reached with a value it would have to guess about.
+    if not results:
+        raise ResultError(
+            "no suite produced a result; an audit that scored nothing is not "
+            "a pass")
+    verdict = PASS if all(r.verdict == PASS for r in results) else FAIL
 
     harness_source = source_digest(Path(__file__).resolve().parent)
     judge_config = judge.config()
     judge_config_sha256 = config_digest(judge_config)
     run_id = compute_run_id(
+        target=config.name,
         harness_version=__version__,
         seed=seed,
         dataset_sha256=bundle.dataset_sha256,

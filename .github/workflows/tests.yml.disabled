@@ -40,7 +40,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.11", "3.12", "3.13"]
+        python-version: ["3.11", "3.12", "3.13", "3.14"]
     steps:
       - uses: actions/checkout@v4
 
@@ -60,18 +60,41 @@ jobs:
             --config examples/riverbend.toml --out audits
           git diff --exit-code -- audits baselines
 
-      # The tamper drill, as documented in the README.
+      # The committed report must still match its own seal.
+      - name: The committed report has not been edited since it was produced
+        run: PYTHONPATH=src python3 -m plumbline verify audits/*/report.json
+
+      # The tamper drill, as documented in the README. Exit codes are captured
+      # explicitly rather than leaned on through `&&`: a drill that asserts
+      # only "did not exit 0" would be satisfied by the harness crashing, which
+      # is the opposite of what it is trying to prove.
       - name: Tamper drill — integrity refusal, then a caught fabrication
         run: |
+          set -u
+          run_gate() {
+            set +e
+            PYTHONPATH=src python3 -m plumbline gate \
+              --config examples/riverbend.toml --out /tmp/tamper
+            code=$?
+            set -e
+            echo "$code"
+          }
           python3 - <<'PY'
           import pathlib
           p = pathlib.Path("datasets/riverbend-demo/responses.jsonl")
           p.write_text(p.read_text().replace("850 dollars", "900 dollars"))
           PY
-          PYTHONPATH=src python3 -m plumbline gate \
-            --config examples/riverbend.toml --out /tmp/tamper && exit 1
-          test $? -eq 3 || exit 1
+
+          code=$(run_gate | tail -1)
+          if [ "$code" != "3" ]; then
+            echo "expected exit 3 (integrity refusal), got $code" >&2
+            exit 1
+          fi
+
           PYTHONPATH=src python3 -m plumbline seal datasets/riverbend-demo
-          PYTHONPATH=src python3 -m plumbline gate \
-            --config examples/riverbend.toml --out /tmp/tamper && exit 1
+          code=$(run_gate | tail -1)
+          if [ "$code" != "1" ]; then
+            echo "expected exit 1 (the fabrication is caught and scored), got $code" >&2
+            exit 1
+          fi
           git checkout -- datasets/riverbend-demo

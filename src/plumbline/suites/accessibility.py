@@ -218,13 +218,10 @@ class AccessibilitySuite(Suite):
                 "the bundle manifest declares no `files.interface`, so there "
                 "is no captured interface to check",
             )
-        path = bundle.path / interface_name
-        if not path.is_file():
-            self.require_population(
-                [],
-                f"the manifest declares files.interface = {interface_name!r} "
-                f"but that file is not in the bundle",
-            )
+        # Through the bundle, never `bundle.path / name`: the interface is
+        # evidence, so it has to be inside the bundle and covered by a
+        # checksum before a byte of it is parsed.
+        path = bundle.sealed(interface_name, "interface")
 
         snapshot = _Snapshot()
         snapshot.feed(path.read_text(encoding="utf-8"))

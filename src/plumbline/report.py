@@ -9,15 +9,67 @@ history of the committed report is the time record.
 
 from __future__ import annotations
 
+import copy
 import json
 from pathlib import Path
 
 from .baseline import render_markdown as render_baseline_markdown
 from .couplings import render_markdown as render_couplings_markdown
+from .hashing import canonical_json, sha256_text
 from .suites import SuiteResult
 
 REPORT_JSON = "report.json"
 REPORT_MD = "report.md"
+
+# The field inside `provenance` that binds the stamp to the body it stamps.
+REPORT_SEAL_FIELD = "report_sha256"
+
+
+class ReportSealError(Exception):
+    """A report's contents do not match its own seal (integrity refusal)."""
+
+
+def report_digest(report: dict) -> str:
+    """sha256 over the report's canonical JSON, with the seal field removed.
+
+    Provenance used to describe the *inputs* to a run — evidence hash, judge
+    hash, seed — and nothing tied it to the *output*. So the run id, the
+    dataset hash and the judge hash all stayed valid while a score, a verdict
+    or a whole suite row was edited underneath them: a reader checking the
+    provenance block found everything in order, because everything in it was
+    still true. This covers the body, which is what somebody actually reads.
+    """
+    body = copy.deepcopy(report)
+    provenance = body.get("provenance")
+    if isinstance(provenance, dict):
+        provenance.pop(REPORT_SEAL_FIELD, None)
+    return sha256_text(canonical_json(body))
+
+
+def seal_report(report: dict) -> dict:
+    """Stamp a finished report with the digest of its own body, in place."""
+    report["provenance"][REPORT_SEAL_FIELD] = report_digest(report)
+    return report
+
+
+def verify_report(report: dict, *, source: str = "report") -> str:
+    """Recompute a report's seal and refuse if the body has moved."""
+    recorded = (report.get("provenance") or {}).get(REPORT_SEAL_FIELD)
+    if not recorded:
+        raise ReportSealError(
+            f"{source} carries no {REPORT_SEAL_FIELD}, so nothing binds its "
+            f"provenance to its contents. Reports written by this version are "
+            f"sealed; re-run the audit that produced it."
+        )
+    actual = report_digest(report)
+    if recorded != actual:
+        raise ReportSealError(
+            f"{source} does not match its own seal: it records "
+            f"{recorded[:12]} but its contents hash to {actual[:12]}. The "
+            f"report was edited after it was written. Re-run the audit; a "
+            f"verdict is a record, not a draft."
+        )
+    return actual
 
 
 def build_report(
@@ -167,6 +219,10 @@ def render_markdown(report: dict) -> str:
                     if p.get("harness_source_sha256")
                     else f"_{p.get('harness_source_note', 'unavailable')}_")
                  + " |")
+    if p.get(REPORT_SEAL_FIELD):
+        lines.append(f"| Report seal | `{p[REPORT_SEAL_FIELD]}` "
+                     f"(sha256 of this report's own body; check it with "
+                     f"`plumbline verify`) |")
     lines.append(f"| Seed | `{p['seed']}` |")
     lines.append(f"| Dataset hash | `{p['dataset_sha256']}` (short: `{p['dataset_id']}`) |")
     determinism = ("deterministic" if judge.get("deterministic", True)
@@ -244,7 +300,11 @@ def write_reports(report: dict, out_dir: Path) -> tuple[Path, Path]:
 
     Deterministic bytes: fixed key order (insertion order of build_report),
     indent=2, ensure_ascii=False, trailing newline.
+
+    Sealing happens here, at the single point every written report passes
+    through, so no caller can produce an unsealed one by forgetting.
     """
+    seal_report(report)
     run_dir = Path(out_dir) / report["provenance"]["run_id"]
     run_dir.mkdir(parents=True, exist_ok=True)
     json_path = run_dir / REPORT_JSON

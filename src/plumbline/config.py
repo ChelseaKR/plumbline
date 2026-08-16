@@ -114,8 +114,23 @@ def load_config(path: Path) -> TargetConfig:
                 f"{cls.planned_milestone}; enabling it is an error, not a skip"
             )
         floor = spec.get("floor", cls.default_floor)
-        if not isinstance(floor, (int, float)) or not (0.0 <= float(floor) <= 1.0):
+        if (not isinstance(floor, (int, float)) or isinstance(floor, bool)
+                or not (0.0 <= float(floor) <= 1.0)):
             raise ConfigError(f"{path}: [suites.{suite_id}].floor must be in [0, 1]")
+        if float(floor) == 0.0:
+            # Every score in [0,1] clears a floor of zero, including a 0.0
+            # from a suite that measured nothing. A suite configured that way
+            # is a green row that cannot go red: it costs a run and reports a
+            # verdict, and the verdict is unconditional. That is the vacuous
+            # pass this file already refuses at the whole-audit level, one
+            # suite at a time.
+            raise ConfigError(
+                f"{path}: [suites.{suite_id}].floor is 0, which every possible "
+                f"score clears. A suite that cannot fail is not a check; set a "
+                f"floor the target has to reach, or set "
+                f"[suites.{suite_id}].enabled = false and say in review why "
+                f"this target is not held to it."
+            )
         enabled[suite_id] = float(floor)
 
     if not enabled:

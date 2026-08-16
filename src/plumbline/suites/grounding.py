@@ -26,7 +26,17 @@ from __future__ import annotations
 from ..bundle import Bundle
 from ..judges import Judge, citations, strip_citations
 from ..stats import KIND_MEAN
-from . import FAIL, Suite, SuiteResult, register
+from . import (
+    FAIL,
+    SILENCE_NOTE,
+    SILENT,
+    Suite,
+    SuiteResult,
+    register,
+    responded,
+    silence_record,
+    unverifiable_block,
+)
 
 
 def _sourced_answer_items(bundle: Bundle):
@@ -53,12 +63,22 @@ class GroundednessSuite(Suite):
     default_floor = 0.70
 
     def evaluate(self, bundle: Bundle, judge: Judge, floor: float) -> SuiteResult:
-        population = self.require_population(
+        eligible = self.require_population(
             _sourced_answer_items(bundle),
             "no answer item declares any sources, so there is nothing to be "
             "grounded in",
         )
-        records, sample, hard_failures = [], [], []
+        # An empty response asserts nothing, so nothing in it is unsupported,
+        # so the support measure returns a perfect 1.0. That is arithmetic, not
+        # evidence: a target that said nothing is not a well-grounded target.
+        silent = [i.id for i in eligible if not responded(bundle, i)]
+        population = self.require_population(
+            [i for i in eligible if responded(bundle, i)],
+            "every answer item's recorded response is empty, so there is no "
+            "claim whose grounding could be checked",
+        )
+        records = [silence_record(i) for i in silent]
+        sample, hard_failures = [], []
         for item in population:
             response = bundle.response_for(item.id) or ""
             source_text = bundle.source_text_for(item)
@@ -104,6 +124,9 @@ class GroundednessSuite(Suite):
                     i.id for i in bundle.items
                     if i.behavior == "answer" and not i.sources
                 ],
+                "unverifiable": unverifiable_block(
+                    {SILENT: silent}, eligible=len(eligible),
+                    scored=len(population), note=SILENCE_NOTE),
             },
             item_records=records,
             hard_failures=hard_failures,

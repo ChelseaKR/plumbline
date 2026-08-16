@@ -13,13 +13,21 @@ third party could defend:
 
 - **Fail closed, everywhere.** Tampered evidence: the run refuses to score,
   with its own exit code. Any enabled suite under its floor: overall FAIL.
-  Unimplemented suite enabled: configuration error. There is no silent-skip
-  path.
+  Unimplemented suite enabled: configuration error. A suite with nothing to
+  score, or a floor of zero that nothing could fail: configuration error. A
+  crash: its own exit code, never the one that means "measured and failed".
+  There is no silent-skip path.
+- **Silence is never evidence.** A target that returns nothing satisfies every
+  check phrased as an absence, so it is scored zero by the suites that ask
+  whether it behaved correctly, and reported UNVERIFIABLE — excluded, named,
+  never a pass — by the suites that ask whether something bad is missing.
 - **Deterministic and offline by default.** The default judge is lexical; CI
   needs no keys; identical inputs and seed produce byte-identical reports.
 - **A verdict is a record.** Every run writes machine-readable and
   human-readable reports stamped with run id, harness version, seed, dataset
-  hash, and judge configuration hash.
+  hash, and judge configuration hash — and with a seal over the report's own
+  body, so a score edited afterwards is caught by `plumbline verify` instead of
+  hiding behind provenance that is still technically true.
 
 ## Status
 
@@ -29,7 +37,7 @@ minimum detectable effect, baseline regression comparison, a pinned
 fail-closed CI gate, live-target recording over HTTP or against a local
 program, and an optional model judge — none of which the gate can reach. Every
 suite has been **observed failing** on a defect it exists to catch; see
-[`proof/matrix.md`](proof/matrix.md). 415 tests, standard library only,
+[`proof/matrix.md`](proof/matrix.md). 459 tests, standard library only,
 offline.
 
 The fourteenth suite is beyond the specification and came from a consumer's
@@ -94,12 +102,16 @@ PYTHONPATH=src python3 -m plumbline gate --config examples/riverbend.toml \
 | 0 | All enabled suites passed | merge |
 | 1 | At least one enabled suite failed — overall FAIL | block; read the named suites |
 | 2 | Command-line usage error | fix the command |
-| 3 | **Integrity refusal**: evidence checksums missing or mismatched, nothing was scored | block; the evidence is untrustworthy, which is a different problem from a regression |
+| 3 | **Integrity refusal**: evidence checksums missing or mismatched, or a written report edited after the fact; nothing was scored | block; the evidence is untrustworthy, which is a different problem from a regression |
 | 4 | Configuration or environment error, including an unresolvable harness or a model judge asked to make live calls inside the gate | block; the gate did not run |
+| 5 | **Internal error**: the harness itself crashed or produced a result it could not honestly aggregate | block; report the bug. Nothing was measured |
 
-The separation of 1, 3 and 4 is deliberate. "The target got worse", "the
-evidence is untrustworthy" and "the gate was misconfigured" need three
-different people to do three different things.
+The separation of 1, 3, 4 and 5 is deliberate. "The target got worse", "the
+evidence is untrustworthy", "the gate was misconfigured" and "the instrument
+broke" need four different people to do four different things. In particular a
+crash is not exit 1: exit 1 is a measurement, and a crash is the absence of
+one. Every non-zero code blocks — there is no code that means "could not
+check, carry on".
 
 ### Pinning the harness in a consuming repository
 

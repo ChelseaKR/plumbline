@@ -135,9 +135,28 @@ either way.
 }
 ```
 
-- Every file in the bundle except `checksums.json` itself is hashed (raw bytes).
+- Every file in the bundle except `checksums.json` itself is hashed (raw bytes),
+  **at every depth**. Names are POSIX paths relative to the bundle root, so a
+  file in a subdirectory is `evidence/items.jsonl`, not `items.jsonl`. Hashing
+  only the top level would leave nested evidence unsealed: it could be
+  rewritten while the bundle hash, the integrity verdict and the run id all
+  stayed identical, which is the tamper this format exists to prevent.
+- **Symbolic links are refused**, files and directories alike. A link is a
+  pointer at bytes somewhere else, and somewhere else is not evidence this
+  bundle sealed.
+- **Nothing outside the manifest's inventory is ever read.** `files.items`,
+  `files.responses`, `files.sources` and `files.interface` must be relative,
+  must resolve inside the bundle directory, and must be covered by a checksum.
+  Verification proves the bundle's own inventory is intact; it says nothing
+  about a path pointing out of that inventory, and `bundle_dir / filename`
+  resolves both `../secrets.jsonl` and `/etc/passwd` without complaint.
 - `bundle_sha256` = sha256 over the string `"<filename>=<hex>\n"` for each file,
   sorted by filename. This is **the dataset hash** that appears in reports.
+  Because the serialization is line-oriented, a filename containing a newline
+  could forge a line break and make one file hash exactly like two; POSIX
+  permits such names, so they are refused when a bundle is sealed and when a
+  manifest is read back. A recorded digest that is not 64 lowercase hex
+  characters is refused for the same reason.
 - The short dataset id is the first 12 hex characters of `bundle_sha256`.
 - On any mismatch — or a missing/unreadable `checksums.json` — the run halts
   **before scoring anything** and exits with the integrity code (below). No
@@ -381,6 +400,37 @@ the evidence cannot test; reporting a vacuous 1.0 would be worse than useless.
 This is the same rule as "no suites enabled is not a vacuous pass", applied one
 level down.
 
+### Silence is never evidence
+
+A response that does not exist satisfies every check phrased as an absence. It
+contains no forbidden phrase, discloses no personal data, states no number its
+sources lack, and cannot contradict the same question asked in another
+language. Measured naively, a target that returned nothing at all scored a
+perfect 1.00 on `groundedness`, `privacy`, `representational_harms`,
+`fairness` and `cross_language` — and a gate enabling only those suites passed
+it. That is the harness's own thesis failing: a verdict of PASS from checks
+that never ran.
+
+The suites split into two kinds, and they treat silence differently because
+they are asking different questions:
+
+- **Behavior suites** ask whether the target did the right thing: `smoke`,
+  `refusal`, `accuracy`, `adversarial`, `multilingual`, `citation_validity`,
+  `citation_accuracy`. Silence is a wrong behavior — it is neither a correct
+  answer nor a correct refusal — so it scores **zero**. `refusal` in
+  particular used to read "not detected as a refusal" as "correctly answered",
+  which is trivially true of an empty string.
+- **Absence and comparison suites** ask whether something bad is missing, or
+  whether two responses agree: `groundedness`, `privacy`,
+  `representational_harms`, `fairness`, `cross_language`,
+  `passage_attribution`. There is nothing to check, so the item is
+  **UNVERIFIABLE**: excluded from the score, named in the report's coverage
+  line, and never counted as a pass. If that empties a suite's population, the
+  empty-population rule above fires and the run stops.
+
+The distinction the whole section turns on is between "we checked and found
+nothing wrong" and "there was nothing to check".
+
 ### Skeletons (registered as unimplemented; enabling them is an error)
 
 The list is empty: every suite in the specification's taxonomy is implemented.
@@ -555,6 +605,27 @@ floor = 0.90
 Unknown suite ids, unimplemented suites, or malformed config: configuration
 error (exit 4). Floors omitted in config fall back to the suite's default floor.
 
+A floor must be in `[0, 1]`, and **a floor of exactly 0 is refused**. Every
+possible score clears it, including a 0.0 from a suite that measured nothing:
+the suite costs a run, reports a verdict, and the verdict is unconditional. A
+check that cannot fail is not a check. Set a floor the target has to reach, or
+set `enabled = false` and say in review why this target is not held to it —
+the same "no vacuous pass" rule as the whole-audit and empty-population cases,
+applied to the bar itself.
+
+### The overall verdict
+
+`PASS` only if **every** enabled suite returned `PASS`, and only if there were
+suites to return it. The aggregation used to be `FAIL if any(v == FAIL) else
+PASS`, which put every value that was not the literal string `FAIL` — `"SKIP"`,
+`None`, a typo — on the pass branch. Before aggregating, the runner validates
+each result: a verdict that is neither `PASS` nor `FAIL`, a score outside
+`[0,1]`, a result labelled for a different suite, a floor that is not the one
+applied, or a `PASS` that contradicts its own score or its own load-bearing
+failures all stop the run with the internal-error code. A verdict computed
+from a result nobody can interpret is the silent pass this harness exists to
+refuse.
+
 ## Reports and provenance
 
 `plumbline audit` writes to `<out>/<run_id>/`:
@@ -566,7 +637,8 @@ Both carry the full provenance block:
 
 | Field | Content |
 |---|---|
-| `run_id` | First 16 hex chars of sha256 over (harness version, seed, bundle hash, judge config hash, sorted enabled-suite ids + floors). Content-derived, therefore stable across identical re-runs. |
+| `run_id` | First 16 hex chars of sha256 over (**target name**, harness version, seed, bundle hash, judge config hash, sorted enabled-suite ids + floors, baseline hash). Content-derived, therefore stable across identical re-runs. The target is in there because the run id is also the output directory: without it, two different systems audited against the same evidence, judge and floors collided, and the second run silently overwrote the first. Whose behavior was graded is part of what a run *is*. |
+| `report_sha256` | sha256 over this report's own canonical JSON, with this field removed. Everything else in the block describes the run's *inputs*, so a score, a verdict or a whole suite row could be edited while the run id, the dataset hash and the judge hash all stayed valid. This covers the body a reader actually reads. Check it with `plumbline verify`; `plumbline baseline` refuses to distil a report that fails it. |
 | `harness_version` | `plumbline.__version__`. |
 | `harness_source_sha256` | sha256 over every `.py` file in the installed package. Which instrument, not just which version string. `null` with the reason recorded when the package is not readable as files. |
 | `seed` | The RNG seed for the run (default **1729** — Ramanujan's taxicab number; memorable and obviously arbitrary). Milestone 1 does no sampling, but the seed is threaded through and recorded now so report formats never change shape when sampling arrives. |
@@ -655,11 +727,19 @@ Decisions recorded here:
 | **0** | All enabled suites passed. |
 | **1** | Scoring completed; at least one enabled suite failed (overall FAIL). |
 | **2** | Command-line usage error (argparse convention; left untouched). |
-| **3** | **Integrity refusal**: checksum mismatch or missing checksum manifest. Nothing was scored. |
-| **4** | Configuration / environment error: malformed config, unknown or unimplemented suite enabled, unreadable bundle path. Fail closed. |
+| **3** | **Integrity refusal**: checksum mismatch, missing checksum manifest, a symbolic link in a bundle, or a report whose contents no longer match its own seal. Nothing was scored. |
+| **4** | Configuration / environment error: malformed config, unknown or unimplemented suite enabled, unreadable bundle path, a suite with an empty population, a floor of zero. Fail closed. |
+| **5** | **Internal error**: the harness crashed, or a suite returned a result the runner cannot honestly aggregate. Nothing was measured. |
 
-3 and 4 are deliberately distinct from 1 so CI can distinguish "the target got
-worse" from "the evidence is untrustworthy" from "the harness was misused".
+3, 4 and 5 are deliberately distinct from 1 so CI can distinguish "the target
+got worse" from "the evidence is untrustworthy" from "the harness was misused"
+from "the instrument broke".
+
+5 exists because an unhandled exception leaves the interpreter with status 1,
+which is the code reserved for a *measured* failure. A caller that cannot tell
+those apart reads "Plumbline fell over" as "Plumbline scored this target and it
+failed" — a verdict nobody produced. Every non-zero code blocks; none of them
+means "could not check, carry on".
 
 ## CLI surface
 
@@ -667,6 +747,8 @@ worse" from "the evidence is untrustworthy" from "the harness was misused".
 plumbline validate <bundle>          # integrity, item count, dataset id, warnings;
                                      #   accepts a question set as well as a bundle
 plumbline seal <bundle>              # (re)generate checksums.json
+plumbline verify <report.json>       # check a written report against its own
+                                     #   seal; refuses if it was edited
 plumbline audit --config <toml> [--out audits] [--seed N]
                 [--baseline PATH] [--require-comparable-baseline]
 plumbline gate  --config <toml> …    # the same audit, shaped for a build log
@@ -982,11 +1064,11 @@ between statistics a reader can see and statistics a reader can use.
 five fixed checks are a census, not a sample.
 
 **Reports carry the provenance block.** Committed
-`audits/a9abe724a805f956/report.{json,md}`: run id `a9abe724a805f956`, harness
-`0.1.0.dev0`, harness source `7c3810fcf92c…`, seed `1729`, dataset
-`38e4d786a56c`, judge `lexical` (*deterministic*), judge config
-`23c0fd04690d…`, language profiles `ar, en, es`, verdict as the first key and
-the first heading.
+`audits/979d964bfa7a6847/report.{json,md}`: run id `979d964bfa7a6847`, harness
+`0.1.0.dev0`, harness source `7926d979f7b5…`, report seal `e9ebe18b4e83…`,
+seed `1729`, dataset `38e4d786a56c`, judge `lexical` (*deterministic*), judge
+config `23c0fd04690d…`, language profiles `ar, en, es`, verdict as the first
+key and the first heading.
 
 **The committed artifacts cannot go stale silently.**
 `tests/test_self_application.py` re-runs the documented command and compares
@@ -1116,18 +1198,39 @@ directory was never created. The same file covers a missing pin, a pin missing
 unknown pin key — all exit 4.
 
 **Tests**: `PYTHONPATH=src:tests python3 -m unittest discover -s tests` →
-**415 tests, OK**, in about thirteen seconds, offline, with no third-party
+**459 tests, OK**, in about fifteen seconds, offline, with no third-party
 packages. Nine of those seconds are the defect-injection matrix rebuilding
 itself, which is the right price for a proof that cannot go stale. The HTTP
 paths are exercised against real servers on the loopback interface and the
 subprocess paths against real child processes, not against mocks.
 
-**Continuous integration**: deliberately none. `.github/workflows/tests.yml.disabled`
-says what this repository's own gate would be and is inert — GitHub Actions
-reads only `.yml`/`.yaml`, so it never runs and never queues. The account's
-Actions budget is exhausted, and a permanently red or queued check teaches
-people to ignore checks, which is the habit this project argues against.
-Renaming the file is the entire act of enabling it.
+**Continuous integration**: still deliberately none, and the reasoning has been
+re-examined rather than inherited. `.github/workflows/tests.yml.disabled` says
+what this repository's own gate would be and is inert — GitHub Actions reads
+only `.yml`/`.yaml`, so it never runs and never queues. Renaming the file is
+the entire act of enabling it.
+
+The original reason given was that the account's Actions budget is exhausted.
+That reason is weaker than it looks: this repository is public, and public
+repositories get GitHub-hosted minutes that the private-repository billing
+failure does not touch. The reason it is *still* disabled is narrower and
+honest: enabling it cannot be verified without pushing, and a workflow whose
+first public appearance is a red X teaches exactly the habit this project
+argues against. Whoever enables it should watch the first run.
+
+What the workflow would add over the local suite is multi-interpreter
+coverage, and that has been run by hand instead: **459 tests, OK, on CPython
+3.11, 3.12, 3.13 and 3.14** (3.14 is beyond the declared `requires-python`
+floor and beyond the matrix in the workflow file, which now lists it). Its
+other two steps are already enforced locally on every test run — byte-identical
+reproduction of the committed report by `tests/test_self_application.py`, and
+the integrity refusal by the defect-injection matrix.
+
+The workflow file itself was corrected while it was inert. Its tamper drill
+asserted only that the gate did not exit 0, which the harness *crashing* also
+satisfies; it now captures both exit codes explicitly and requires 3 then 1. A
+drill that cannot tell a caught fabrication from a broken instrument is not a
+drill.
 
 ## Open
 
