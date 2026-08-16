@@ -21,7 +21,12 @@ from .baseline import (
     load_baseline,
 )
 from .config import TargetConfig
-from .hashing import canonical_json, config_digest, sha256_text
+from .hashing import (
+    canonical_json,
+    config_digest,
+    sha256_text,
+    source_digest,
+)
 from .judges import make_judge
 from .report import build_report, write_reports
 from .stats import compute as compute_statistics
@@ -116,6 +121,7 @@ def run_audit(config: TargetConfig, *, seed: int = DEFAULT_SEED, out_dir: Path,
 
     verdict = FAIL if any(r.verdict == FAIL for r in results) else PASS
 
+    harness_source = source_digest(Path(__file__).resolve().parent)
     judge_config = judge.config()
     judge_config_sha256 = config_digest(judge_config)
     run_id = compute_run_id(
@@ -132,6 +138,17 @@ def run_audit(config: TargetConfig, *, seed: int = DEFAULT_SEED, out_dir: Path,
         "run_id": run_id,
         "harness": "plumbline",
         "harness_version": __version__,
+        # Which instrument, not just which version string. A pre-release
+        # version stays the same across every commit; this does not. It is
+        # deliberately *not* part of the run id: a code change should make the
+        # committed report stale, which it does, without also moving every
+        # report to a new path on every edit.
+        "harness_source_sha256": harness_source,
+        "harness_source_note": (
+            "sha256 over every .py file in the installed plumbline package"
+            if harness_source else
+            "unavailable: the package is not readable as files on disk"
+        ),
         "seed": seed,
         "dataset_sha256": bundle.dataset_sha256,
         "dataset_id": bundle.dataset_id,

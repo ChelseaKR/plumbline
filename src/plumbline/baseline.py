@@ -36,7 +36,7 @@ from pathlib import Path
 from .hashing import canonical_json, sha256_text
 
 BASELINE_FORMAT = "plumbline-baseline"
-BASELINE_FORMAT_VERSION = 2
+BASELINE_FORMAT_VERSION = 3
 
 
 class BaselineError(Exception):
@@ -51,6 +51,10 @@ def build_baseline(report: dict) -> dict:
         "format_version": BASELINE_FORMAT_VERSION,
         "source_run_id": provenance["run_id"],
         "harness_version": provenance["harness_version"],
+        # A pre-release version string is the same on every commit, so on its
+        # own it cannot tell a reviewer whether the instrument moved. The
+        # source digest can.
+        "harness_source_sha256": provenance.get("harness_source_sha256"),
         "seed": provenance["seed"],
         "dataset_sha256": provenance["dataset_sha256"],
         "dataset_id": provenance["dataset_id"],
@@ -149,6 +153,17 @@ def compare(report: dict, baseline: dict) -> dict:
             f"harness version differs ({baseline.get('harness_version')} -> "
             f"{provenance['harness_version']}); suite implementations may have "
             f"changed even though the hashes match"
+        )
+    if (provenance.get("harness_source_sha256")
+            and baseline.get("harness_source_sha256")
+            and provenance["harness_source_sha256"]
+            != baseline["harness_source_sha256"]):
+        caveats.append(
+            f"the harness source differs "
+            f"({baseline['harness_source_sha256'][:12]} -> "
+            f"{provenance['harness_source_sha256'][:12]}); the instrument's "
+            f"own code changed between these two runs, so a moved score may "
+            f"be the harness rather than the target"
         )
     if provenance["seed"] != baseline.get("seed"):
         caveats.append(

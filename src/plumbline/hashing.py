@@ -46,3 +46,30 @@ def config_digest(config: dict) -> str:
 
 def short_id(digest: str) -> str:
     return digest[:SHORT_ID_LEN]
+
+
+def source_digest(package_dir: Path) -> str | None:
+    """A hash of the harness's own source: sha256 over "<relpath>=<hex>\n"
+    for every .py file under the package, sorted by path.
+
+    Plumbline asks the systems it grades to say which bytes produced their
+    evidence. `harness_version` does not answer that: it is a string somebody
+    types, it stays `0.1.0.dev0` across every commit of a pre-release, and two
+    runs from different code report the same value. This does answer it.
+
+    Returns None — with the reason recorded next to it in the report — when
+    the package is not readable as files on disk (a zipapp, for instance).
+    Provenance that cannot be computed is reported as absent, never guessed.
+    """
+    package_dir = Path(package_dir)
+    if not package_dir.is_dir():
+        return None
+    digests = {}
+    for path in sorted(package_dir.rglob("*.py")):
+        if "__pycache__" in path.parts:
+            continue
+        digests[path.relative_to(package_dir).as_posix()] = sha256_file(path)
+    if not digests:
+        return None
+    return sha256_text(
+        "".join(f"{name}={digest}\n" for name, digest in sorted(digests.items())))

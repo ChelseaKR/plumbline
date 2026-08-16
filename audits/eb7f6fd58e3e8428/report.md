@@ -6,8 +6,9 @@ Plumbline audit of target `riverbend-demo`.
 
 | Field | Value |
 |---|---|
-| Run id | `0712e48d658fad8c` |
+| Run id | `eb7f6fd58e3e8428` |
 | Harness version | `0.1.0.dev0` |
+| Harness source | `9fc43433f12a40a910a09c3db1d043692c8148080b445acad5695c02d2cb353f` |
 | Seed | `1729` |
 | Dataset hash | `a827533387cb92580c65ea6806873724cef9a0eb9a18414bf8e79edbf304e2ba` (short: `a827533387cb`) |
 | Judge | `lexical` (deterministic), config hash `23c0fd04690d804cfa662492e26d9ca4f015eedd3e56e9b0f1cde239e169d423` |

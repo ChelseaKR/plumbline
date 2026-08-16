@@ -47,7 +47,9 @@ from plumbline.audit import DEFAULT_SEED, run_audit     # noqa: E402
 from plumbline.bundle import IntegrityError, seal       # noqa: E402
 from plumbline.config import ConfigError, load_config   # noqa: E402
 from plumbline.errors import OutboundError              # noqa: E402
-from plumbline.hashing import canonical_json, sha256_text  # noqa: E402
+from plumbline.hashing import (                         # noqa: E402
+    canonical_json, sha256_text, source_digest,
+)
 from plumbline.suites import EmptyPopulationError       # noqa: E402
 
 CONFIG = REPO / "examples" / "riverbend.toml"
@@ -637,6 +639,10 @@ def build_matrix() -> dict:
         "matrix": "plumbline-defect-injection",
         "format_version": 1,
         "harness_version": __version__,
+        # Which instrument this proof is about. A pre-release version string
+        # is the same on every commit; a proof that cannot say which code it
+        # proved is a proof about nothing in particular.
+        "harness_source_sha256": source_digest(REPO / "src" / "plumbline"),
         "seed": DEFAULT_SEED,
         "target": config.name,
         "control": {
@@ -679,6 +685,7 @@ def render_markdown(matrix: dict) -> str:
     lines.append("| Field | Value |")
     lines.append("|---|---|")
     lines.append(f"| Harness version | `{matrix['harness_version']}` |")
+    lines.append(f"| Harness source | `{matrix['harness_source_sha256']}` |")
     lines.append(f"| Seed | `{matrix['seed']}` |")
     lines.append(f"| Target | `{matrix['target']}` |")
     lines.append(f"| Control run | `{matrix['control']['verdict']}`, dataset "

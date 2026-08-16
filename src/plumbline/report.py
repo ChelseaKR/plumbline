@@ -129,6 +129,11 @@ def render_markdown(report: dict) -> str:
     lines.append("|---|---|")
     lines.append(f"| Run id | `{p['run_id']}` |")
     lines.append(f"| Harness version | `{p['harness_version']}` |")
+    lines.append(f"| Harness source | "
+                 + (f"`{p['harness_source_sha256']}`"
+                    if p.get("harness_source_sha256")
+                    else f"_{p.get('harness_source_note', 'unavailable')}_")
+                 + " |")
     lines.append(f"| Seed | `{p['seed']}` |")
     lines.append(f"| Dataset hash | `{p['dataset_sha256']}` (short: `{p['dataset_id']}`) |")
     determinism = ("deterministic" if judge.get("deterministic", True)
