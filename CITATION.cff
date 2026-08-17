@@ -1,0 +1,28 @@
+cff-version: 1.2.0
+message: "If you use Plumbline, please cite it as below."
+title: "Plumbline: a fail-closed evaluation harness for government-facing chat systems"
+abstract: >-
+  A deterministic, offline-by-default evaluation harness that grades a
+  government-facing chat system against an executable quality bar and produces
+  a sealed, provenance-stamped audit report. Fourteen scoring suites, per-suite
+  confidence intervals and minimum detectable effect, baseline regression
+  comparison, and a pinned fail-closed CI gate. Tampered evidence refuses to
+  score rather than scoring around the tampering; a target that returns nothing
+  is never credited with a pass; identical inputs and seed produce
+  byte-identical reports. The bundled dataset is synthetic and demonstrates the
+  instrument; it measures no real system.
+type: software
+authors:
+  - given-names: Chelsea
+    family-names: Kelly-Reif
+license: Apache-2.0
+version: "0.1.0"
+date-released: "2026-08-16"
+repository-code: "https://github.com/ChelseaKR/plumbline"
+url: "https://github.com/ChelseaKR/plumbline"
+keywords:
+  - evaluation
+  - audit
+  - llm
+  - civic-tech
+  - ci-gate

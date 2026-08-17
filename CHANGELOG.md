@@ -9,6 +9,45 @@ may break the interface.
 
 ## [Unreleased]
 
+### Added
+
+- **A local gate.** `make verify` runs the linter, the full suite under a
+  branch-coverage floor, and the check that the published evidence page is what
+  the committed evidence produces. A new `quality` job in `tests.yml` runs the
+  same target in CI, so all three block rather than only being available. The
+  existing version matrix is untouched and still proves what it proved before:
+  that the suite passes on a bare interpreter with nothing installed.
+- **Ruff, pinned at `>=0.15.0` and green.** Ruff's default rule set, which
+  caught four unused test imports, now removed. F541 is ignored and the reason
+  is in `pyproject.toml`: `audit.py` digests `src/plumbline/` into
+  `harness_source_sha256`, so touching any source file invalidates the
+  committed audit, the baseline, `proof/matrix.md` and the published page, and
+  that is not a price worth paying to delete seven redundant `f` prefixes. The
+  wider portfolio rule set is *not* enabled: measured on 2026-08-17 it has 304
+  findings, 232 of them line length. Configuring it and excluding the findings
+  would be the badge this repository exists to argue against, so the count is
+  recorded as a gap in the README's conformance table instead.
+- **A branch-coverage floor of 90%**, enforced by `make verify`. Measured at
+  94% over `src/` on 2026-08-17. Coverage wraps the same `unittest discover`
+  run; it does not change what executes.
+- **`SECURITY.md`, `CONTRIBUTING.md`, `CODEOWNERS`, `CITATION.cff`,
+  `.python-version`, `uv.lock`, `.pre-commit-config.yaml`, and an ADR log**
+  seeded at `docs/adr/0000-record-architecture-decisions.md`. The runtime is
+  unchanged and still depends on nothing outside the standard library; ruff and
+  coverage live in a `dev` dependency group that `plumbline` never imports.
+- **`security.yml`**: Semgrep SAST and a full-history TruffleHog secret scan,
+  both on push and pull request rather than on a schedule or a button, plus
+  gitleaks diff-scoped in pre-commit and a Dependabot configuration watching
+  the action pins. Every `uses:` in the repository is pinned to a
+  40-character SHA; Dependabot is what keeps those pins from going stale
+  quietly.
+- **A Standards Conformance table in the README**, declaring all fifteen
+  standards with a state for each. Where a standard is not met the shortfall is
+  named and counted rather than described as planned. Three are recorded as
+  real gaps with measurements: mypy is not wired at all (27 errors by default,
+  172 under `--strict`), 14 functions exceed a McCabe complexity of 10, and the
+  Python floor is 3.11 against a portfolio floor of 3.12.
+
 ### Fixed
 
 - **Four more fail-open defects, each one a `PASS` a check had not earned.**

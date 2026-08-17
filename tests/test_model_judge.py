@@ -23,7 +23,7 @@ from helpers import (
 )
 from plumbline.cli import EXIT_CONFIG_ERROR, EXIT_PASS, EXIT_SUITE_FAILURE
 from plumbline.judges import LexicalJudge, make_judge
-from plumbline.model_judge import ModelJudge, ModelJudgeError, _parse_score
+from plumbline.model_judge import ModelJudgeError, _parse_score
 
 ITEMS = [
     answer_item("m-001", "the monthly cap is 850 dollars"),

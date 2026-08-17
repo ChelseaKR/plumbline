@@ -99,3 +99,29 @@ jobs:
             exit 1
           fi
           git checkout -- datasets/riverbend-demo
+
+  # The gates that need a tool rather than the interpreter: the linter and the
+  # branch-coverage floor. They run once, on one version, because neither is
+  # version-dependent and the matrix above is what proves the suite is.
+  #
+  # This is the same `make verify` a contributor runs. It is a separate job so
+  # the matrix above keeps its own property intact: that the suite passes on a
+  # bare interpreter with nothing installed.
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          enable-cache: true
+
+      # `--locked`, not `--frozen`: `--frozen` never reads pyproject.toml, so
+      # it exits 0 on a lockfile that no longer matches the manifest.
+      - name: Install the dev tooling
+        run: uv sync --locked
+
+      - name: make verify
+        run: make verify

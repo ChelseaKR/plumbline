@@ -1,0 +1,73 @@
+# Supply-chain and source scanning.
+#
+# This repository has no third-party runtime dependencies, which removes the
+# largest class of supply-chain risk and removes none of the rest: the
+# workflows themselves are executable, the standard library has sharp edges,
+# and a secret committed here would be just as exposed as anywhere.
+#
+# Both jobs run on push and pull_request, not only on a schedule and not on
+# `workflow_dispatch` alone. A scanner that only runs when someone remembers to
+# press a button is the same thing as no scanner, dressed up as one.
+
+name: security
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "0 9 * * 0" # weekly, Sunday, so history is swept even in a quiet week
+
+permissions:
+  contents: read
+
+concurrency:
+  group: security-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Taint-style SAST over the source and over the workflow files. Runs
+  # unauthenticated against the public registry ruleset; no token is required
+  # or used.
+  semgrep:
+    name: SAST (semgrep)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    container:
+      image: semgrep/semgrep@sha256:59fbed6127ea7c5dde3ba6a85142733bb20ea9aaa36120c953904f1539aaf66e # 1.168.0
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: semgrep ci --config auto
+
+  # Full-history verified-secret scan. gitleaks runs diff-scoped in pre-commit
+  # (see .pre-commit-config.yaml); this sweeps the whole commit history with a
+  # different engine, which catches what a diff-scoped scan cannot by
+  # construction: a secret added and removed within the same branch.
+  secrets:
+    name: full-history secret scan (verified only)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0 # whole history, not a diff
+          persist-credentials: false
+      - name: TruffleHog (verified secrets only)
+        uses: trufflesecurity/trufflehog@6f3c981e7b77f235fd2702dd74af25fc4b72bf11 # v3.96.0
+        with:
+          path: ./
+          # The action's baked-in command already passes --fail; repeating it
+          # is a CLI error.
+          #
+          # Lob is excluded because its detector matches pytest-style function
+          # names: a Lob key is `test_` or `live_` followed by alphanumerics,
+          # which is also the shape of most names under tests/, and its
+          # verifier confirms them because a malformed key and an unauthorized
+          # key are indistinguishable in its response. There is no Lob
+          # integration here and no dependency that could introduce one, so the
+          # detector can only produce noise. Scoped to the one detector on
+          # purpose: excluding tests/ by path would blind the scan to real
+          # secrets in fixtures, which is where they most often hide.
+          extra_args: --only-verified --exclude-detectors=Lob

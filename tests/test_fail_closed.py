@@ -26,7 +26,6 @@ from plumbline.audit import (
     CoverageError,
     ResultError,
     compute_run_id,
-    run_audit,
     run_id_of,
     validate_result,
 )
