@@ -57,17 +57,23 @@ reported a false pass has probably not been looked at hard enough, and because
 anyone deciding whether to trust this one should be able to read how it has
 been wrong.
 
-## Who uses it
+## Where it runs
 
-Two public repositories pin this harness by exact commit and run it as a
-merge-blocking gate, resolving it at run time rather than depending on it:
+Two public repositories of my own pin this harness by exact commit and run it
+on every pull request, resolving it at run time rather than depending on it.
+Neither makes it a required status check, so today it reports rather than
+blocks:
 
 - [`ChelseaKR/cairn`](https://github.com/ChelseaKR/cairn) — pinned at
   `f4b285ea13beb0c43bb1f26ac0b99fb39d761822`, with a committed baseline and a
-  guard that fails on a regression the harness only reports.
+  guard that fails on a regression the harness only reports. `main` there has
+  no ruleset applied.
 - [`ChelseaKR/fare-policy-assistant`](https://github.com/ChelseaKR/fare-policy-assistant)
   — pinned at `df95fce6eb8637bdaf46d0a4f03709b7ccce231f`, exporting its own
-  recording into a sealed bundle and gating each pull request on it.
+  recording into a sealed bundle. `plumbline gate` is allowed to report FAIL
+  there because several floors sit above current performance; a separate guard
+  fails the build on any finding not in its acknowledged-findings file. That
+  job is not among the repository's nine required checks.
 
 Neither is a dependency relationship: `gate/plumbline-gate.sh` resolves the
 pinned commit into a cache directory at run time, so nothing in a consuming
