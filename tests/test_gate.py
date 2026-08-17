@@ -14,6 +14,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from plumbline import cli
 from plumbline.cli import (
     EXIT_CONFIG_ERROR,
     EXIT_INTEGRITY_REFUSAL,
@@ -303,8 +304,21 @@ class ShippedGateArtifactsTests(unittest.TestCase):
 
     def test_the_readme_documents_every_exit_code(self):
         readme = (REPO_ROOT / "gate" / "README.md").read_text(encoding="utf-8")
-        for code in ("| 0 |", "| 1 |", "| 2 |", "| 3 |", "| 4 |"):
-            self.assertIn(code, readme)
+        # Discovered from the CLI's own constants rather than written out here.
+        # A hardcoded list stops covering the codes added after it and goes on
+        # passing: this one checked 0 through 4 and never checked 5, the
+        # internal-error code, which is the one a reader most needs documented
+        # because it is the one that means no verdict was produced.
+        codes = sorted({value for name, value in vars(cli).items()
+                        if name.startswith("EXIT_") and isinstance(value, int)})
+        # A discovery that found nothing would make the loop below vacuous and
+        # this test green over an empty table.
+        self.assertGreaterEqual(
+            len(codes), 6, "no exit codes were discovered from plumbline.cli")
+        for code in codes:
+            self.assertIn(
+                f"| {code} |", readme,
+                f"gate/README.md documents no exit code {code}")
 
 
 if __name__ == "__main__":
