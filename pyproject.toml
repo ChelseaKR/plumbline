@@ -23,3 +23,51 @@ plumbline = "plumbline.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+# The runtime stays what it has always been: the standard library and nothing
+# else. Everything below is development tooling, is never imported by
+# `plumbline`, and is not installed by anyone running the harness.
+[dependency-groups]
+dev = [
+  "ruff>=0.15.0",
+  "coverage>=7.6",
+]
+
+[tool.ruff]
+target-version = "py311"
+src = ["src", "tests", "tools"]
+
+[tool.ruff.lint]
+# Ruff's default rules (pyflakes plus the pycodestyle errors that catch real
+# breakage), and they are green, which is the point: `make lint` can fail
+# today. The wider portfolio rule set is NOT enabled here, and pretending
+# otherwise by configuring it and excluding the findings would be the badge
+# this repository exists to argue against. Measured against
+# `E,W,F,I,UP,B,SIM,RUF` on 2026-08-17 the codebase has 304 findings, 232 of
+# them line length; against `C90` at max-complexity 10 it has 14. Both are
+# recorded as open gaps in the README's conformance table. Widen this set when
+# the findings are fixed, not before.
+select = ["E4", "E7", "E9", "F"]
+
+# F541 (an `f` prefix on a string with no placeholder) is cosmetic, and here it
+# is not free. `audit.py` digests `src/plumbline/` into
+# `harness_source_sha256`, which lands in the run id, so editing any source
+# file for any reason invalidates the committed audit under `audits/`, the
+# committed baseline, `proof/matrix.md` and the published page, and the suite
+# fails until all four are regenerated. Regenerating this repository's own
+# evidence is something to do when its behaviour changed and you can say why,
+# not to remove seven redundant prefixes. Every other pyflakes rule stays on
+# and stays blocking, including F401, which is what caught the four unused
+# test imports removed alongside this config.
+ignore = ["F541"]
+
+[tool.coverage.run]
+branch = true
+source = ["src"]
+
+[tool.coverage.report]
+# Measured at 94% branch coverage over `src/` on 2026-08-17. The floor is set
+# below the measurement so that a real regression trips it rather than routine
+# noise, and above the level where the gate would be decorative.
+fail_under = 90
+show_missing = true

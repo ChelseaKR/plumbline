@@ -6,3 +6,10 @@ dist/
 
 # Recordings are evidence you make, not evidence shipped with the instrument.
 recordings/
+
+# Tooling caches and the local dev environment.
+.venv/
+.coverage
+htmlcov/
+.ruff_cache/
+.mypy_cache/

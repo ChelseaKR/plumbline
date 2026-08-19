@@ -1,0 +1,18 @@
+# Local hooks run through `uv run`, so the tool version comes from uv.lock and
+# matches `make lint` and CI exactly, with no separately pinned mirror to
+# drift. Install with: uvx pre-commit install
+#
+# gitleaks here is diff-scoped and fast. The whole-history sweep is a different
+# engine in .github/workflows/security.yml; neither replaces the other.
+repos:
+  - repo: local
+    hooks:
+      - id: ruff-check
+        name: ruff check
+        entry: uv run ruff check --fix
+        language: system
+        types: [python]
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.30.1
+    hooks:
+      - id: gitleaks

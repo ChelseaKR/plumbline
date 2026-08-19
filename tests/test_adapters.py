@@ -26,7 +26,7 @@ from helpers import (
 )
 from plumbline import recording
 from plumbline.adapters import AdapterError, available, make_adapter
-from plumbline.bundle import Bundle, load as load_bundle, load_questions
+from plumbline.bundle import load as load_bundle, load_questions
 from plumbline.cli import EXIT_CONFIG_ERROR, EXIT_INTEGRITY_REFUSAL, EXIT_PASS, EXIT_SUITE_FAILURE
 
 ITEMS = [

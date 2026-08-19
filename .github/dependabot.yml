@@ -1,0 +1,28 @@
+# There are no third-party runtime dependencies to update, and the `dev` group
+# holds only ruff and coverage. The `uv` ecosystem entry is here anyway so that
+# the day a dependency does appear it is watched from the first commit rather
+# than from whenever someone remembers to add it.
+#
+# The `github-actions` entry is the one that matters today: every `uses:` in
+# this repository is pinned to a 40-character commit SHA, which is the right
+# way to pin and also the way that goes stale silently. Dependabot is what
+# makes a stale pin visible.
+version: 2
+updates:
+  - package-ecosystem: uv
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    cooldown:
+      default-days: 7
+    groups:
+      python-dependencies:
+        patterns: ["*"]
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    cooldown:
+      default-days: 7

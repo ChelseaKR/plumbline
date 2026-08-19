@@ -16,7 +16,7 @@ from plumbline import couplings as couplings_mod
 from plumbline.bundle import load
 from plumbline.couplings import analyze, render_markdown, summarize_for_terminal
 from plumbline.judges import LexicalJudge
-from plumbline.suites import FAIL, get as get_suite
+from plumbline.suites import get as get_suite
 
 from helpers import answer_item, refuse_item, response, write_bundle
 

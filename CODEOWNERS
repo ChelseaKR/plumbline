@@ -1,0 +1,22 @@
+# Review routing. This repository has one maintainer, so a code-owner rule is
+# not an approval requirement today; the file records which paths a change is
+# hardest to see in, and is what a second maintainer would turn on.
+
+*                          @ChelseaKR
+
+/.github/workflows/        @ChelseaKR   # workflow edits are the poisoned-pipeline surface
+/SECURITY.md               @ChelseaKR
+
+# The fail-closed core. A change to any of these can turn a refusal into a
+# verdict, which is the one failure this harness may not have.
+/src/plumbline/audit.py    @ChelseaKR
+/src/plumbline/hashing.py  @ChelseaKR
+/src/plumbline/bundle.py   @ChelseaKR
+/src/plumbline/report.py   @ChelseaKR
+/src/plumbline/cli.py      @ChelseaKR   # the exit-code contract
+
+# The committed evidence. These are regenerated, never hand-edited.
+/audits/                   @ChelseaKR
+/baselines/                @ChelseaKR
+/proof/                    @ChelseaKR
+/datasets/                 @ChelseaKR
