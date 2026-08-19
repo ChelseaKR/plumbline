@@ -1589,6 +1589,21 @@ that it is not that decision.
     move with the sample so the statistics stay honest too.
 33. **Couplings between suites are disclosed in the report, computed from the
     run.** See "Disclosing the couplings" below.
+34. **A suite the baseline holds and this run did not run is named in the
+    summary line, not only in the report.** The comparison has computed
+    `added_suites` and `removed_suites` since it existed, and the markdown
+    report and the JSON have both printed them; the one-line terminal summary
+    did not. That line is what a build log shows, so switching a suite off —
+    the single edit that removes a check outright — printed `baseline: no
+    verdict changed and no score moved` and exit 0. A suite that did not run
+    has no score to move and no verdict to flip, so it appeared in none of the
+    other lines either: the whole comparison went quiet about the one thing
+    that changed. The clean-bill sentence now has to be earned, and a run whose
+    suite set differs from the bar's says so first. Whether a dropped suite
+    should also *fail* the gate is left open below: `enabled = false` is a
+    deliberate configuration act, and the baseline is a bar for scores rather
+    than a contract for coverage — but the argument the other way is the one
+    this repository usually makes, and it has not been settled.
 
 ## Language identification (2026-08-17)
 

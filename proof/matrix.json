@@ -2,7 +2,7 @@
   "matrix": "plumbline-defect-injection",
   "format_version": 1,
   "harness_version": "0.1.0",
-  "harness_source_sha256": "facd6193c763e5cc1c2479cfa30c6f8f281f02ecfb4f09c16c59bb17cf44dfaa",
+  "harness_source_sha256": "e6b6da8bbb4462bf95056f19602a466f9523fe31692989a1ed6464b844ac17ba",
   "seed": 1729,
   "target": "riverbend-demo",
   "control": {

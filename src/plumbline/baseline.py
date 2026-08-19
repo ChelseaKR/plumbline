@@ -221,16 +221,38 @@ def compare(report: dict, baseline: dict) -> dict:
     added = sorted(set(current) - set(previous))
     removed = sorted(set(previous) - set(current))
 
+    # A suite in the bar that this run did not run is missing coverage, not a
+    # clean result. "No verdict changed and no score moved" was true of the
+    # suites the two runs share and read as a clean bill of the whole run, so
+    # disabling a suite — the one edit that removes a check entirely — was the
+    # one edit the summary line reported as nothing happening. The counts and
+    # the names lead the summary now, and the sentence about movement says
+    # which suites it is about.
+    coverage_change = []
+    if removed:
+        coverage_change.append(
+            f"{len(removed)} suite(s) the baseline holds were not run "
+            f"({', '.join(removed)})"
+        )
+    if added:
+        coverage_change.append(
+            f"{len(added)} suite(s) not in the baseline were run "
+            f"({', '.join(added)})"
+        )
+
     if not comparable:
-        summary = ("numeric comparison refused; verdict changes are still "
-                   "named below")
+        core = ("numeric comparison refused; verdict changes are still "
+                "named below")
     elif flipped:
-        summary = f"{len(flipped)} suite verdict(s) changed since the baseline"
+        core = f"{len(flipped)} suite verdict(s) changed since the baseline"
     elif moved:
-        summary = (f"no verdict changed; {len(moved)} suite score(s) moved "
-                   f"without crossing a floor")
+        core = (f"no verdict changed; {len(moved)} suite score(s) moved "
+                f"without crossing a floor")
+    elif coverage_change:
+        core = "nothing moved among the suites both runs ran"
     else:
-        summary = "no verdict changed and no score moved"
+        core = "no verdict changed and no score moved"
+    summary = "; ".join([*coverage_change, core])
 
     return {
         "comparable": comparable,
@@ -330,11 +352,29 @@ def render_markdown(comparison: dict) -> list[str]:
 
 
 def summarize_for_terminal(comparison: dict) -> list[str]:
+    """The build-log lines. Everything the comparison found has to reach here.
+
+    The markdown report and the JSON have named added and removed suites since
+    this comparison existed; these lines did not, and these lines are what a
+    build log shows. So dropping a suite from a target's configuration printed
+    `baseline: no verdict changed and no score moved` and exit 0 — a check that
+    stopped running, rendered as nothing having happened.
+    """
     lines = [f"baseline: {comparison['summary']}"]
     for reason in comparison["refusals"]:
         lines.append(f"  REFUSED: {reason}")
     for caveat in comparison["caveats"]:
         lines.append(f"  caveat:  {caveat}")
+    # Ahead of the flips and the moves: a suite that did not run has no score
+    # to move and no verdict to flip, so it appears nowhere below.
+    for suite_id in comparison.get("removed_suites") or []:
+        lines.append(
+            f"  NOT RUN: {suite_id} is in the baseline and was not run; this "
+            f"run checked less than the bar it is measured against")
+    for suite_id in comparison.get("added_suites") or []:
+        lines.append(
+            f"  added:   {suite_id} was run and is not in the baseline; it has "
+            f"no bar to be compared against")
     for flip in comparison["flipped_suites"]:
         lines.append(f"  flipped: {flip['suite']} {flip['was']} -> {flip['now']}")
     for entry in comparison["moved_suites"] or []:
