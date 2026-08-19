@@ -13,6 +13,7 @@ from plumbline.baseline import (
     build_baseline,
     compare,
     load_baseline,
+    summarize_for_terminal,
     write_baseline,
 )
 from plumbline.cli import (
@@ -185,6 +186,74 @@ class ComparisonTests(unittest.TestCase):
         self.assertEqual(result["added_suites"], ["privacy"])
         self.assertEqual(result["removed_suites"], ["accuracy"])
 
+    def test_a_suite_that_did_not_run_is_not_a_clean_bill(self):
+        """The summary sentence is the one line a build log shows.
+
+        A suite dropped from the target configuration has no score to move and
+        no verdict to flip, so every other field in the comparison is empty and
+        the summary used to read `no verdict changed and no score moved` — a
+        check that stopped running, rendered as nothing having happened.
+        """
+        baseline = build_baseline(report_fixture())
+        current = report_fixture(suites=[
+            {"suite": "smoke", "score": 1.0, "floor": 1.0, "verdict": "PASS",
+             "n": 26, "mde": 0.115},
+        ])
+        result = compare(current, baseline)
+        self.assertEqual(result["removed_suites"], ["accuracy"])
+        self.assertEqual(result["flipped_suites"], [])
+        self.assertEqual(result["moved_suites"], [])
+        self.assertNotEqual(result["summary"],
+                            "no verdict changed and no score moved")
+        self.assertIn("accuracy", result["summary"])
+        self.assertIn("were not run", result["summary"])
+
+    def test_an_added_suite_is_named_in_the_summary(self):
+        baseline = build_baseline(report_fixture())
+        current = report_fixture(suites=[
+            {"suite": "accuracy", "score": 0.88, "floor": 0.75,
+             "verdict": "PASS", "n": 18, "mde": 0.06},
+            {"suite": "smoke", "score": 1.0, "floor": 1.0, "verdict": "PASS",
+             "n": 26, "mde": 0.115},
+            {"suite": "privacy", "score": 1.0, "floor": 1.0, "verdict": "PASS",
+             "n": 26, "mde": 0.115},
+        ])
+        result = compare(current, baseline)
+        self.assertEqual(result["added_suites"], ["privacy"])
+        self.assertIn("privacy", result["summary"])
+        self.assertIn("not in the baseline", result["summary"])
+
+    def test_a_dropped_suite_does_not_hide_behind_a_flip(self):
+        """Both facts survive: the flip and the suite that stopped running."""
+        baseline = build_baseline(report_fixture())
+        current = report_fixture(verdict="FAIL", suites=[
+            {"suite": "smoke", "score": 0.5, "floor": 1.0, "verdict": "FAIL",
+             "n": 26, "mde": 0.115},
+        ])
+        result = compare(current, baseline)
+        self.assertIn("accuracy", result["summary"])
+        self.assertIn("verdict(s) changed", result["summary"])
+
+    def test_terminal_lines_name_the_suites_that_did_not_run(self):
+        baseline = build_baseline(report_fixture())
+        current = report_fixture(suites=[
+            {"suite": "smoke", "score": 1.0, "floor": 1.0, "verdict": "PASS",
+             "n": 26, "mde": 0.115},
+            {"suite": "privacy", "score": 1.0, "floor": 1.0, "verdict": "PASS",
+             "n": 26, "mde": 0.115},
+        ])
+        lines = summarize_for_terminal(compare(current, baseline))
+        blob = "\n".join(lines)
+        self.assertIn("NOT RUN: accuracy", blob)
+        self.assertIn("added:   privacy", blob)
+
+    def test_identical_suite_sets_print_no_coverage_lines(self):
+        report = report_fixture()
+        lines = summarize_for_terminal(compare(report, build_baseline(report)))
+        blob = "\n".join(lines)
+        self.assertNotIn("NOT RUN", blob)
+        self.assertNotIn("added:", blob)
+
     def test_a_moved_floor_is_a_caveat_not_a_refusal(self):
         baseline = build_baseline(report_fixture())
         current = report_fixture(suites=[
@@ -258,6 +327,29 @@ class BaselineCliTests(unittest.TestCase):
                       for p in self.out_dir.rglob("report.json"))
                      if r["baseline"])["baseline"]
         self.assertTrue(block["comparable"])
+
+    def test_disabling_a_suite_is_visible_in_the_gate_output(self):
+        """End to end: the one edit that removes a check must not print clean.
+
+        `accuracy` is adopted into the baseline, then switched off. Nothing
+        fails — disabling a suite is a legitimate configuration decision — but
+        the build log has to say a check stopped running rather than
+        `no verdict changed and no score moved`.
+        """
+        self._adopt_baseline()
+        self.config_path.write_text(
+            CONFIG_TEMPLATE.format(dataset_path=str(self.bundle_dir))
+            .replace("[suites.accuracy]\nenabled = true",
+                     "[suites.accuracy]\nenabled = false"),
+            encoding="utf-8",
+        )
+        code, out, _ = run_cli("gate", "--config", str(self.config_path),
+                               "--out", str(self.root / "gate-out"),
+                               "--baseline", str(self.baseline_path))
+        self.assertEqual(code, EXIT_PASS)
+        self.assertNotIn("no verdict changed and no score moved", out)
+        self.assertIn("accuracy", out)
+        self.assertIn("NOT RUN", out)
 
     def test_resealed_evidence_makes_the_baseline_incomparable(self):
         self._adopt_baseline()

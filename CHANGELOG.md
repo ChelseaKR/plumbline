@@ -50,6 +50,23 @@ may break the interface.
 
 ### Fixed
 
+- **A suite that stopped running was reported as nothing having changed.**
+  Switching a suite off in a target's configuration is the one edit that
+  removes a check outright, and it was the one edit the baseline comparison's
+  summary line reported as clean: `baseline: no verdict changed and no score
+  moved`, exit 0. A suite that did not run has no score to move and no verdict
+  to flip, so it appeared in none of the comparison's other terminal lines
+  either — the `removed_suites` list was computed, put in the JSON and printed
+  in the markdown report, and dropped from the one line a build log shows.
+  Reproduced against the bundled demo by disabling `privacy` and
+  `representational_harms`, both floor 1.00 and both in the committed baseline:
+  the gate printed the clean-bill sentence and returned 0. The summary now
+  leads with the suites the two runs do not share and names them, the terminal
+  lines carry a `NOT RUN:` row per dropped suite ahead of the flips and moves,
+  and the clean-bill sentence is emitted only when the suite sets match.
+  Verdicts and exit codes are unchanged: a dropped suite is still not a
+  failure, it is now visible. See decision 34 in `DESIGN.md` for what is left
+  open.
 - **Four more fail-open defects, each one a `PASS` a check had not earned.**
   Reproduced on `v0.1.0` first, then fixed, then pinned by a test in
   `tests/test_fail_closed.py`. Two of them are holes in the fix released in

@@ -247,7 +247,17 @@ def _mean_stats(sample: list[float], *, seed: int, confidence: float,
 
 
 def gap_score(strata: dict[str, list[float]]) -> float:
-    """1 - (largest group mean - smallest group mean), clipped to [0, 1]."""
+    """1 - (largest group mean - smallest group mean), clipped to [0, 1].
+
+    **Fewer than two non-empty groups returns 1.0, which is a perfect score for
+    a comparison that did not happen.** That is safe only because every caller
+    refuses the case before reaching here: `FairnessSuite` raises
+    `EmptyPopulationError` when fewer than two groups clear `MIN_GROUP_SIZE`,
+    and `_gap_stats` resamples within groups that are already known to be
+    non-empty, so a bootstrap replicate cannot lose one. A new caller that skips
+    that check gets a vacuous 1.00 above any floor, so make the population
+    check first — this function does not make it for you.
+    """
     means = [sum(values) / len(values) for values in strata.values() if values]
     if len(means) < 2:
         return 1.0
