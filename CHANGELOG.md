@@ -9,6 +9,16 @@ may break the interface.
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-08-22
+
+Six proposals from `docs/feature-expansion-ideas.md`, merged as six
+separate pull requests (#8-#13): a fifteenth suite, detached report
+signatures, SARIF export, run history, recording retention, and a
+checked-for-staleness SBOM with an as-yet-unexercised release workflow.
+Minor, not patch: new CLI surface (`sign`, `history`, `retire`) and a
+new suite are additions, not fixes, and this project's own SemVer
+statement treats those as MINOR while below `1.0.0`.
+
 ### Added
 
 - **A local gate.** `make verify` runs the linter, the full suite under a
@@ -278,5 +288,6 @@ underneath them.
 - Continuous integration is enabled and green on CPython 3.11, 3.12, 3.13 and
   3.14. It was previously present but inert.
 
-[Unreleased]: https://github.com/ChelseaKR/plumbline/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/ChelseaKR/plumbline/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/ChelseaKR/plumbline/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/ChelseaKR/plumbline/releases/tag/v0.1.0

@@ -11,9 +11,9 @@
         }
       ],
       "name": "plumbline",
-      "purl": "pkg:pypi/plumbline@0.1.0",
+      "purl": "pkg:pypi/plumbline@0.2.0",
       "type": "application",
-      "version": "0.1.0"
+      "version": "0.2.0"
     },
     "tools": {
       "components": [
