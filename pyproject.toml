@@ -41,6 +41,7 @@ where = ["src"]
 dev = [
   "ruff>=0.15.0",
   "coverage>=7.6",
+  "mypy>=1.13.0",
 ]
 
 [tool.ruff]
@@ -53,8 +54,8 @@ src = ["src", "tests", "tools"]
 # today. The wider portfolio rule set is NOT enabled here, and pretending
 # otherwise by configuring it and excluding the findings would be the badge
 # this repository exists to argue against. Measured against
-# `E,W,F,I,UP,B,SIM,RUF` on 2026-08-17 the codebase has 304 findings, 232 of
-# them line length; against `C90` at max-complexity 10 it has 14. Both are
+# `E,W,F,I,UP,B,SIM,RUF` on 2026-08-22 the codebase has 317 findings, 237 of
+# them line length; against `C90` at max-complexity 10 it has 17. Both are
 # recorded as open gaps in the README's conformance table. Widen this set when
 # the findings are fixed, not before.
 select = ["E4", "E7", "E9", "F"]
@@ -71,12 +72,28 @@ select = ["E4", "E7", "E9", "F"]
 # test imports removed alongside this config.
 ignore = ["F541"]
 
+[tool.mypy]
+# Default mypy, not `--strict`: `--strict` finds 174 findings across 28 files
+# today, almost all `dict` without a type argument in code written before
+# this was wired in. That is a recorded gap, the same shape as the ruff select
+# set above, not a decision that those findings are fine — widen this when
+# they are fixed, not before. `mypy src/plumbline` is what CI runs and what
+# is green now: `Success: no issues found in 38 source files`.
+python_version = "3.11"
+files = ["src/plumbline"]
+# Catches an `# type: ignore` that stopped being needed and a `cast()` that
+# stopped changing anything — both rot silently under plain mypy, the same
+# way a stale `noqa` does under ruff.
+warn_unused_ignores = true
+warn_redundant_casts = true
+warn_unreachable = true
+
 [tool.coverage.run]
 branch = true
 source = ["src"]
 
 [tool.coverage.report]
-# Measured at 94% branch coverage over `src/` on 2026-08-17. The floor is set
+# Measured at 93% branch coverage over `src/` on 2026-08-22. The floor is set
 # below the measurement so that a real regression trips it rather than routine
 # noise, and above the level where the gate would be decorative.
 fail_under = 90

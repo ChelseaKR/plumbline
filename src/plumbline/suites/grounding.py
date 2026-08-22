@@ -59,6 +59,26 @@ def _sourced_answer_items(bundle: Bundle):
     return [i for i in bundle.items if i.behavior == "answer" and i.sources]
 
 
+def _resolved_text(bundle: Bundle, source_id: str) -> str:
+    """The text of a source id already known to resolve.
+
+    Every call site filters its candidate ids through `bundle.source(c) is
+    not None` before this is ever reached, so the lookup below cannot
+    actually return None — but that filtering happens in a different
+    comprehension, at a different point in the control flow, which mypy has
+    no way to carry forward across. Asking again and refusing loudly if it
+    ever really were unresolved is cheaper than a second parallel structure
+    just to keep a Source object instead of an id, and consistent with this
+    project's own preference for a loud internal error over a silent one.
+    """
+    source = bundle.source(source_id)
+    if source is None:
+        raise RuntimeError(
+            f"source '{source_id}' resolved once and not again; this is a "
+            f"bug in the suite, not in the evidence")
+    return source.text
+
+
 def _support(judge: Judge, response: str, source_text: str
              ) -> tuple[float, float, float, list[str]]:
     """(combined, token_support, number_support, unsupported_numbers)."""
@@ -274,7 +294,7 @@ class CitationAccuracySuite(Suite):
 
         records, sample = [], []
         for item, response, cited in population:
-            cited_text = "\n".join(bundle.source(c).text for c in cited)
+            cited_text = "\n".join(_resolved_text(bundle, c) for c in cited)
             score, tokens, numbers, unsupported = _support(
                 judge, response, cited_text)
             # An answer that asserts nothing is supported by everything it
@@ -286,7 +306,7 @@ class CitationAccuracySuite(Suite):
                 score, tokens, numbers = 0.0, 0.0, 0.0
             unrelated = [
                 c for c in cited
-                if judge.support_score(bundle.source(c).text,
+                if judge.support_score(_resolved_text(bundle, c),
                                        strip_citations(response)) == 0.0
             ]
             record = {

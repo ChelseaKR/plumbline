@@ -122,7 +122,7 @@ class ConversationalIntegritySuite(Suite):
                         regressed = True
 
                 turn_ok = spoke and not forbidden and not claimed and not regressed
-                entry = {
+                entry: dict[str, object] = {
                     "turn": turn_index,
                     "ok": turn_ok,
                     "observed": ("silent" if not spoke else

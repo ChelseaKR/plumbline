@@ -161,12 +161,13 @@ def trends(runs: list[dict], *, min_streak: int = DEFAULT_MIN_STREAK) -> dict:
     at all; there is no vacuous trend the way there is no vacuous pass.
     """
     chain = _comparable_chain(runs)
-    result = {
+    declining: list[dict] = []
+    result: dict[str, object] = {
         "chain_len": len(chain),
         "min_streak": min_streak,
         "run_ids": [r["run_id"] for r in chain],
         "comparable": len(chain) == len(runs),
-        "declining": [],
+        "declining": declining,
     }
     if len(chain) < min_streak:
         return result
@@ -176,7 +177,7 @@ def trends(runs: list[dict], *, min_streak: int = DEFAULT_MIN_STREAK) -> dict:
     for suite_id in sorted(suite_ids):
         scores = [r["suites"][suite_id]["score"] for r in window]
         if _is_declining(scores):
-            result["declining"].append({
+            declining.append({
                 "suite": suite_id,
                 "scores": scores,
                 "run_ids": [r["run_id"] for r in window],

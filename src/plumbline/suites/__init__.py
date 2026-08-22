@@ -114,7 +114,8 @@ def split_unreadable(bundle, items) -> tuple[list, dict[str, list[str]]]:
     the split lives here: a suite that wrote its own would be one refactor away
     from checking `.strip()` again.
     """
-    scorable, excluded = [], {SILENT: [], UNREADABLE: []}
+    scorable: list = []
+    excluded: dict[str, list[str]] = {SILENT: [], UNREADABLE: []}
     for item in items:
         reason = unreadable_reason(bundle, item)
         if reason is None:
