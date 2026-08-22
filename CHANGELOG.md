@@ -11,6 +11,16 @@ may break the interface.
 
 ### Added
 
+- **A dated responsible-tech statement** ([`docs/responsible-tech.md`](docs/responsible-tech.md)),
+  closing the gap the Responsible-Tech Framework conformance row named
+  against itself. Written from the point of view of the people a graded
+  system serves rather than the people running the harness: what a `PASS`
+  does and does not mean, residual risks present even when every suite
+  works exactly as designed (a floor is a policy choice, not a ceiling on
+  harm; a lexical screen catches what is on its list; the demo dataset's
+  coverage is not the world's), misuse this repository can name but not
+  prevent, and — in its own closing section — that the statement itself has
+  not been reviewed by anyone outside this repository.
 - **A model card for the optional model judge**
   ([`docs/model-card-judge.md`](docs/model-card-judge.md)), closing the gap
   the AI Evaluation conformance row named against itself. Covers what the
