@@ -1,0 +1,137 @@
+name: "Plumbline gate"
+description: >-
+  Run the Plumbline evaluation gate against a target configuration, pinned
+  to this action's own ref -- the same guarantee `uses: owner/repo@<sha>`
+  already gives every other action, applied to an evaluation harness
+  instead of a build step.
+author: "Chelsea Kelly-Reif"
+branding:
+  icon: "check-circle"
+  color: "blue"
+
+# What this is not: a replacement for gate/plumbline-gate.sh. That script
+# stays the way to gate from anything that is not GitHub Actions (GitLab CI,
+# a bare Jenkins agent, a developer's laptop) and reads a `plumbline.pin`
+# file naming an exact commit to resolve at run time. This action exists
+# only because, from *inside* GitHub Actions, the platform already has that
+# exact mechanism built in: `uses: ChelseaKR/plumbline@<40-char-sha>` pins
+# and resolves the harness the same way `actions/checkout@<sha>` pins
+# itself, without a consumer needing to vendor a shell script or write a
+# separate pin file to get it. Nothing about the harness's own
+# no-third-party-runtime-dependency posture changes: this action still only
+# ever runs `python3 -m plumbline`, and the checked-out action source *is*
+# the harness, not a dependency resolved by anything else.
+#
+# Like `.github/workflows/release.yml`, this has not been exercised from a
+# consuming repository yet. `examples/` and this project's own CI are the
+# only things that have run it so far.
+
+inputs:
+  config:
+    description: >-
+      Path, in the calling repository, to the target configuration TOML
+      (the same file `plumbline audit --config` takes).
+    required: true
+  out:
+    description: "Directory to write reports to, relative to the calling repository."
+    required: false
+    default: "plumbline-audits"
+  baseline:
+    description: >-
+      Path to a baseline record to compare this run against; overrides
+      [baseline].path in the target config.
+    required: false
+    default: ""
+  require-comparable-baseline:
+    description: >-
+      "true" to exit with the configuration-error code when the baseline is
+      not comparable (a changed dataset or judge hash), instead of only
+      reporting it in the audit.
+    required: false
+    default: "false"
+  summary-file:
+    description: >-
+      File to append the human-readable report to -- pass
+      "$GITHUB_STEP_SUMMARY" to put the verdict on the job summary.
+    required: false
+    default: ""
+  sarif:
+    description: >-
+      "true" to also write sarif.json next to the reports, for a following
+      step to upload with github/codeql-action/upload-sarif.
+    required: false
+    default: "false"
+  python:
+    description: "Python interpreter to use. Must be 3.11 or newer."
+    required: false
+    default: "python3"
+
+outputs:
+  verdict:
+    description: "PASS or FAIL, read back from the written report."
+    value: ${{ steps.gate.outputs.verdict }}
+  exit-code:
+    description: "The gate's own exit code (0 pass / 1 fail / 3 integrity refusal / 4 configuration error / 5 internal error)."
+    value: ${{ steps.gate.outputs.exit-code }}
+  report-json:
+    description: "Path to the written report.json, relative to the calling repository."
+    value: ${{ steps.gate.outputs.report-json }}
+  report-md:
+    description: "Path to the written report.md, relative to the calling repository."
+    value: ${{ steps.gate.outputs.report-md }}
+  sarif-json:
+    description: "Path to sarif.json, when the sarif input is \"true\"."
+    value: ${{ steps.gate.outputs.sarif-json }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Run the Plumbline gate
+      id: gate
+      shell: bash
+      env:
+        PLUMBLINE_ACTION_PATH: ${{ github.action_path }}
+        INPUT_CONFIG: ${{ inputs.config }}
+        INPUT_OUT: ${{ inputs.out }}
+        INPUT_BASELINE: ${{ inputs.baseline }}
+        INPUT_REQUIRE_COMPARABLE: ${{ inputs.require-comparable-baseline }}
+        INPUT_SUMMARY_FILE: ${{ inputs.summary-file }}
+        INPUT_SARIF: ${{ inputs.sarif }}
+        INPUT_PYTHON: ${{ inputs.python }}
+      run: |
+        set -u
+
+        if [ -z "$INPUT_CONFIG" ]; then
+          echo "::error::plumbline gate action: 'config' input is required" >&2
+          exit 4
+        fi
+
+        args=(gate --config "$INPUT_CONFIG" --out "$INPUT_OUT")
+        [ -n "$INPUT_BASELINE" ] && args+=(--baseline "$INPUT_BASELINE")
+        [ "$INPUT_REQUIRE_COMPARABLE" = "true" ] && args+=(--require-comparable-baseline)
+        [ -n "$INPUT_SUMMARY_FILE" ] && args+=(--summary-file "$INPUT_SUMMARY_FILE")
+        [ "$INPUT_SARIF" = "true" ] && args+=(--sarif)
+
+        # The action's own checkout, at the pinned ref -- not a package this
+        # step resolves itself. That resolution already happened when the
+        # workflow's `uses:` line was evaluated.
+        PYTHONPATH="$PLUMBLINE_ACTION_PATH/src" "$INPUT_PYTHON" -m plumbline "${args[@]}"
+        code=$?
+
+        report_dir=$(find "$INPUT_OUT" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | sort | tail -n1 || true)
+        {
+          echo "exit-code=$code"
+          if [ -n "$report_dir" ] && [ -f "$report_dir/report.json" ]; then
+            verdict=$("$INPUT_PYTHON" -c "import json,sys; print(json.load(open(sys.argv[1]))['verdict'])" "$report_dir/report.json" 2>/dev/null || true)
+            echo "verdict=$verdict"
+            echo "report-json=$report_dir/report.json"
+            echo "report-md=$report_dir/report.md"
+            [ "$INPUT_SARIF" = "true" ] && [ -f "$report_dir/sarif.json" ] && echo "sarif-json=$report_dir/sarif.json"
+          fi
+        } >> "$GITHUB_OUTPUT"
+
+        # Every non-zero code blocks -- this step, and therefore the job,
+        # fails exactly the way `plumbline gate` itself says it should.
+        # There is no path here that swallows a non-zero exit into a
+        # "reported but green" step.
+        exit $code

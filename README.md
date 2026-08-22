@@ -209,6 +209,31 @@ If the harness cannot be reached, the job **fails**, with the reason on
 stderr. It does not skip and it does not report green. A gate that could not
 run is not a gate that passed. See [`gate/README.md`](gate/README.md).
 
+### From GitHub Actions directly
+
+If the consuming repository's CI *is* GitHub Actions,
+[`action.yml`](action.yml) at the repository root is a second way to pin the
+harness that needs neither the shell script nor a `plumbline.pin` file — the
+`uses:` line is the pin, the same mechanism this project's own workflows
+already use to pin `actions/checkout`:
+
+```yaml
+- uses: ChelseaKR/plumbline@<40-character-commit-sha>
+  with:
+    config: plumbline/target.toml
+    sarif: "true"
+- uses: github/codeql-action/upload-sarif@<sha>
+  if: always()
+  with:
+    sarif_file: ${{ steps.plumbline.outputs.sarif-json }}
+```
+
+It runs nothing `gate/plumbline-gate.sh` does not already run — the checked-
+out action *is* the harness at that commit, so there is no separate
+resolution step — and every non-zero exit code fails the step exactly as
+`plumbline gate` says it should; see its inputs and outputs in the file
+itself. It has not yet been exercised from an external consuming repository.
+
 ## Proof that the gate bites
 
 Fifteen suites reporting PASS proves nothing about whether any of them *can*

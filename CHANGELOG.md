@@ -9,6 +9,16 @@ may break the interface.
 
 ## [Unreleased]
 
+### Added
+
+- **`action.yml`: pin the harness from GitHub Actions directly.** A second
+  way to pin the gate for a repository whose CI is GitHub Actions, alongside
+  `gate/plumbline-gate.sh` (which stays the way to gate from anything else).
+  `uses: ChelseaKR/plumbline@<sha>` is the pin — the same mechanism this
+  project's own workflows already use for `actions/checkout` — so a
+  consumer needs neither the shell script nor a `plumbline.pin` file. Not
+  yet exercised from an external consuming repository.
+
 ## [0.2.0] - 2026-08-22
 
 Six proposals from `docs/feature-expansion-ideas.md`, merged as six
