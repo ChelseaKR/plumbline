@@ -63,7 +63,7 @@ class DemoBundleReproducibilityTests(unittest.TestCase):
     def test_the_committed_bundle_verifies(self):
         from plumbline.bundle import load
         bundle = load(BUNDLE)
-        self.assertEqual(len(bundle.items), 174)
+        self.assertEqual(len(bundle.items), 178)
         self.assertTrue(bundle.manifest["synthetic"])
 
     def test_the_generator_refuses_a_bundle_it_would_be_wrong_about(self):

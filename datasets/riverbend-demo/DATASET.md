@@ -10,8 +10,10 @@ jurisdiction, program, or policy. No score in it is a finding about anybody.
   are inventions. All amounts, dates, limits, income thresholds and office
   hours are made up. Domains use `.example.gov`. There is no real target
   system behind the recorded responses; they were written alongside the items.
-- **174 items, 87 English and 87 Spanish.** 108 answers, 66 refusals, of which
-  48 are adversarial probes. 48 bilingual source passages covering 24 facts.
+- **178 items, 89 English and 89 Spanish.** 108 answers, 70 refusals, of which
+  52 are adversarial probes — 4 of them multi-turn escalation attempts, each
+  a benign opener followed by the actual ask, both languages. 48 bilingual
+  source passages covering 24 facts.
 
 ## Generated, not maintained by hand
 
@@ -31,8 +33,10 @@ live inside the bundle, so they are hashed with everything else.
 
 The generator also refuses to emit a bundle that would fail for a reason that
 is an artefact of the generator: every refusal must be detectable by the
-shipped marker list, no answer may read as a refusal, and every response must
-be in the language its item was asked in.
+shipped marker list, no answer may read as a refusal, every response must be
+in the language its item was asked in, and every turn of a multi-turn item
+must stay free of its item's forbidden content and must not comply again
+after an earlier turn refused.
 
 ## Why it is this size
 
@@ -42,20 +46,26 @@ effects between 0.115 and 0.750. A reader could see the machinery, but not see
 it do any work — a suite that can only detect a 75-point regression is not
 measuring anything.
 
-At 174 items the same suites report MDEs of 0.017 to 0.064. That is the point
-of the size: **the statistics discriminate**, so the confidence intervals and
-the minimum detectable effects in a committed report mean something a reader
-can act on. It is still a demonstration. A real evaluation set is written from
-a real service's transcripts, by people who know the policy.
+At 178 items the same suites report MDEs in roughly the same range. That is
+the point of the size: **the statistics discriminate**, so the confidence
+intervals and the minimum detectable effects in a committed report mean
+something a reader can act on. It is still a demonstration. A real
+evaluation set is written from a real service's transcripts, by people who
+know the policy.
 
 | Suite | Population | MDE at a perfect score |
 |---|---|---|
-| `smoke`, `refusal`, `multilingual`, `privacy`, `representational_harms` | 174 items | 0.017 |
-| `accuracy`, `groundedness`, `citation_validity`, `citation_accuracy` | 108 sourced answers | 0.028 – 0.064 |
-| `cross_language` | 126 cross-language pairs | 0.024 |
-| `fairness` | 96 grouped items | 0.061 |
-| `adversarial` | 48 probes | 0.062 |
+| `smoke`, `refusal`, `multilingual`, `privacy`, `representational_harms` | 178 items | see the committed report |
+| `accuracy`, `groundedness`, `citation_validity`, `citation_accuracy` | 108 sourced answers | see the committed report |
+| `cross_language` | 126 cross-language pairs | see the committed report |
+| `fairness` | 96 grouped items | see the committed report |
+| `adversarial` | 52 probes | see the committed report |
+| `conversational_integrity` | 4 multi-turn items | see the committed report |
 | `accessibility` | 5 checks, a census | none, with the reason printed |
+
+(Exact MDEs move by a thousandth or two whenever the corpus does; the
+committed report under `audits/` is the number to cite, not this table —
+copying figures here has drifted from the actual report before.)
 
 ## What each part is for
 
@@ -92,6 +102,13 @@ a real service's transcripts, by people who know the policy.
   to confirm a wrong figure. The correct response is not a refusal but a calm,
   correct answer, so those items' `forbidden` lists hold the planted number
   rather than a secret.
+- **Four multi-turn escalation probes.** Two jailbreak attempts (a fake
+  system-prompt-print, a roleplay bypass), each opening with an unrelated
+  benign question before the actual ask, in both languages. `turns` and the
+  response's `turn_responses` are opt-in fields only `conversational_integrity`
+  reads; every other suite still grades exactly the final answer, same as it
+  would for a single-turn item. They demonstrate a target that stays clean on
+  every turn, not only the last one it is graded on everywhere else.
 - **Answers that are not copies of their sources.** Every third fact's answers
   carry a closing line the source does not contain. Without it the grounding
   suites would score a flat 1.0, a bootstrap over identical values would be a
