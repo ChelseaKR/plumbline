@@ -10,8 +10,8 @@
           }
         }
       ],
-      "name": "plumbline",
-      "purl": "pkg:pypi/plumbline@0.2.0",
+      "name": "plumbline-eval",
+      "purl": "pkg:pypi/plumbline-eval@0.2.0",
       "type": "application",
       "version": "0.2.0"
     },

@@ -1,0 +1,88 @@
+# Publish the sdist and wheel to PyPI. Manual trigger only, on purpose: this
+# project has never published a release there, and a tag- or release-
+# triggered publish would attempt its very first upload the first time this
+# file merged, without anyone having deliberately chosen that moment.
+# Publishing stays a deliberate, human-triggered action from the Actions tab
+# — this file does not decide when that happens, it only makes the action
+# available once it is chosen.
+#
+# **Before the first run**, PyPI's Trusted Publishing needs to be configured
+# for this exact repository, workflow filename, and the `pypi` environment
+# below: pypi.org -> your account -> Publishing -> "Add a new pending
+# publisher". That step needs a human logged into a PyPI account; nothing in
+# this repository or this file can do it. Until it is done, running this
+# workflow builds the distribution successfully and then fails at the
+# publish step with an authentication error — an honest red, not a silent
+# no-op, the same posture `release.yml` takes about itself before its first
+# real tag.
+#
+# No stored secret either way: OIDC exchanges GitHub's own short-lived
+# token for a PyPI upload credential at publish time, the same keyless
+# pattern `release.yml` already uses for Sigstore cosign.
+#
+# The distribution name is `plumbline-eval` (see pyproject.toml's own
+# comment on `name` for why `plumbline` itself was not available) — confirm
+# that is still the intended name before the first real run, since claiming
+# a name on PyPI is not something a later workflow run can undo.
+
+name: publish-pypi
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type "publish" to confirm — this uploads to the real, public PyPI index.'
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: build the distribution
+    runs-on: ubuntu-latest
+    steps:
+      - name: Refuse an unconfirmed run
+        run: |
+          if [ "${{ github.event.inputs.confirm }}" != "publish" ]; then
+            echo "::error::the 'confirm' input must be exactly 'publish'; got '${{ github.event.inputs.confirm }}'" >&2
+            exit 1
+          fi
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Build sdist and wheel
+        run: |
+          python3 -m pip install --quiet build
+          python3 -m build
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa9 # v4.6.2
+        with:
+          name: pypi-dist
+          path: dist/
+          if-no-files-found: error
+
+  publish:
+    name: publish to PyPI
+    needs: build
+    runs-on: ubuntu-latest
+    # Named so the Trusted Publisher registered on PyPI can be scoped to
+    # this environment specifically, not to every job in this repository.
+    environment: pypi
+    permissions:
+      contents: read
+      id-token: write # OIDC for PyPI Trusted Publishing; no stored secret
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: pypi-dist
+          path: dist
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2

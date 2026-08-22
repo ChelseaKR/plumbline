@@ -151,7 +151,14 @@ PYTHONPATH=src python3 -m plumbline validate datasets/riverbend-demo
 PYTHONPATH=src:tests python3 -m unittest discover -s tests
 ```
 
-(Or `pip install -e .` and use `plumbline …` directly.)
+(Or `pip install -e .` and use `plumbline …` directly. Not yet on PyPI: the
+package is prepared to publish as `plumbline-eval` — `plumbline` itself is
+taken by an unrelated, long-dormant package — via
+[`.github/workflows/publish-pypi.yml`](.github/workflows/publish-pypi.yml),
+a manual-only workflow using PyPI's keyless Trusted Publishing. It has not
+been run; publishing needs a human to register the trusted publisher on
+PyPI first, which is not something this repository or its automation can do
+on its own.)
 
 Re-running the audit with identical inputs writes byte-identical reports to
 the identical path — reports carry no timestamps by design; git history is the
