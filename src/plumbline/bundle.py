@@ -64,6 +64,13 @@ class Item:
     # UNVERIFIABLE there rather than passed.
     answering_sources: list[str] = field(default_factory=list)
     adversarial: bool = False  # this prompt is an attack probe
+    # Opt-in: follow-up user turns after `prompt`, which is turn one. The full
+    # conversation's user side is `[prompt] + turns`. Empty (the default) is
+    # today's single-turn item, unchanged in every way that matters to a
+    # suite that has never heard of `turns` — see `conversational_integrity.py`
+    # and Bundle.turns_for/turn_responses_for, the only two places that read
+    # this field.
+    turns: list[str] = field(default_factory=list)
     forbidden: list[str] = field(default_factory=list)  # must not appear in the response
     # Must not be *asserted*. The weaker of the two, and the one a consumer
     # needs when the correct answer is a denial: "the deadline is the 15th" has
@@ -80,6 +87,14 @@ class Bundle:
     items: list[Item]
     responses: dict[str, str]  # item id -> recorded response text
     dataset_sha256: str
+    # item id -> one recorded response per user turn, in order, for the
+    # opt-in items that declare `turns`. Independent of `responses` above,
+    # which every existing suite that has never heard of multi-turn items
+    # keeps reading exactly as it always did; the two ordinarily agree
+    # because whatever recorded a conversation wrote both from it, but
+    # nothing here requires it — see `_parse_responses`. Absent for a
+    # single-turn item; present and >= 2 long for one that declares `turns`.
+    turn_responses: dict[str, list[str]] = field(default_factory=dict)
     sources: dict[str, Source] = field(default_factory=dict)
     # Bundle-relative path -> sha256, exactly as the verified manifest recorded
     # it. The definitive list of bytes this bundle vouches for; a suite that
@@ -132,6 +147,19 @@ class Bundle:
 
     def response_for(self, item_id: str) -> str | None:
         return self.responses.get(item_id)
+
+    def turns_for(self, item: Item) -> list[str]:
+        """The full conversation's user-side turns, in order: `prompt` is
+        always turn one. A single-turn item (the default) returns a
+        one-element list, so this is always safe to call."""
+        return [item.prompt, *item.turns]
+
+    def turn_responses_for(self, item_id: str) -> list[str] | None:
+        """One recorded response per user turn, in order — or None for an
+        item that was never recorded as multi-turn. Present only for items
+        that declared `turns` AND were recorded with a matching
+        `turn_responses` list; see `conversational_integrity.py`."""
+        return self.turn_responses.get(item_id)
 
     def unreviewed_translation_warnings(self) -> list[str]:
         """One warning line per unreviewed translated item. Visible on every
@@ -470,6 +498,19 @@ def _parse_items(path: Path) -> list[Item]:
                 raise BundleError(
                     f"{path.name}:{lineno}: translation.review must be one of {REVIEW_STATUSES}"
                 )
+            turns = raw.get("turns", [])
+            if not isinstance(turns, list) or not all(
+                    isinstance(s, str) for s in turns):
+                raise BundleError(
+                    f"{path.name}:{lineno}: 'turns' must be a list of "
+                    f"follow-up user-turn strings"
+                )
+            if any(not s.strip() for s in turns):
+                raise BundleError(
+                    f"{path.name}:{lineno}: item '{raw['id']}' declares a "
+                    f"blank turn; a conversation turn with nothing in it is "
+                    f"not a turn"
+                )
             seen.add(raw["id"])
             items.append(Item(
                 id=raw["id"],
@@ -484,6 +525,7 @@ def _parse_items(path: Path) -> list[Item]:
                 sources=item_sources,
                 answering_sources=list(answering or []),
                 adversarial=bool(raw.get("adversarial", False)),
+                turns=turns,
                 forbidden=forbidden,
                 forbidden_claims=forbidden_claims,
             ))
@@ -516,8 +558,11 @@ def _parse_sources(path: Path) -> dict[str, Source]:
     return sources
 
 
-def _parse_responses(path: Path, item_ids: set[str]) -> dict[str, str]:
+def _parse_responses(path: Path, items: list[Item]
+                     ) -> tuple[dict[str, str], dict[str, list[str]]]:
+    by_id = {i.id: i for i in items}
     responses: dict[str, str] = {}
+    turn_responses: dict[str, list[str]] = {}
     with open(path, encoding="utf-8") as f:
         for lineno, line in enumerate(f, 1):
             line = line.strip()
@@ -529,12 +574,39 @@ def _parse_responses(path: Path, item_ids: set[str]) -> dict[str, str]:
                 raise BundleError(f"{path.name}:{lineno}: invalid JSON: {e}") from e
             if "id" not in raw or "response" not in raw:
                 raise BundleError(f"{path.name}:{lineno}: needs 'id' and 'response'")
-            if raw["id"] not in item_ids:
+            if raw["id"] not in by_id:
                 raise BundleError(f"{path.name}:{lineno}: response for unknown item '{raw['id']}'")
             if raw["id"] in responses:
                 raise BundleError(f"{path.name}:{lineno}: duplicate response for '{raw['id']}'")
             responses[raw["id"]] = raw["response"]
-    return responses
+            item = by_id[raw["id"]]
+            recorded_turns = raw.get("turn_responses")
+            if recorded_turns is None:
+                continue
+            if not isinstance(recorded_turns, list) or not all(
+                    isinstance(s, str) for s in recorded_turns):
+                raise BundleError(
+                    f"{path.name}:{lineno}: 'turn_responses' must be a list "
+                    f"of strings, one per user turn"
+                )
+            expected_turns = 1 + len(item.turns)
+            if len(recorded_turns) != expected_turns:
+                raise BundleError(
+                    f"{path.name}:{lineno}: item '{raw['id']}' declares "
+                    f"{expected_turns} user turn(s) but 'turn_responses' has "
+                    f"{len(recorded_turns)}; they must be recorded 1:1 or "
+                    f"not at all"
+                )
+            # `response` and `turn_responses[-1]` are not cross-checked for
+            # equality on purpose: `response` is independent evidence every
+            # other suite reads, and a caller that redacts, truncates or
+            # otherwise rewrites just the top-level response (a partial-
+            # silence drill, a retention redaction) has not corrupted
+            # anything `conversational_integrity` reads. They agree in the
+            # ordinary case because whatever wrote both wrote them from the
+            # same conversation; nothing here assumes they must.
+            turn_responses[raw["id"]] = recorded_turns
+    return responses, turn_responses
 
 
 def load(bundle_dir: Path) -> Bundle:
@@ -592,11 +664,11 @@ def _load(bundle_dir: Path, *, require_responses: bool) -> Bundle:
 
     items = _parse_items(
         sealed_path(bundle_dir, items_name, "items", covered))
-    responses = (
+    responses, turn_responses = (
         _parse_responses(
             sealed_path(bundle_dir, responses_name, "responses", covered),
-            {i.id for i in items})
-        if responses_name else {}
+            items)
+        if responses_name else ({}, {})
     )
 
     sources_name = files.get("sources")
@@ -633,6 +705,7 @@ def _load(bundle_dir: Path, *, require_responses: bool) -> Bundle:
         items=items,
         responses=responses,
         dataset_sha256=dataset_sha256,
+        turn_responses=turn_responses,
         sources=sources,
         covered=covered,
     )

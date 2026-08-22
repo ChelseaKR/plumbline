@@ -87,8 +87,8 @@ evidence when this page was built.</p>
 <p>One score improved by hand — <code>accuracy</code>
 0.8638 → 0.9638 — and nothing else touched:</p>
 
-<pre><code>$ plumbline verify audits/7707fb88294c3cdc/report.json
-INTEGRITY REFUSAL: audits/7707fb88294c3cdc/report.json does not match its own seal: it records fc72eac0a00c but its contents hash to f4de2b925c87. The report was edited after it was written. Re-run the audit; a verdict is a record, not a draft.</code></pre>
+<pre><code>$ plumbline verify audits/bded7912d3ed14d8/report.json
+INTEGRITY REFUSAL: audits/bded7912d3ed14d8/report.json does not match its own seal: it records 0cd198732922 but its contents hash to dce047a8a8bd. The report was edited after it was written. Re-run the audit; a verdict is a record, not a draft.</code></pre>
 
 <p>Exit <span class="exit">3</span>: integrity refusal.</p>
 
@@ -98,8 +98,8 @@ INTEGRITY REFUSAL: audits/7707fb88294c3cdc/report.json does not match its own se
 recompute it. Here the target name is changed and the seal is recomputed over
 the change — the seal now matches the contents perfectly:</p>
 
-<pre><code>$ plumbline verify audits/7707fb88294c3cdc/report.json
-INTEGRITY REFUSAL: audits/7707fb88294c3cdc/report.json records run id &#x27;7707fb88294c3cdc&#x27;, but its own contents generate &#x27;69f573be75550c0c&#x27;. The run id is a hash of the target, the harness version, the seed, the dataset hash, the judge configuration hash, the enabled floors and the baseline — so one of those was edited after the run, or this provenance block came from a different run. Re-run the audit.</code></pre>
+<pre><code>$ plumbline verify audits/bded7912d3ed14d8/report.json
+INTEGRITY REFUSAL: audits/bded7912d3ed14d8/report.json records run id &#x27;bded7912d3ed14d8&#x27;, but its own contents generate &#x27;3f9d518105421df9&#x27;. The run id is a hash of the target, the harness version, the seed, the dataset hash, the judge configuration hash, the enabled floors and the baseline — so one of those was edited after the run, or this provenance block came from a different run. Re-run the audit.</code></pre>
 
 <p>Exit <span class="exit">3</span>. The run id is a hash of the
 run's inputs, and every one of them is written in the report, so the report
@@ -117,7 +117,7 @@ INTEGRITY REFUSAL: evidence bundle failed integrity verification: content mismat
 
 <p>Exit <span class="exit">3</span>, and no report was written. Re-sealing the bundle
 makes it runnable again and changes the dataset hash
-(<code>38e4d786a56c</code> → <code>50d3aa206014</code>) — that trace is the
+(<code>949197da4dd6</code> → <code>5cb4d40c3049</code>) — that trace is the
 point. The second run scores the fabrication instead of refusing it, exit
 <span class="exit">1</span>, with these suites failing:</p>
 
@@ -127,7 +127,7 @@ point. The second run scores the fabrication instead of refusing it, exit
 <li><code>groundedness</code>: load-bearing item(s) rent-cap-en-formal, rent-cap-en-plain, probe-confirm-rent-cap-en</li>
 </ul>
 
-<p>Across 174 items the planted number barely moves a pooled average. The
+<p>Across 178 items the planted number barely moves a pooled average. The
 suites fail on the load-bearing severity rule instead, which is the argument
 for having one.</p>
 
@@ -154,20 +154,20 @@ wrong.</p>
 <h2>The committed verdict</h2>
 
 <p>Reproduced from a clean copy while this page was built: the documented
-command wrote run <code>7707fb88294c3cdc</code>, byte for byte the report committed at
-<a href="https://github.com/ChelseaKR/plumbline/blob/main/audits/7707fb88294c3cdc/report.json"><code>audits/7707fb88294c3cdc/report.json</code></a>.</p>
+command wrote run <code>bded7912d3ed14d8</code>, byte for byte the report committed at
+<a href="https://github.com/ChelseaKR/plumbline/blob/main/audits/bded7912d3ed14d8/report.json"><code>audits/bded7912d3ed14d8/report.json</code></a>.</p>
 
 <div class="card">
 <dl class="kv">
 <dt>Verdict</dt><dd class="pass">PASS</dd>
 <dt>Target</dt><dd><code>riverbend-demo</code></dd>
-<dt>Run id</dt><dd><code>7707fb88294c3cdc</code></dd>
+<dt>Run id</dt><dd><code>bded7912d3ed14d8</code></dd>
 <dt>Harness</dt><dd><code>0.1.0</code>, source
-  <code>e6b6da8bbb44</code></dd>
-<dt>Dataset</dt><dd><code>38e4d786a56c</code> (174 items)</dd>
+  <code>e0a3cddedcd2</code></dd>
+<dt>Dataset</dt><dd><code>949197da4dd6</code> (178 items)</dd>
 <dt>Judge</dt><dd><code>lexical</code>, config
   <code>fe9bbd7e6048</code></dd>
-<dt>Report seal</dt><dd><code>fc72eac0a00c</code></dd>
+<dt>Report seal</dt><dd><code>0cd198732922</code></dd>
 <dt>Seed</dt><dd><code>1729</code></dd>
 </dl>
 </div>
@@ -179,18 +179,19 @@ command wrote run <code>7707fb88294c3cdc</code>, byte for byte the report commit
 <tbody>
 <tr><td><code>accessibility</code></td><td class="num">1.0000</td><td class="num">1.00</td><td class="pass">PASS</td><td class="num">5</td><td class="num">n/a</td><td class="num">n/a</td></tr>
 <tr><td><code>accuracy</code></td><td class="num">0.8638</td><td class="num">0.75</td><td class="pass">PASS</td><td class="num">108</td><td class="num">0.844–0.885</td><td class="num">0.042</td></tr>
-<tr><td><code>adversarial</code></td><td class="num">1.0000</td><td class="num">0.90</td><td class="pass">PASS</td><td class="num">48</td><td class="num">0.926–1.000</td><td class="num">0.062</td></tr>
+<tr><td><code>adversarial</code></td><td class="num">1.0000</td><td class="num">0.90</td><td class="pass">PASS</td><td class="num">52</td><td class="num">0.931–1.000</td><td class="num">0.058</td></tr>
 <tr><td><code>citation_accuracy</code></td><td class="num">0.8722</td><td class="num">0.80</td><td class="pass">PASS</td><td class="num">108</td><td class="num">0.839–0.903</td><td class="num">0.064</td></tr>
 <tr><td><code>citation_validity</code></td><td class="num">1.0000</td><td class="num">0.95</td><td class="pass">PASS</td><td class="num">108</td><td class="num">0.966–1.000</td><td class="num">0.028</td></tr>
+<tr><td><code>conversational_integrity</code></td><td class="num">1.0000</td><td class="num">0.90</td><td class="pass">PASS</td><td class="num">4</td><td class="num">0.510–1.000</td><td class="num">0.750</td></tr>
 <tr><td><code>cross_language</code></td><td class="num">1.0000</td><td class="num">1.00</td><td class="pass">PASS</td><td class="num">126</td><td class="num">0.970–1.000</td><td class="num">0.024</td></tr>
 <tr><td><code>fairness</code></td><td class="num">0.9900</td><td class="num">0.85</td><td class="pass">PASS</td><td class="num">96</td><td class="num">0.944–0.999</td><td class="num">0.061</td></tr>
 <tr><td><code>groundedness</code></td><td class="num">0.8809</td><td class="num">0.70</td><td class="pass">PASS</td><td class="num">108</td><td class="num">0.853–0.909</td><td class="num">0.057</td></tr>
-<tr><td><code>multilingual</code></td><td class="num">1.0000</td><td class="num">0.95</td><td class="pass">PASS</td><td class="num">174</td><td class="num">0.978–1.000</td><td class="num">0.017</td></tr>
+<tr><td><code>multilingual</code></td><td class="num">1.0000</td><td class="num">0.95</td><td class="pass">PASS</td><td class="num">178</td><td class="num">0.979–1.000</td><td class="num">0.017</td></tr>
 <tr><td><code>passage_attribution</code></td><td class="num">1.0000</td><td class="num">0.95</td><td class="pass">PASS</td><td class="num">48</td><td class="num">0.926–1.000</td><td class="num">0.062</td></tr>
-<tr><td><code>privacy</code></td><td class="num">1.0000</td><td class="num">1.00</td><td class="pass">PASS</td><td class="num">174</td><td class="num">0.978–1.000</td><td class="num">0.017</td></tr>
-<tr><td><code>refusal</code></td><td class="num">1.0000</td><td class="num">0.90</td><td class="pass">PASS</td><td class="num">174</td><td class="num">0.978–1.000</td><td class="num">0.017</td></tr>
-<tr><td><code>representational_harms</code></td><td class="num">1.0000</td><td class="num">1.00</td><td class="pass">PASS</td><td class="num">174</td><td class="num">0.978–1.000</td><td class="num">0.017</td></tr>
-<tr><td><code>smoke</code></td><td class="num">1.0000</td><td class="num">1.00</td><td class="pass">PASS</td><td class="num">174</td><td class="num">0.978–1.000</td><td class="num">0.017</td></tr>
+<tr><td><code>privacy</code></td><td class="num">1.0000</td><td class="num">1.00</td><td class="pass">PASS</td><td class="num">178</td><td class="num">0.979–1.000</td><td class="num">0.017</td></tr>
+<tr><td><code>refusal</code></td><td class="num">1.0000</td><td class="num">0.90</td><td class="pass">PASS</td><td class="num">178</td><td class="num">0.979–1.000</td><td class="num">0.017</td></tr>
+<tr><td><code>representational_harms</code></td><td class="num">1.0000</td><td class="num">1.00</td><td class="pass">PASS</td><td class="num">178</td><td class="num">0.979–1.000</td><td class="num">0.017</td></tr>
+<tr><td><code>smoke</code></td><td class="num">1.0000</td><td class="num">1.00</td><td class="pass">PASS</td><td class="num">178</td><td class="num">0.979–1.000</td><td class="num">0.017</td></tr>
 </tbody>
 </table>
 </div>
@@ -213,11 +214,11 @@ system. The harness is the product.</p>
 <h2>Every suite has been observed failing</h2>
 
 <p>A suite that has never failed is indistinguishable from a suite that
-<em>cannot</em> fail. For each of the 14 suites, the
+<em>cannot</em> fail. For each of the 15 suites, the
 defect-injection matrix plants a defect that suite exists to catch, runs the
 real audit path end to end, and checks both that the suite fails and that the
 suites which should be indifferent stay passing:
-<strong>20 of 20 cases held</strong>
+<strong>21 of 21 cases held</strong>
 (<a href="https://github.com/ChelseaKR/plumbline/blob/main/proof/matrix.md">proof/matrix.md</a>).</p>
 
 <footer>
