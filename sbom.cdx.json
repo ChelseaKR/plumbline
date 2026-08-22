@@ -1,0 +1,45 @@
+{
+  "bomFormat": "CycloneDX",
+  "components": [],
+  "metadata": {
+    "component": {
+      "licenses": [
+        {
+          "license": {
+            "id": "Apache-2.0"
+          }
+        }
+      ],
+      "name": "plumbline",
+      "purl": "pkg:pypi/plumbline@0.1.0",
+      "type": "application",
+      "version": "0.1.0"
+    },
+    "tools": {
+      "components": [
+        {
+          "name": "coverage",
+          "type": "application",
+          "version": ">=7.6"
+        },
+        {
+          "name": "ruff",
+          "type": "application",
+          "version": ">=0.15.0"
+        }
+      ]
+    }
+  },
+  "properties": [
+    {
+      "name": "plumbline:runtime-dependency-count",
+      "value": "0"
+    },
+    {
+      "name": "plumbline:declaration",
+      "value": "zero third-party runtime dependencies; development-only tooling is listed under metadata.tools, never under components"
+    }
+  ],
+  "specVersion": "1.5",
+  "version": 1
+}
