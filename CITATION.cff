@@ -4,7 +4,7 @@ title: "Plumbline: a fail-closed evaluation harness for government-facing chat s
 abstract: >-
   A deterministic, offline-by-default evaluation harness that grades a
   government-facing chat system against an executable quality bar and produces
-  a sealed, provenance-stamped audit report. Fourteen scoring suites, per-suite
+  a sealed, provenance-stamped audit report. Fifteen scoring suites, per-suite
   confidence intervals and minimum detectable effect, baseline regression
   comparison, and a pinned fail-closed CI gate. Tampered evidence refuses to
   score rather than scoring around the tampering; a target that returns nothing
@@ -16,8 +16,8 @@ authors:
   - given-names: Chelsea
     family-names: Kelly-Reif
 license: Apache-2.0
-version: "0.1.0"
-date-released: "2026-08-16"
+version: "0.2.0"
+date-released: "2026-08-22"
 repository-code: "https://github.com/ChelseaKR/plumbline"
 url: "https://github.com/ChelseaKR/plumbline"
 keywords:

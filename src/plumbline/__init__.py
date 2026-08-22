@@ -5,4 +5,4 @@ The harness is the instrument; any bundled dataset is a demonstration of the
 instrument, not a benchmark.
 """
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
