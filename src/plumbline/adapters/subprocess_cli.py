@@ -53,6 +53,7 @@ import subprocess
 import threading
 import time
 from pathlib import Path
+from typing import cast
 
 from .. import network
 from ..bundle import Item
@@ -354,7 +355,11 @@ class SubprocessAdapter:
         self._throttle()
         values = {"prompt": item.prompt, "lang": item.lang, "item_id": item.id}
         try:
-            argv = network.fill_template(self._command, values)
+            # fill_template's signature is object -> object because it also
+            # fills JSON request bodies of arbitrary shape (see network.py);
+            # substituting into a list[str] argv always yields a list[str]
+            # back, which the generic signature can't express on its own.
+            argv = cast("list[str]", network.fill_template(self._command, values))
             payload = self._stdin_bytes(values)
         except network.OutboundConfigError as e:
             raise AdapterError(f"item '{item.id}': {e}") from e
@@ -413,6 +418,11 @@ class SubprocessAdapter:
                 f"item '{item.id}': output = \"json\" but the program printed "
                 f"something else ({e}): {self._snippet(text.encode('utf-8'))}"
             ) from e
+        # `from_config` refuses to build an adapter with output = "json" and
+        # no response_pointer, and `_answer` only reaches this branch when
+        # `self._output_mode != "text"` (checked above) — i.e. "json". mypy
+        # cannot see either guard from here; the None case is unreachable.
+        assert self._response_pointer is not None
         try:
             value = network.resolve_pointer(payload, self._response_pointer)
         except network.OutboundError as e:
@@ -496,6 +506,11 @@ class SubprocessAdapter:
         for reader in readers:
             reader.join(timeout=1.0)
         for stream in (proc.stdout, proc.stderr):
+            # Popen's type covers the case where the pipe was never
+            # requested; this Popen call always passes stdout=PIPE and
+            # stderr=PIPE, so both are real streams, never None.
+            if stream is None:
+                continue
             try:
                 stream.close()
             except OSError:
@@ -505,6 +520,10 @@ class SubprocessAdapter:
     @staticmethod
     def _write_stdin(proc, payload: bytes | None) -> None:
         try:
+            # This Popen call always passes stdin=PIPE, so proc.stdin is
+            # always a real stream, never None; a closed or broken pipe
+            # surfaces as OSError/ValueError below, not as this being None.
+            assert proc.stdin is not None
             if payload is not None:
                 proc.stdin.write(payload)
             proc.stdin.close()

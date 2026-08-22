@@ -13,10 +13,13 @@ from __future__ import annotations
 
 import re
 from collections import Counter
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
 
 from . import lexicons
 from .hashing import config_digest
+
+if TYPE_CHECKING:
+    from .bundle import Item
 
 _PUNCT_RE = re.compile(r"[^\w\s]", re.UNICODE)
 _WS_RE = re.compile(r"\s+")
@@ -29,10 +32,32 @@ REFUSAL_MARKERS = lexicons.REFUSAL_MARKERS
 
 
 class Judge(Protocol):
+    """The full contract a suite may rely on, whichever judge is configured.
+
+    `LexicalJudge` implements every one of these directly; `ModelJudge`
+    implements every one too, delegating all but `answer_score` straight to
+    its own internal `LexicalJudge` — see model_judge.py's own
+    `MODEL_DECIDES` / `DELEGATED_TO_LEXICAL` split. Declaring the full set
+    here, not just the four a first suite happened to need, is what lets
+    mypy catch a suite calling a method neither judge actually has, instead
+    of that only surfacing at run time against whichever judge kind a
+    config happens to pick.
+    """
+
     def config(self) -> dict: ...
     def describe(self) -> dict: ...
     def answer_score(self, expected: str, actual: str) -> float: ...
     def is_refusal(self, text: str) -> bool: ...
+    def support_score(self, claim: str, source_text: str) -> float: ...
+    def number_support(self, claim: str, source_text: str) -> tuple[float, list[str]]: ...
+    def contains(self, response: str, phrase: str) -> bool: ...
+    def asserted(self, response: str, phrase: str) -> bool: ...
+    def forbidden_in(self, response: str, item: Item) -> tuple[list[str], list[str]]: ...
+    def supported_languages(self) -> tuple[str, ...]: ...
+    def detect_language(self, text: str) -> str | None: ...
+    def harm_markers_in(self, text: str) -> list[str]: ...
+    def pii_in(self, text: str) -> list[tuple[str, str]]: ...
+    def solicitations_in(self, text: str) -> list[str]: ...
 
 
 def normalize(text: str) -> str:

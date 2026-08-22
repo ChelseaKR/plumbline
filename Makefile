@@ -20,8 +20,14 @@ verify: lint test site-check
 # wired: it would reformat 54 of this repository's 59 Python files, and a
 # whole-tree reformat is a decision to take on its own, not a side effect of
 # turning a linter on.
+#
+# mypy checks `src/plumbline` only, at the default (non-strict) setting; see
+# the comment in `[tool.mypy]` in pyproject.toml for the recorded gap between
+# that and `--strict`. `tests` and `tools` are not type-checked: `tests` uses
+# `unittest`'s own dynamic patterns throughout, and neither is shipped.
 lint:
 	uv run ruff check src tests tools
+	uv run mypy
 
 # The suite runs on the standard library alone, exactly as CI runs it. Coverage
 # only wraps it; it does not change what is executed. The floor is in

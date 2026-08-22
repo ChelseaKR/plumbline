@@ -181,12 +181,19 @@ def run_id_of(report: dict) -> str:
     """
     provenance = report.get("provenance") or {}
     comparison = report.get("baseline") or {}
+    # A report is untrusted input here, not a value this module already
+    # validated: a caller like `verify_run_id` hands this a dict that might
+    # be missing every field below, and deliberately relies on the TypeError
+    # that follows (hashing None where a string is expected) to turn "the
+    # fields are missing" into the same refusal as "the fields don't match" —
+    # see its own try/except. The `str`/`int` parameter types below describe
+    # the well-formed case; this call intentionally does not guarantee it.
     return compute_run_id(
-        target=report.get("target"),
-        harness_version=provenance.get("harness_version"),
-        seed=provenance.get("seed"),
-        dataset_sha256=provenance.get("dataset_sha256"),
-        judge_config_sha256=provenance.get("judge_config_sha256"),
+        target=report.get("target"),  # type: ignore[arg-type]
+        harness_version=provenance.get("harness_version"),  # type: ignore[arg-type]
+        seed=provenance.get("seed"),  # type: ignore[arg-type]
+        dataset_sha256=provenance.get("dataset_sha256"),  # type: ignore[arg-type]
+        judge_config_sha256=provenance.get("judge_config_sha256"),  # type: ignore[arg-type]
         suite_floors={s["suite"]: s["floor"] for s in report.get("suites", [])},
         baseline_sha256=(comparison.get("against") or {}).get("baseline_sha256"),
     )

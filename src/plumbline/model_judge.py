@@ -159,6 +159,10 @@ class JudgmentCache:
             self._load()
 
     def _load(self) -> None:
+        # Only ever called from __init__, guarded by `if self.path and
+        # self.path.is_file()` — a guard mypy cannot see across the method
+        # boundary it lives on the other side of.
+        assert self.path is not None
         try:
             with open(self.path, encoding="utf-8") as f:
                 raw = json.load(f)
@@ -191,7 +195,7 @@ class JudgmentCache:
         return None if entry is None else entry.get("score")
 
     def put(self, key: str, score: float, *, note: str | None = None) -> None:
-        entry = {"score": round(score, 6)}
+        entry: dict[str, object] = {"score": round(score, 6)}
         if note:
             entry["note"] = note
         self.judgments[key] = entry

@@ -11,6 +11,19 @@ may break the interface.
 
 ### Added
 
+- **`mypy` is wired into `make lint` and CI**, checking `src/plumbline` at
+  mypy's default (non-strict) setting; both `make lint` and CI's `quality`
+  job now fail on a type error, not only on a ruff finding. The gap this
+  closes was recorded against itself in the README's Code Quality
+  conformance row: 27 default-mode errors, mostly a `Judge` protocol that
+  named only the methods each suite happened to call rather than the full
+  contract every judge implements, plus a handful of guard clauses (a
+  `None`-checked value, an already-validated dict) that a static checker
+  cannot see across the method boundary they live on the other side of.
+  Fixed rather than suppressed in every case; `pyproject.toml`'s
+  `[tool.mypy]` records why this stops short of `--strict` (174 findings,
+  almost all a bare `dict` missing its type argument) as the next open gap,
+  the same way the ruff select set records its own.
 - **A longer-form "what it caught in its own harness" draft**
   ([`docs/what-it-caught-in-its-own-harness.md`](docs/what-it-caught-in-its-own-harness.md)),
   written for external publication (a blog post or similar), distinct from
