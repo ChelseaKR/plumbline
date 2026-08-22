@@ -1,0 +1,148 @@
+# Release: SBOM, OpenSSF Scorecard, and a keyless-signed release artifact.
+#
+# Closes two "Not met" cells the README's Standards Conformance table names
+# against itself: "no SBOM, no OpenSSF Scorecard, no signed release"
+# (Security & Supply-Chain) and "no release workflow, no signed tag, no
+# published artifact" (Release & Versioning). This repository already has
+# the best possible starting position for it — zero third-party runtime
+# dependencies — so this is wiring, not redesign.
+#
+# **This workflow has not been exercised.** It has never run against a real
+# tag on GitHub's own infrastructure; nothing here has been observed passing
+# the way `proof/matrix.md` observes every suite catching a defect. Every
+# action pin below — the two genuinely third-party ones, `ossf/scorecard-
+# action` and `sigstore/cosign-installer`, and the GitHub-maintained ones
+# alongside them — was looked up against its upstream repo's release page at
+# the time this file was written and cross-checked twice, but not run:
+# re-verify them (and prefer whatever is current) before the first real tag
+# depends on this file. Saying so here is the same posture the Standards
+# Conformance table takes on every other named gap: a claim this repository
+# has not backed with an observed run is recorded as not yet met, not
+# asserted as done.
+#
+# Keyless signing (Sigstore/cosign, via GitHub's own OIDC token) rather than
+# a stored private key: consistent with never committing a secret to this
+# repository, and it is what `id-token: write` on the `sign` job is for.
+
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch: # exercise the pipeline without waiting for a real tag
+
+permissions:
+  contents: read
+
+jobs:
+  sbom:
+    name: verify and publish the SBOM
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      # Fails if the committed SBOM is not what pyproject.toml produces —
+      # the same "committed artifact must be current" discipline as the
+      # published evidence page. A release built from a stale SBOM would be
+      # a supply-chain claim this repository could not back.
+      - name: sbom.cdx.json must be what pyproject.toml produces
+        run: python3 tools/build_sbom.py --check
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa9 # v4.6.2
+        with:
+          name: sbom
+          path: sbom.cdx.json
+          if-no-files-found: error
+
+  scorecard:
+    name: OpenSSF Scorecard
+    runs-on: ubuntu-latest
+    permissions:
+      # Scorecard's own documented minimum: read the repo, write the SARIF
+      # upload to code scanning, and mint the OIDC token its own signing of
+      # the results needs.
+      contents: read
+      security-events: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Run analysis
+        uses: ossf/scorecard-action@2d1146689b8cda280b9bc96326124645441f03bc # v2.4.4
+        with:
+          results_file: scorecard-results.sarif
+          results_format: sarif
+          publish_results: true
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa9 # v4.6.2
+        with:
+          name: scorecard-results
+          path: scorecard-results.sarif
+          if-no-files-found: error
+
+      - name: Upload to code scanning
+        uses: github/codeql-action/upload-sarif@db488ddef3bf6cb639b32c2e9a7c0a7ea8271d28 # v4.37.8
+        with:
+          sarif_file: scorecard-results.sarif
+
+  sign:
+    name: keyless-sign the SBOM
+    needs: sbom
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # Sigstore's keyless flow: GitHub mints a short-lived OIDC token this
+      # job exchanges for a Fulcio certificate. No private key is generated,
+      # stored, or rotated by this repository.
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: sbom
+
+      - uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+
+      - name: Sign the SBOM (keyless)
+        run: cosign sign-blob --yes --bundle sbom.cdx.json.sigstore.json sbom.cdx.json
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa9 # v4.6.2
+        with:
+          name: sbom-signature
+          path: |
+            sbom.cdx.json
+            sbom.cdx.json.sigstore.json
+          if-no-files-found: error
+
+  release:
+    name: publish the GitHub Release
+    needs: sign
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # to create the release and attach files
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: sbom-signature
+
+      # The built-in `gh` CLI, not a third-party action: one fewer pin to
+      # maintain for something the runner already ships, and this project
+      # avoids adding a dependency where an existing tool already does the
+      # job — the same instinct that keeps the runtime standard-library-only.
+      - name: Create the release and attach the signed SBOM
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --title "${GITHUB_REF_NAME}" \
+            --generate-notes \
+            sbom.cdx.json sbom.cdx.json.sigstore.json
