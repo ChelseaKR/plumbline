@@ -11,6 +11,22 @@ may break the interface.
 
 ### Added
 
+- **`tools/check_site_a11y.py`** holds the published evidence page,
+  `site/index.html`, to the same kind of structural check
+  `src/plumbline/suites/accessibility.py` runs against a *target's*
+  captured interface — closing the gap the Accessibility conformance row
+  named against itself. Seven checks: language declaration, heading order,
+  link text, image alt text, a single `main` landmark, zoom not disabled,
+  and WCAG AA contrast — computed with the same `contrast_ratio` function
+  the scoring suite uses, against both the light and dark palette declared
+  in the page's own `<style>` block, since `color-scheme: light dark`
+  means a visitor gets whichever one their system prefers. Wired into
+  `make verify` (folded into `site-check`) and into
+  `.github/workflows/pages.yml`, which now refuses to deploy a page that
+  fails its own accessibility standard. Pinned by
+  [`tests/test_site_a11y.py`](tests/test_site_a11y.py), 27 tests proving
+  each of the seven checks can actually fail, not only that the committed
+  page currently passes.
 - **`mypy` is wired into `make lint` and CI**, checking `src/plumbline` at
   mypy's default (non-strict) setting; both `make lint` and CI's `quality`
   job now fail on a type error, not only on a ruff finding. The gap this

@@ -11,7 +11,9 @@
 # drifted from the committed report would be a provenance claim nobody can
 # back, which is the one thing this repository may not ship. The same check
 # runs in `tests/test_site.py` on every test run, together with a test proving
-# it can fail.
+# it can fail. `tools/check_site_a11y.py` then holds this page to the same
+# structural accessibility standard `accessibility.py` holds a target's
+# interface to, checked again in `tests/test_site_a11y.py`.
 #
 # This workflow does not enable Pages. Until the repository's Pages source is
 # set to "GitHub Actions", it will run and its deploy step will fail; that is
@@ -53,6 +55,10 @@ jobs:
       # back with a different exit code.
       - name: The page must be what the committed evidence produces
         run: python3 tools/build_site.py --check
+
+      # Refuses to deploy a page that fails its own accessibility standard.
+      - name: The page must pass its own accessibility checks
+        run: PYTHONPATH=src python3 tools/check_site_a11y.py
 
       - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:

@@ -36,10 +36,13 @@ test:
 	PYTHONPATH=src:tests uv run coverage run -m unittest discover -s tests
 	uv run coverage report
 
-# The published evidence page has to be what the committed evidence produces.
-# Same check `.github/workflows/pages.yml` runs before it deploys anything.
+# The published evidence page has to be what the committed evidence produces,
+# and it has to hold up to the same accessibility standard it holds a
+# target's interface to. Same checks `.github/workflows/pages.yml` runs
+# before it deploys anything.
 site-check:
 	PYTHONPATH=src uv run python3 tools/build_site.py --check
+	PYTHONPATH=src uv run python3 tools/check_site_a11y.py
 
 clean:
 	rm -rf .coverage htmlcov .ruff_cache
