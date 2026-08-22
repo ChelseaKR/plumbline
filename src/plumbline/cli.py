@@ -45,6 +45,7 @@ from .bundle import (
     seal as seal_bundle,
 )
 from .config import ConfigError, load_config
+from . import history as history_mod
 from .couplings import summarize_for_terminal as summarize_couplings
 from .errors import OutboundError
 from .report import ReportSealError, verify_report
@@ -196,6 +197,44 @@ def cmd_sign(args: argparse.Namespace) -> int:
     print("note:    a shared-secret (HMAC-SHA256) signature, not a "
           "public-key one — verifiable only by someone else holding this "
           "exact key file. See `signing.py` for why.")
+    return EXIT_PASS
+
+
+def cmd_history_append(args: argparse.Namespace) -> int:
+    """Append one finished run to an append-only history file.
+
+    Reports carry no timestamps, so the order entries are appended in — and
+    therefore the git history of the committed history file — is the only
+    timeline this ever has. See `history.py`.
+    """
+    source = Path(args.report)
+    report = _read_report(source)
+    history_path = Path(args.history)
+    runs, appended = history_mod.append(report, history_path, source=str(source))
+    if appended:
+        print(f"appended: {runs[-1]['run_id']} ({runs[-1]['verdict']})")
+    else:
+        print(f"no-op:    {runs[-1]['run_id']} is already the newest entry "
+              f"in {history_path}")
+    print(f"history:  {history_path} ({len(runs)} run(s))")
+    return EXIT_PASS
+
+
+def cmd_history_check(args: argparse.Namespace) -> int:
+    """Print each suite's trend over the trailing run of comparable history.
+
+    An observation on top of the pairwise baseline comparison, not a
+    replacement for it: see `history.py`'s module docstring and
+    `docs/adr/0001-longitudinal-history-is-observation-not-inference.md` for
+    why it stops at "declined on every one of the last N runs" rather than
+    computing a trend statistic of its own.
+    """
+    runs = history_mod.load_history(Path(args.history))
+    result = history_mod.trends(runs, min_streak=args.min_streak)
+    for line in history_mod.render_terminal(result):
+        print(line)
+    if args.fail_on_decline and result["declining"]:
+        return EXIT_SUITE_FAILURE
     return EXIT_PASS
 
 
@@ -499,6 +538,39 @@ def build_parser() -> argparse.ArgumentParser:
                                "what this recording was for")
     p_record.set_defaults(func=cmd_record)
 
+    p_history = sub.add_parser(
+        "history",
+        help="an append-only run history, and a longitudinal trend view on "
+             "top of the pairwise baseline comparison")
+    history_sub = p_history.add_subparsers(dest="history_command", required=True)
+
+    p_history_append = history_sub.add_parser(
+        "append", help="append one finished run's report to a history file")
+    p_history_append.add_argument("--report", required=True,
+                                  help="path to a report.json")
+    p_history_append.add_argument("--history", required=True,
+                                  help="path to the history file "
+                                       "(created if it does not exist)")
+    p_history_append.set_defaults(func=cmd_history_append)
+
+    p_history_check = history_sub.add_parser(
+        "check",
+        help="print each suite's trend over the trailing comparable run "
+             "history")
+    p_history_check.add_argument("--history", required=True,
+                                 help="path to a history file written by "
+                                      "`history append`")
+    p_history_check.add_argument(
+        "--min-streak", type=int, default=history_mod.DEFAULT_MIN_STREAK,
+        help="fewest consecutive comparable runs a decline must span to be "
+             f"reported (default: {history_mod.DEFAULT_MIN_STREAK})")
+    p_history_check.add_argument(
+        "--fail-on-decline", action="store_true",
+        help="exit non-zero if any suite declined on every run in the "
+             "trailing window; off by default, because this view does not "
+             "block a merge the way the gate does unless asked to")
+    p_history_check.set_defaults(func=cmd_history_check)
+
     p_baseline = sub.add_parser(
         "baseline",
         help="write the committed baseline record distilled from a report")
@@ -550,7 +622,8 @@ def main(argv: list[str] | None = None) -> int:
               "in a suite; please report it.", file=sys.stderr)
         return EXIT_INTERNAL_ERROR
     except (ConfigError, BundleError, BaselineError, EmptyPopulationError,
-            CoverageError, OutboundError, SigningError, ValueError, KeyError) as e:
+            CoverageError, OutboundError, SigningError,
+            history_mod.HistoryError, ValueError, KeyError) as e:
         msg = e.args[0] if e.args else e
         print(f"CONFIGURATION ERROR: {msg}", file=sys.stderr)
         return EXIT_CONFIG_ERROR
