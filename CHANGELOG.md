@@ -11,6 +11,13 @@ may break the interface.
 
 ### Added
 
+- **A longer-form "what it caught in its own harness" draft**
+  ([`docs/what-it-caught-in-its-own-harness.md`](docs/what-it-caught-in-its-own-harness.md)),
+  written for external publication (a blog post or similar), distinct from
+  the README section it is drawn from. Walks through the silence/absence
+  defect across its three rounds, the consumer-found wrong-paragraph gap,
+  and the coupling-disclosure fix, as narrative rather than changelog
+  entries. Marked as a draft in its own header — edit before publishing.
 - **A dated responsible-tech statement** ([`docs/responsible-tech.md`](docs/responsible-tech.md)),
   closing the gap the Responsible-Tech Framework conformance row named
   against itself. Written from the point of view of the people a graded
