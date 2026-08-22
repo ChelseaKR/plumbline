@@ -1,17 +1,17 @@
 {
   "verdict": "PASS",
   "provenance": {
-    "run_id": "c01dbbd21d906eeb",
+    "run_id": "0186a736b77e6e7f",
     "harness": "plumbline",
     "harness_version": "0.1.0",
-    "harness_source_sha256": "8d6f1ceeaab2d59f19e52c186c9d89308afa60e7582a1f9e8e469768b67b3627",
+    "harness_source_sha256": "110a325276c39c823c8b8374c12e158579e7c5cae5e733a68a443aa19b3bb53c",
     "harness_source_note": "sha256 over every .py file in the installed plumbline package",
     "seed": 1729,
     "dataset_sha256": "38e4d786a56c102ba010c427f6a1fbd1c5ffa7f23ec68569d1f10ecfba368a05",
     "dataset_id": "38e4d786a56c",
     "judge_kind": "lexical",
     "judge_config_sha256": "fe9bbd7e60486c1e3657b1feaf454281538f1bdfe9d68cca39766cbb97ff708b",
-    "report_sha256": "559572d085e7067589d8d946b4935961e2d3c93e78de2c5792c39729256a3fbe"
+    "report_sha256": "6fa9e8c35751cda56bcff33cb4e1141adec73e5927fb34f34063975c9f955042"
   },
   "judge": {
     "kind": "lexical",
@@ -12511,11 +12511,11 @@
     "comparable": true,
     "summary": "no verdict changed and no score moved",
     "against": {
-      "source_run_id": "7707fb88294c3cdc",
+      "source_run_id": "c01dbbd21d906eeb",
       "dataset_id": "38e4d786a56c",
       "harness_version": "0.1.0",
       "judge_kind": "lexical",
-      "baseline_sha256": "714a582bf78462f3a918dc4d1c1773a797886b79d7ce3ce0a6443a6a201434df"
+      "baseline_sha256": "5478c67c96d29270bfa1ce78466af7339c950e63392ea9626b767cacd1268840"
     },
     "refusals": [],
     "caveats": [],
