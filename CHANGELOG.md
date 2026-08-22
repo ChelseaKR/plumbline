@@ -11,6 +11,14 @@ may break the interface.
 
 ### Added
 
+- **A model card for the optional model judge**
+  ([`docs/model-card-judge.md`](docs/model-card-judge.md)), closing the gap
+  the AI Evaluation conformance row named against itself. Covers what the
+  judge decides (only `answer_score`) and what stays lexical regardless,
+  how a judgment is produced and cached, the adversarial surface a second
+  model widens and its mitigation, and the limitations the card names
+  against itself — chiefly that nothing measures how often the model judge
+  agrees with a human rater.
 - **PyPI packaging.** `pyproject.toml`'s distribution name is now
   `plumbline-eval` — `plumbline` is taken by an unrelated, long-dormant
   geospatial package; the import name, the package directory, and the
