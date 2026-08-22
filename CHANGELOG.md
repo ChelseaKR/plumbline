@@ -11,6 +11,18 @@ may break the interface.
 
 ### Added
 
+- **PyPI packaging.** `pyproject.toml`'s distribution name is now
+  `plumbline-eval` — `plumbline` is taken by an unrelated, long-dormant
+  geospatial package; the import name, the package directory, and the
+  `plumbline` CLI command are all unaffected. `sbom.cdx.json` and `uv.lock`
+  regenerated to match. `.github/workflows/publish-pypi.yml` is a
+  manual-only (`workflow_dispatch`, with a typed confirmation) publish
+  workflow using PyPI's keyless Trusted Publishing — no stored secret.
+  Verified locally: `python3 -m build` produces a clean sdist and wheel, and
+  installing the wheel into a fresh virtualenv gives a `plumbline` command
+  that runs identically. Not yet run: publishing needs a human to register
+  the trusted publisher on PyPI first, which nothing in this repository can
+  do on its own.
 - **`action.yml`: pin the harness from GitHub Actions directly.** A second
   way to pin the gate for a repository whose CI is GitHub Actions, alongside
   `gate/plumbline-gate.sh` (which stays the way to gate from anything else).

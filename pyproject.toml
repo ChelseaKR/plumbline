@@ -3,7 +3,17 @@ requires = ["setuptools>=84.0.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "plumbline"
+# The distribution name on PyPI, not the import name or the CLI command:
+# `plumbline` (the name that would read most naturally) is already taken
+# there by an unrelated, long-dormant geospatial package. `plumbline-eval`
+# is free as of this decision (2026-08-22) and is a placeholder pending
+# confirmation, not a claim already made — nothing has been uploaded under
+# either name. The package directory stays `src/plumbline/`, `import
+# plumbline` and the `plumbline` command are unaffected either way; only
+# this one string, and the `pkg:pypi/...` purl in `sbom.cdx.json`
+# (regenerate with `tools/build_sbom.py` after changing it), would need to
+# change if a different name is chosen before the first real publish.
+name = "plumbline-eval"
 version = "0.2.0"
 description = "Fail-closed, deterministic evaluation harness for government-facing chat systems: provenance-stamped audit reports, usable as a merge-blocking CI gate."
 readme = "README.md"

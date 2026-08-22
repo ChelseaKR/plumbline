@@ -117,7 +117,7 @@ wheels = [
 ]
 
 [[package]]
-name = "plumbline"
+name = "plumbline-eval"
 version = "0.2.0"
 source = { editable = "." }
 
