@@ -397,7 +397,7 @@ floor = 0.85
         code, out, err = run_cli("gate", "--config", str(config),
                                  "--out", str(self.root / "out"))
         self.assertNotEqual(code, EXIT_PASS,
-                            f"a target with 174 empty responses passed:\n{out}")
+                            f"a target with 178 empty responses passed:\n{out}")
 
     def test_partial_silence_is_reported_as_uncovered_not_absorbed(self):
         """Losing a fifth of the responses must shrink the population a suite
@@ -431,7 +431,7 @@ class SilenceThatGetsPastStrip(SilenceIsNotAPass):
     """The fix above tested `response.strip()`, so it caught the empty string
     and nothing else.
 
-    A target answering every one of the 174 items with `"."` — or an emoji, or
+    A target answering every one of the 178 items with `"."` — or an emoji, or
     a zero-width space, or a bare `[src-id]` — scored the identical perfect
     1.0000 on the identical five suites and the gate returned PASS, exit 0. A
     response now counts only if something in it survives normalization."""
@@ -476,7 +476,12 @@ class SilenceThatGetsPastStrip(SilenceIsNotAPass):
         result = self._evaluate("smoke")
         self.assertEqual(result.score, 0.0)
         self.assertEqual(result.verdict, FAIL)
-        self.assertEqual(len(result.details["unreadable_items"]), 174)
+        # Every response in this fixture bundle was rewritten to "...", so
+        # every item in it — whatever the demo bundle's current size — is
+        # unreadable; a fixed count here would drift the next time the demo
+        # bundle grows.
+        bundle = load(self.silent_bundle)
+        self.assertEqual(len(result.details["unreadable_items"]), len(bundle.items))
 
 
 class NothingAssertedIsNotWellGrounded(_Tmp):

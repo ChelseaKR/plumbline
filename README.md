@@ -87,19 +87,35 @@ not making it".
 Pre-1.0 (`0.1.0`, the first tagged release). While the version stays below
 `1.0.0`, a MINOR bump may break the interface; pin an exact commit and read
 the CHANGELOG before moving. Every capability in the functional specification
-is implemented: fourteen scoring suites, per-suite confidence intervals and
+is implemented: fifteen scoring suites, per-suite confidence intervals and
 minimum detectable effect, baseline regression comparison, a pinned
 fail-closed CI gate, live-target recording over HTTP or against a local
 program, and an optional model judge — none of which the gate can reach. Every
 suite has been **observed failing** on a defect it exists to catch; see
-[`proof/matrix.md`](proof/matrix.md). 502 tests, standard library only,
+[`proof/matrix.md`](proof/matrix.md). 566 tests, standard library only,
 offline.
 
-The fourteenth suite is beyond the specification and came from a consumer's
-bug report: an answer can be grounded, cited, in the right language and not a
-refusal, and still be composed from the **wrong paragraph** of the right
-document. See "Wrong paragraph, right document" below for what
-`passage_attribution` can and cannot determine.
+The fourteenth and fifteenth suites are beyond the specification. The
+fourteenth came from a consumer's bug report: an answer can be grounded,
+cited, in the right language and not a refusal, and still be composed from
+the **wrong paragraph** of the right document. See "Wrong paragraph, right
+document" below for what `passage_attribution` can and cannot determine. The
+fifteenth, `conversational_integrity`, came from the same observation applied
+to a conversation instead of a document: every suite before it read only a
+target's final response, so a forbidden phrase that leaked mid-conversation
+and was walked back by the end was invisible to all of them. It scores an
+opt-in `turns`/`turn_responses` declaration per item, additive to the bundle
+format — see
+[`docs/adr/0003-multi-turn-items-are-additive-not-a-new-bundle-format.md`](docs/adr/0003-multi-turn-items-are-additive-not-a-new-bundle-format.md).
+
+Beyond the specification, six more proposals from
+[`docs/feature-expansion-ideas.md`](docs/feature-expansion-ideas.md) are
+implemented: detached report signatures (`plumbline sign`), SARIF export for
+CI annotations (`--sarif`), an append-only run history with a longitudinal
+trend view (`plumbline history`), recording retention and redaction
+(`plumbline retire`), and a checked-for-staleness SBOM with a release
+workflow that has not yet been exercised against a real tag. See the
+CHANGELOG for what each closes and does not.
 
 Not done, deliberately: nothing here has been pointed at a real public-sector
 system. [`docs/first-real-target.md`](docs/first-real-target.md) records what
@@ -195,7 +211,7 @@ run is not a gate that passed. See [`gate/README.md`](gate/README.md).
 
 ## Proof that the gate bites
 
-Fourteen suites reporting PASS proves nothing about whether any of them *can*
+Fifteen suites reporting PASS proves nothing about whether any of them *can*
 report FAIL. A suite nobody has watched fail is indistinguishable from a suite
 that cannot fail, and "fail closed" is this project's entire claim.
 
@@ -210,8 +226,8 @@ python3 tools/defect_matrix.py --check   # verify the committed proof is current
 ```
 
 Read the result in [`proof/matrix.md`](proof/matrix.md) rather than taking
-this paragraph's word for it. Twenty cases, all fourteen suites covered, plus
-an integrity refusal and two empty-population configuration errors. The
+this paragraph's word for it. Twenty-one cases, all fifteen suites covered,
+plus an integrity refusal and two empty-population configuration errors. The
 matrix is regenerated and checked on every test run, so it cannot go stale
 while the code moves under it.
 
@@ -344,8 +360,12 @@ valid. Pass `--require-comparable-baseline` if you want it to.
   the disparity between the best- and worst-served group, not the average,
   floor 0.85); `representational_harms` and `privacy` (deterministic screens,
   floor 1.00); `accessibility` (five structural checks on a captured
-  interface snapshot, with contrast ratios computed here, floor 1.00). Floors
-  are per-target configuration; these are demonstration defaults.
+  interface snapshot, with contrast ratios computed here, floor 1.00);
+  `conversational_integrity` (an opt-in `turns`/`turn_responses` declaration
+  per item scores every turn of a conversation, not only the final response
+  every other suite reads — floor 0.90, see
+  [ADR 0003](docs/adr/0003-multi-turn-items-are-additive-not-a-new-bundle-format.md)).
+  Floors are per-target configuration; these are demonstration defaults.
 - Enabling a suite the bundle cannot exercise is a configuration error, not a
   vacuous pass.
 - Reports: `report.json` + `report.md`, verdict first, full provenance block,
@@ -362,6 +382,13 @@ valid. Pass `--require-comparable-baseline` if you want it to.
   harness source that produced it, not just a version string.
 - **A disclosure of which suites are not independent signals**, in every
   report, computed from that run's own per-item records.
+- **Beyond the gate itself**: `plumbline sign`/`verify --key-file`
+  (shared-secret report signatures), `--sarif` on `audit`/`gate` (SARIF 2.1.0
+  for a consuming repository's PR annotations), `plumbline history
+  append`/`check` (an append-only run history and a decline-streak
+  observation over the pairwise baseline comparison), and `plumbline retire`
+  (recording retention and redaction). None of these change what is scored;
+  see the CHANGELOG for what each closes.
 
 ## Wrong paragraph, right document
 
@@ -689,16 +716,16 @@ were taken on 2026-08-17.
 |---|---|
 | Responsible-Tech Framework | Applies: the whole argument of the harness is that a check which cannot go red is a badge, and the fail-open defects it found in itself are in `CHANGELOG.md`, each reproduced before it was fixed. The bundled dataset is labelled synthetic in the first line of this README and measures no real system. Not met: no dated ethics, transparency, or residual-risk artifact |
 | Code Quality | Applies (not met). `make lint` runs ruff's default rule set and is green; the floor is pinned at `ruff>=0.15.0`. F541 is the one rule ignored, with the reason in `pyproject.toml`: editing a source file moves `harness_source_sha256` and invalidates every committed audit, which is too high a price for a redundant `f` prefix. Branch coverage over `src/` is 94% against a 90% floor, enforced by `make test`. Three real gaps: the wider portfolio rule set has 304 findings (232 of them line length), `mypy` is not wired at all and reports 27 errors by default and 172 under `--strict`, and 14 functions exceed a McCabe complexity of 10. Python floor is 3.11, below the portfolio's 3.12 |
-| Security & Supply-Chain | Applies: no third-party runtime dependency, so the largest supply-chain surface does not exist here. Semgrep and full-history TruffleHog run on every push and pull request, gitleaks runs diff-scoped in pre-commit, Dependabot watches the action pins, and every `uses:` is pinned to a 40-character SHA with `persist-credentials: false`. Not met: no SBOM, no OpenSSF Scorecard, no signed release |
-| CI/CD | Applies: `tests.yml` runs the suite on CPython 3.11 through 3.14, re-runs the committed demo audit and fails on a single moved byte, and runs the tamper drill checking exit codes rather than only checking they were non-zero. Every workflow scopes `permissions:` at the top. Not met: `main` has no ruleset applied, so the gates report without blocking |
-| Release & Versioning | Applies (not met). `v0.1.0` is tagged and dated in `CHANGELOG.md`, which is kept current. There is no release workflow, no signed tag, and no published artifact |
+| Security & Supply-Chain | Applies: no third-party runtime dependency, so the largest supply-chain surface does not exist here. Semgrep and full-history TruffleHog run on every push and pull request, gitleaks runs diff-scoped in pre-commit, Dependabot watches the action pins, and every `uses:` is pinned to a 40-character SHA with `persist-credentials: false`. A CycloneDX SBOM (`sbom.cdx.json`) is generated from `pyproject.toml` and checked for staleness the same way the published page is; `.github/workflows/release.yml` runs OpenSSF Scorecard and keyless-signs the SBOM with Sigstore cosign on a tag. Not met: that workflow has never run against a real tag, so none of it is an observed result yet — see the file's own header |
+| CI/CD | Applies: `tests.yml` runs the suite on CPython 3.11 through 3.14, re-runs the committed demo audit and fails on a single moved byte, and runs the tamper drill checking exit codes rather than only checking they were non-zero. `release.yml` runs on a `v*` tag (SBOM check, Scorecard, keyless signing, a published Release) or by hand via `workflow_dispatch`. Every workflow scopes `permissions:` at the top. Not met: `main` has no ruleset applied, so the gates report without blocking; `release.yml` has never actually run |
+| Release & Versioning | Applies. `v0.1.0` is tagged and dated in `CHANGELOG.md`, which is kept current. `.github/workflows/release.yml` now exists — SBOM verification, Scorecard, a keyless-signed SBOM, a published GitHub Release — triggered on a `v*` tag or by hand. Not met: `v0.1.0` predates it and was not released through it, there is no signed git tag, and the workflow itself is unexercised, so nothing above is an observed result yet |
 | Observability | Applies (Tier C). A command-line harness writing reports to a directory. No service, no telemetry, no SLO surface. The observable surface is the exit-code contract and the report, both tested. Not met: no operations runbook |
 | Performance | Applies (not met). The harness is offline and the published page is a single static file, which is a good starting position and is not a measurement. No budget recorded and no run committed |
 | Accessibility | Applies (not met). `site/index.html` is published to GitHub Pages, so this is in scope rather than exempt. `tools/build_site.py --check` proves the page is what the committed evidence produces; nothing checks the page against WCAG. The `accessibility` scoring suite is a measurement of the *target under test* and is not evidence about this page |
 | Internationalization | N/A (operator-facing audit tooling; the reports and the command-line output are English by design, and the reader is the engineer running the gate). The `multilingual` scoring suite is about the language a *target* answers in, and takes recogniser definitions from the target's own config so the list is never limited to what this repository ships |
 | AI Evaluation | Applies: this is an evaluation harness, and the harness itself is evaluated. Every suite has been observed failing on a defect it exists to catch, recorded in `proof/matrix.md` and regenerated by `tools/defect_matrix.py`. The default judge is deterministic and lexical; the optional model judge is off by default, is refused outright by `gate`, and taints the run id so differently-judged runs cannot compare as equal. Not met: no model card for the optional judge path |
-| Documentation | Applies: this README, `DESIGN.md` with the architecture and an acceptance record, `CHANGELOG.md`, `CONTRIBUTING.md`, `SECURITY.md`, `CITATION.cff`, `CODEOWNERS`, `docs/first-real-target.md`, and an ADR log seeded at `docs/adr/0000-record-architecture-decisions.md`. Not met: the quickstart sits well below the top of this file |
+| Documentation | Applies: this README, `DESIGN.md` with the architecture and an acceptance record, `CHANGELOG.md`, `CONTRIBUTING.md`, `SECURITY.md`, `CITATION.cff`, `CODEOWNERS`, `docs/first-real-target.md`, `docs/recordings-data-card.md`, `docs/feature-expansion-ideas.md`, and an ADR log at `docs/adr/` — four entries, `0000` through `0003`. Not met: the quickstart sits well below the top of this file |
 | Quality & Metrics | Applies: fail-closed throughout, and the acceptance record in `DESIGN.md` reports results from an actual clean checkout rather than a badge. Not met: no Definition of Done and no metrics ledger |
 | AI Development Measurement | Applies (not met). This harness was built from a functional specification with AI agents, disclosed under Status above. No baseline and no outcome metrics are recorded for that development stream |
 | Incident Response | Applies: [`SECURITY.md`](SECURITY.md) is the private reporting channel and carries the acknowledgement and fix SLA, and names integrity refusal as a security property rather than only a correctness one. Not met: no severity-label convention and no committed-postmortem requirement |
-| Data Governance | Applies (L1, public non-sensitive): everything under `datasets/` is synthetic, generated by a committed script, and about a fictional county. Bundles are content-hashed and a tampered one refuses to score. Not met: no data card and no stated retention position for recordings, which the `.gitignore` keeps out of the repository but does not otherwise govern |
+| Data Governance | Applies (L1, public non-sensitive): everything under `datasets/` is synthetic, generated by a committed script, and about a fictional county. Bundles are content-hashed and a tampered one refuses to score. `plumbline retire` now screens a recording for personal data and redacts or refuses past a configured retention window, reusing `privacy.py`'s own PII patterns; `docs/recordings-data-card.md` is the data card. Not met: no recordings exist yet to apply it to (no real target has been recorded against, per Status above), retention screening is pattern matching and states its own limit ("finds identifiers, not judgment calls"), and no jurisdictional retention requirement is mapped to a default `--max-age-days` |

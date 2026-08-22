@@ -44,7 +44,7 @@ retries = 1
 retry_delay_seconds = 1.0
 min_interval_seconds = 0.05   # be a good citizen of somebody's service
 # Refuse a question set nobody meant to send. 200 because the bundled
-# question set is 174 items and the command at the top of this file has to
+# question set is 178 items and the command at the top of this file has to
 # work as written; a real target sets this to what its operator agreed to.
 max_items = 200
 on_error = "abort"            # a failed call is not a low score

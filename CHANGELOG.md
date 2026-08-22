@@ -47,6 +47,56 @@ may break the interface.
   real gaps with measurements: mypy is not wired at all (27 errors by default,
   172 under `--strict`), 14 functions exceed a McCabe complexity of 10, and the
   Python floor is 3.11 against a portfolio floor of 3.12.
+- **A fifteenth suite: `conversational_integrity`.** Every other suite reads
+  `response_for(item.id)` — the final turn only — so a target that leaks a
+  forbidden phrase, or drops a refusal, midway through a conversation and then
+  produces a clean final answer was invisible to all of them: the
+  wrong-paragraph problem `passage_attribution` exists for, for turns instead
+  of paragraphs. `Item.turns` and a response record's `turn_responses` are
+  additive (`docs/adr/0003-multi-turn-items-are-additive-not-a-new-bundle-format.md`):
+  an empty `turns` list is byte-identical to every item this
+  harness has ever loaded, and `FORMAT_VERSION` does not move. Opt-in twice
+  over, the same way `passage_attribution` is — an item declares `turns` and
+  was additionally *recorded* per turn, or it is UNVERIFIABLE, never a pass.
+  The demo bundle grows from 174 to 178 items: four hand-written multi-turn
+  escalation probes, all clean, and a 21st defect-injection case plants a
+  mid-conversation leak with a clean final turn to prove the suite catches it
+  while every other suite — `adversarial` included — stays indifferent.
+- **`plumbline sign` / `plumbline verify --key-file`.** A detached
+  HMAC-SHA256 signature over a report's own seal, closing the gap `verify`
+  already named: the seal is tamper evidence, not authentication.
+  Deliberately shared-secret rather than public-key —
+  `docs/adr/0002-shared-secret-report-signatures.md` records why a from-scratch asymmetric
+  implementation or a first runtime dependency were both worse choices than
+  saying plainly what HMAC does and does not prove.
+- **`--sarif` on `audit` and `gate`.** Projects failing and UNVERIFIABLE
+  per-item records onto SARIF 2.1.0, so a consuming repository's CI can
+  upload real findings for inline PR annotations instead of only a pass/fail
+  exit code — no new measurement, the same report data rendered a second way.
+- **`plumbline history append` / `history check`.** An append-only run
+  history and a longitudinal trend view on top of the pairwise baseline
+  comparison, which by design cannot see a regression smaller than one
+  comparison's MDE accumulate across many runs. Reports one plain fact —
+  a suite's score non-increasing across every step of the trailing N
+  comparable runs, with at least one real decrease — no new interval, no
+  p-value; `docs/adr/0001-longitudinal-history-is-observation-not-inference.md`
+  records why a real trend statistic was left out of scope.
+  Off by default in CI; `--fail-on-decline` opts in.
+- **`plumbline retire`.** A recording-retention and redaction lifecycle
+  companion to `plumbline record`, closing the Data Governance gap the
+  README already named: no data card, no stated retention position for
+  recordings. Reuses `privacy.py`'s own PII screen against every recorded
+  response; past a configured age, a bundle still carrying a flagged pattern
+  is refused unless `--redact` rewrites it in place and reseals.
+  `docs/recordings-data-card.md` is the data card half of the same gap.
+- **`sbom.cdx.json`, `tools/build_sbom.py`, `.github/workflows/release.yml`.**
+  A CycloneDX SBOM generated from `pyproject.toml`, checked for staleness the
+  same way the published evidence page is; a release workflow that verifies
+  the SBOM, runs OpenSSF Scorecard, and keyless-signs the SBOM with Sigstore
+  cosign over GitHub's own OIDC token. The workflow has not been exercised
+  against a real tag — it says so at the top of the file, the same "not yet
+  met, not asserted as done" posture the Standards Conformance table already
+  takes on the two gaps this closes.
 
 ### Fixed
 

@@ -264,6 +264,7 @@ def _load_all() -> None:
         adversarial,
         attribution,
         conduct,
+        conversational_integrity,
         cross_language,
         fairness,
         grounding,
