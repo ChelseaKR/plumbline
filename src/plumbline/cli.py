@@ -48,6 +48,15 @@ from .config import ConfigError, load_config
 from .couplings import summarize_for_terminal as summarize_couplings
 from .errors import OutboundError
 from .report import ReportSealError, verify_report
+from .signing import (
+    SignatureMismatchError,
+    SigningError,
+    read_key,
+    read_signature,
+    sign_report,
+    verify_signature,
+    write_signature,
+)
 from .suites import EmptyPopulationError
 
 EXIT_PASS = 0
@@ -148,6 +157,44 @@ def cmd_verify(args: argparse.Namespace) -> int:
     print("note:    the seal covers this report's body. It does not vouch for "
           "the evidence beyond the dataset hash above; verify that bundle with "
           "`plumbline validate`.")
+    if args.key_file:
+        sig_path = source.parent / "report.sig" if not args.signature else Path(args.signature)
+        signature = read_signature(sig_path)
+        key = read_key(Path(args.key_file))
+        verified_key_id = verify_signature(report, key, signature,
+                                           source=str(source),
+                                           signature_source=str(sig_path))
+        print(f"signature: OK — verifies against key id {verified_key_id}")
+        print("note:      a shared-secret (HMAC-SHA256) signature: it "
+              "attests to whoever else holds this same key file, not to the "
+              "public. See `signing.py`.")
+    else:
+        print("signature: not checked (pass --key-file to check report.sig "
+              "against a shared key)")
+    return EXIT_PASS
+
+
+def cmd_sign(args: argparse.Namespace) -> int:
+    """Write a detached signature attesting who produced a report, to anyone
+    else holding the same key.
+
+    This is authentication between parties who already share a secret, not a
+    public attestation — see `signing.py`. It layers on top of, and never
+    replaces, the seal `plumbline verify` already checks; an unsealed or
+    tampered report is refused before it is signed.
+    """
+    source = Path(args.report)
+    report = _read_report(source)
+    key = read_key(Path(args.key_file))
+    signature = sign_report(report, key, source=str(source))
+    out = write_signature(signature, source)
+    print(f"signed:  {source}")
+    print(f"seal:    {signature['seal_sha256']}")
+    print(f"key id:  {signature['key_id']} (a fingerprint of the key, not the key)")
+    print(f"written: {out}")
+    print("note:    a shared-secret (HMAC-SHA256) signature, not a "
+          "public-key one — verifiable only by someone else holding this "
+          "exact key file. See `signing.py` for why.")
     return EXIT_PASS
 
 
@@ -366,7 +413,26 @@ def build_parser() -> argparse.ArgumentParser:
         help="check a written report against its own seal: refuse if the "
              "report was edited after it was produced")
     p_verify.add_argument("report", help="path to a report.json")
+    p_verify.add_argument(
+        "--key-file",
+        help="also check the detached signature next to this report "
+             "(report.sig by default) against this shared-secret key")
+    p_verify.add_argument(
+        "--signature",
+        help="path to the signature file, if not report.sig alongside the "
+             "report (only meaningful with --key-file)")
     p_verify.set_defaults(func=cmd_verify)
+
+    p_sign = sub.add_parser(
+        "sign",
+        help="write a detached HMAC-SHA256 signature over a report's seal, "
+             "attesting who produced it to anyone holding the same key "
+             "(shared-secret, not public-key — see signing.py)")
+    p_sign.add_argument("report", help="path to a report.json")
+    p_sign.add_argument("--key-file", required=True,
+                        help="path to a shared-secret key file "
+                             "(at least 16 bytes)")
+    p_sign.set_defaults(func=cmd_sign)
 
     p_audit = sub.add_parser("audit", help="run the full audit and write provenance-stamped reports")
     p_audit.add_argument("--config", required=True, help="target configuration (TOML)")
@@ -452,6 +518,12 @@ def main(argv: list[str] | None = None) -> int:
     except ReportSealError as e:
         print(f"INTEGRITY REFUSAL: {e}", file=sys.stderr)
         return EXIT_INTEGRITY_REFUSAL
+    except SignatureMismatchError as e:
+        # A signature that does not check out is treated the same as a seal
+        # mismatch: refuse rather than warn. Caught ahead of the generic
+        # SigningError tuple below, since it is a subclass of it.
+        print(f"SIGNATURE REFUSAL: {e}", file=sys.stderr)
+        return EXIT_INTEGRITY_REFUSAL
     except ResultError as e:
         # The instrument malfunctioned. Not exit 1: nothing was measured.
         print(f"INTERNAL ERROR: {e}", file=sys.stderr)
@@ -460,7 +532,7 @@ def main(argv: list[str] | None = None) -> int:
               "in a suite; please report it.", file=sys.stderr)
         return EXIT_INTERNAL_ERROR
     except (ConfigError, BundleError, BaselineError, EmptyPopulationError,
-            CoverageError, OutboundError, ValueError, KeyError) as e:
+            CoverageError, OutboundError, SigningError, ValueError, KeyError) as e:
         msg = e.args[0] if e.args else e
         print(f"CONFIGURATION ERROR: {msg}", file=sys.stderr)
         return EXIT_CONFIG_ERROR
