@@ -48,6 +48,7 @@ from .config import ConfigError, load_config
 from .couplings import summarize_for_terminal as summarize_couplings
 from .errors import OutboundError
 from .report import ReportSealError, verify_report
+from .sarif import write_sarif
 from .signing import (
     SignatureMismatchError,
     SigningError,
@@ -334,6 +335,9 @@ def cmd_audit(args: argparse.Namespace) -> int:
             print(line)
     print(f"reports: {outcome.json_path}")
     print(f"         {outcome.md_path}")
+    if args.sarif:
+        sarif_path = write_sarif(outcome.report, outcome.json_path.parent)
+        print(f"         {sarif_path}")
     return _baseline_exit(outcome, args) or (
         EXIT_PASS if outcome.verdict == "PASS" else EXIT_SUITE_FAILURE)
 
@@ -370,6 +374,10 @@ def cmd_gate(args: argparse.Namespace) -> int:
         for line in summarize_for_terminal(outcome.comparison):
             print(line)
     print(f"reports: {outcome.json_path}")
+
+    if args.sarif:
+        sarif_path = write_sarif(report, outcome.json_path.parent)
+        print(f"sarif:   {sarif_path}")
 
     if args.summary_file:
         summary = Path(args.summary_file)
@@ -439,6 +447,11 @@ def build_parser() -> argparse.ArgumentParser:
     p_audit.add_argument("--out", default="audits", help="report output directory (default: audits)")
     p_audit.add_argument("--seed", type=int, default=DEFAULT_SEED,
                          help=f"random seed, recorded in provenance (default: {DEFAULT_SEED})")
+    p_audit.add_argument(
+        "--sarif", action="store_true",
+        help="also write sarif.json next to the reports, projecting failing "
+             "and UNVERIFIABLE items as SARIF 2.1.0 results a consuming "
+             "repository's CI can upload for inline PR annotations")
     _add_baseline_arguments(p_audit)
     p_audit.set_defaults(func=cmd_audit)
 
@@ -453,6 +466,11 @@ def build_parser() -> argparse.ArgumentParser:
     p_gate.add_argument("--summary-file",
                         help="append the human-readable report to this file "
                              "(for example \"$GITHUB_STEP_SUMMARY\")")
+    p_gate.add_argument(
+        "--sarif", action="store_true",
+        help="also write sarif.json next to the reports, projecting failing "
+             "and UNVERIFIABLE items as SARIF 2.1.0 results a consuming "
+             "repository's CI can upload for inline PR annotations")
     _add_baseline_arguments(p_gate)
     p_gate.set_defaults(func=cmd_gate)
 
