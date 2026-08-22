@@ -49,6 +49,7 @@ from . import history as history_mod
 from .couplings import summarize_for_terminal as summarize_couplings
 from .errors import OutboundError
 from .report import ReportSealError, verify_report
+from .retention import RetentionError, retire as retire_bundle
 from .sarif import write_sarif
 from .signing import (
     SignatureMismatchError,
@@ -304,6 +305,34 @@ def cmd_record(args: argparse.Namespace) -> int:
           f"this bundle with `plumbline audit`")
     print("note:      its dataset hash is new, so comparison against a "
           "baseline built from other evidence will be refused, as it should be")
+    return EXIT_PASS
+
+
+def cmd_retire(args: argparse.Namespace) -> int:
+    """Screen a recorded bundle's responses for personal data, and either
+    report what a retention window has not yet forced, redact and reseal,
+    or refuse — see `retention.py`."""
+    result = retire_bundle(Path(args.bundle), max_age_days=args.max_age_days,
+                           redact_now=args.redact)
+    print(f"bundle:      {result.bundle_dir}")
+    print(f"recorded at: {result.recorded_at}")
+    print(f"age:         {result.age_days:.1f} day(s) "
+          f"(retention window {result.max_age_days})")
+    if result.redacted_count:
+        print(f"redacted:    {result.redacted_count} response(s); "
+              f"bundle re-sealed (its dataset hash changed, which is the trace)")
+    elif result.findings:
+        print(f"flagged:     {len(result.findings)} response(s) still carry "
+              f"a personal-data pattern (retention window not yet crossed, "
+              f"so this is a report, not a refusal)")
+        for item_id in sorted(result.findings)[:10]:
+            kinds = sorted({k for k, _ in result.findings[item_id]})
+            print(f"  {item_id}: {', '.join(kinds)}")
+    else:
+        print("flagged:     none — no shipped pattern matched")
+    print("note:        pattern matching finds identifiers, not judgment "
+          "calls; a clean screen is not a guarantee. See retention.py and "
+          "docs/recordings-data-card.md.")
     return EXIT_PASS
 
 
@@ -571,6 +600,21 @@ def build_parser() -> argparse.ArgumentParser:
              "block a merge the way the gate does unless asked to")
     p_history_check.set_defaults(func=cmd_history_check)
 
+    p_retire = sub.add_parser(
+        "retire",
+        help="screen a bundle recorded by `plumbline record` for personal "
+             "data, and redact or refuse past a retention window")
+    p_retire.add_argument("bundle", help="path to a recorded bundle directory")
+    p_retire.add_argument(
+        "--max-age-days", type=int, required=True,
+        help="retention window in days; past it, a bundle still carrying a "
+             "flagged pattern is refused unless --redact is given")
+    p_retire.add_argument(
+        "--redact", action="store_true",
+        help="redact every flagged span in place and reseal the bundle, "
+             "regardless of its age")
+    p_retire.set_defaults(func=cmd_retire)
+
     p_baseline = sub.add_parser(
         "baseline",
         help="write the committed baseline record distilled from a report")
@@ -623,7 +667,7 @@ def main(argv: list[str] | None = None) -> int:
         return EXIT_INTERNAL_ERROR
     except (ConfigError, BundleError, BaselineError, EmptyPopulationError,
             CoverageError, OutboundError, SigningError,
-            history_mod.HistoryError, ValueError, KeyError) as e:
+            history_mod.HistoryError, RetentionError, ValueError, KeyError) as e:
         msg = e.args[0] if e.args else e
         print(f"CONFIGURATION ERROR: {msg}", file=sys.stderr)
         return EXIT_CONFIG_ERROR
