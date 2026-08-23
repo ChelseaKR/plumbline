@@ -68,11 +68,25 @@ def normalize(text: str) -> str:
 
 
 def extract_numbers(text: str) -> list[str]:
-    """Numeric tokens, commas stripped, trailing dot trimmed. Used for the
-    load-bearing policy-fact check and for cross-language agreement."""
+    """Numeric tokens in canonical form. Used for the load-bearing
+    policy-fact check and for cross-language agreement.
+
+    Canonical means commas stripped, a trailing dot trimmed, and trailing
+    zeros after a decimal point dropped, so `$125.00` and `$125` are the
+    same number. They were not, and the first real guidance pages this
+    harness was pointed at write fees both ways on the same site: a
+    response that correctly said "$125" against a source that said
+    "$125.00" failed the number-support check as unsupported, and two
+    languages stating the same fee with different formatting disagreed.
+    A token with more than one dot (a version string, a date written
+    with dots) is left as found: it is not a decimal and there is no
+    canonical form to give it.
+    """
     out = []
     for tok in _NUM_RE.findall(text):
         tok = tok.replace(",", "").rstrip(".")
+        if tok.count(".") == 1:
+            tok = tok.rstrip("0").rstrip(".")
         if tok:
             out.append(tok)
     return out
@@ -127,11 +141,11 @@ class LexicalJudge:
     def config(self) -> dict[str, Any]:
         return {
             "kind": self.kind,
-            "version": 3,
+            "version": 4,
             "normalization": ["lowercase", "strip_punctuation", "collapse_whitespace"],
             "answer_metric": "token_f1",
             "support_metric": "content_token_recall",
-            "number_extraction": "digits_with_commas_stripped",
+            "number_extraction": "digits_with_commas_stripped_decimal_zeros_dropped",
             "citation_marker": "square_bracketed_source_id",
             "language_detection": "script majority first, then function-word profile",
             "lexicons": lexicons.as_config(self._languages),

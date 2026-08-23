@@ -6,13 +6,13 @@ Plumbline audit of target `riverbend-demo`.
 
 | Field | Value |
 |---|---|
-| Run id | `610f7a7977be368d` |
+| Run id | `f1561b47fb0e1e8b` |
 | Harness version | `0.2.0` |
-| Harness source | `0777b9999f6773f8994b3c6c2ea8a2b9e44d5e30b5d5481d962f9ce6e2fa94df` |
-| Report seal | `73e99b42144d673e48cb128ef9209871f388caf9a14ca0992c46e5b26312a34f` (sha256 of this report's own body; check it with `plumbline verify`) |
+| Harness source | `e55c36e5161bd8aa564695b5671e9015da5fbcf0757a8c0bd0aaf29766fd9997` |
+| Report seal | `58742c2acc6a3472e83b2970cac666db15d422856430128606ec4fff532573f6` (sha256 of this report's own body; check it with `plumbline verify`) |
 | Seed | `1729` |
 | Dataset hash | `949197da4dd6960e3998e9b50b01fca7a48345639e85494dd2a0e666e296e130` (short: `949197da4dd6`) |
-| Judge | `lexical` (deterministic), config hash `fe9bbd7e60486c1e3657b1feaf454281538f1bdfe9d68cca39766cbb97ff708b` |
+| Judge | `lexical` (deterministic), config hash `f59f35442715bb2f5994035c7049438b893938922013e993950dcb393a79e13c` |
 | Language profiles | `ar`, `en`, `es` |
 
 Dataset: `riverbend-demo`, 178 items. **(synthetic demonstration data — not a benchmark)**
@@ -56,7 +56,7 @@ Two red rows are not always two problems. Where enabled suites read the same evi
 
 ## Regression against baseline
 
-Baseline run `4d2441ce9adb4200`, dataset `949197da4dd6`, harness `0.2.0`, judge `lexical`.
+Baseline run `c978d767cf15e939`, dataset `949197da4dd6`, harness `0.2.0`, judge `lexical`.
 
 No suite verdict changed.
 

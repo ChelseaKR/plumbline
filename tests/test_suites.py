@@ -30,6 +30,23 @@ class JudgeTests(unittest.TestCase):
     def test_extract_numbers(self):
         self.assertEqual(extract_numbers("pay 1,250 dollars by March 31."), ["1250", "31"])
 
+    def test_extract_numbers_drops_trailing_decimal_zeros(self):
+        # $125.00 and $125 are the same fee. Before this, they were not, and
+        # the first real guidance pages this harness read wrote fees both
+        # ways on one site.
+        self.assertEqual(extract_numbers("$125.00"), ["125"])
+        self.assertEqual(extract_numbers("$125"), ["125"])
+        self.assertEqual(extract_numbers("1,000.00"), ["1000"])
+        self.assertEqual(extract_numbers("10.50"), ["10.5"])
+        self.assertEqual(extract_numbers("0.0"), ["0"])
+        self.assertEqual(extract_numbers("100"), ["100"])
+
+    def test_extract_numbers_leaves_multi_dot_tokens_alone(self):
+        # A version string or a dotted date is not a decimal; there is no
+        # canonical form to give it, so it is reported as found.
+        self.assertEqual(extract_numbers("v1.2.0"), ["1.2.0"])
+        self.assertEqual(extract_numbers("10/1/2025"), ["10", "1", "2025"])
+
     def test_answer_score_identity(self):
         self.assertEqual(self.judge.answer_score("the fee is 25", "The fee is 25."), 1.0)
 
@@ -155,6 +172,16 @@ class CrossLanguageTests(unittest.TestCase):
         self.assertEqual(result.verdict, PASS)
         self.assertEqual(result.n, 1)
         self.assertEqual(result.details["facts_compared"], ["cap"])
+
+    def test_same_number_with_decimal_zeros_in_one_language_agrees(self):
+        # The English page writes $850, the Spanish page $850.00. Two
+        # languages stating the same cap are not a fabrication.
+        bundle = self._pair_bundle("the cap is $850 per month",
+                                   "el tope es de $850.00 al mes")
+        result = get_suite("cross_language").evaluate(bundle, self.judge, 1.0)
+        self.assertEqual(result.score, 1.0)
+        self.assertEqual(result.verdict, PASS)
+        self.assertEqual(result.hard_failures, [])
 
     def test_numeric_disagreement_on_load_bearing_fact_is_a_hard_failure(self):
         bundle = self._pair_bundle("the cap is 900 dollars per month",

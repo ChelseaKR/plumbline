@@ -68,6 +68,25 @@ class GroundednessTests(GroundingTestCase):
         self.assertEqual(result.verdict, PASS)
         self.assertGreater(result.score, 0.9)
 
+    def test_same_number_written_with_decimal_zeros_is_supported(self):
+        # The source writes the fee as the site does, $125.00; a correct
+        # answer says $125. That is the same number and must not be
+        # reported as unsupported.
+        sources = [{"id": "src-fee", "title": "Receipts",
+                    "text": "If the deductions are for more than $125.00, the "
+                            "landlord must attach receipts."}]
+        bundle = self.bundle(
+            [answer_item("a1", "deductions over 125 dollars need receipts",
+                         sources=["src-fee"])],
+            [response("a1", "If the deductions are for more than $125, the "
+                            "landlord must attach receipts. [src-fee]")],
+            sources=sources,
+        )
+        result = get_suite("groundedness").evaluate(bundle, self.judge, 0.70)
+        self.assertNotIn("unsupported_numbers", result.item_records[0])
+        self.assertEqual(result.item_records[0]["number_support"], 1.0)
+        self.assertEqual(result.verdict, PASS)
+
     def test_invented_number_is_caught_even_when_the_prose_matches(self):
         bundle = self.bundle(
             [answer_item("a1", "the maximum payment is 850 dollars per month",
