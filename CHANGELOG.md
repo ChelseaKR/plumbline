@@ -11,6 +11,19 @@ may break the interface.
 
 ### Added
 
+- **An operations runbook** ([`docs/operations-runbook.md`](docs/operations-runbook.md)),
+  closing the gap the Observability conformance row named against itself.
+  Split for the two people who actually hit it: someone gating a
+  repository with Plumbline (every exit code, keyed to what it means and
+  what to do, plus the gate hanging instead of exiting), and someone
+  maintaining this repository (CI failure modes, the security and release
+  workflows, and the human-only duties nothing here schedules — a
+  retention sweep, a signing-key rotation, a tag push). Documents, for
+  the first time in one place, the exact two-pass baseline regeneration
+  order this repository's own artifacts require after any
+  `src/plumbline/` edit — self-referential because the baseline's own
+  hash feeds into the run id of the next report that names it, and the
+  single most common way this repository's own CI has actually gone red.
 - **`tools/check_site_a11y.py`** holds the published evidence page,
   `site/index.html`, to the same kind of structural check
   `src/plumbline/suites/accessibility.py` runs against a *target's*
