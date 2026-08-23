@@ -9,6 +9,27 @@ may break the interface.
 
 ## [Unreleased]
 
+### Fixed
+
+- **`$125.00` and `$125` were different numbers to the judge.**
+  `judges.extract_numbers` stripped commas and a trailing dot and
+  stopped there, so a response that correctly said "$125" against a
+  source that said "$125.00" failed the number-support check in
+  `groundedness` as an unsupported number, and two languages stating the
+  same fee with different formatting were a `cross_language` hard
+  failure. Found while building the first question set from a real
+  service's published guidance, which writes fees both ways on one site.
+  Trailing zeros after a decimal point are now dropped (`10.50` becomes
+  `10.5`, `1,000.00` becomes `1000`); a token with more than one dot is
+  left as found, since a version string is not a decimal. This is a
+  scoring-rule change, so the lexical judge's config version moves 3 to
+  4 and the judge configuration hash moves with it: a comparison against
+  a baseline produced before this is refused as incomparable, which is
+  the harness declining to subtract scores produced under different
+  rules. The committed demo audit, baseline, proof matrix and site are
+  regenerated; no demo score moved. Three tests pin it, each shown
+  failing on the previous code.
+
 ### Changed
 
 - **OpenSSF Scorecard moved out of `release.yml` into its own `scorecard.yml`.**
