@@ -4,6 +4,12 @@
 # pinned in plumbline.pin, and the gate's exit code is the job's exit code.
 # There is no `continue-on-error`, no conditional skip, and no step that can
 # turn a failure to run into a pass.
+#
+# Every `uses:` below is pinned to a 40-character commit SHA, the same
+# convention this repository's own workflows use — a floating tag like `@v4`
+# is Semgrep's `github-actions-mutable-action-tag` finding, caught scanning
+# this file itself. Verify the pinned SHAs still match a current release
+# before copying this into a consuming repository.
 
 name: plumbline gate
 
@@ -16,15 +22,15 @@ jobs:
   gate:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: '3.12'
 
       # Optional: keep resolved harness checkouts between runs. The cache key
       # is the pin file itself, so bumping the pin invalidates the cache.
-      - uses: actions/cache@v4
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: .plumbline-cache
           key: plumbline-${{ hashFiles('plumbline.pin') }}
@@ -37,7 +43,7 @@ jobs:
       # needs it.
       - name: Upload audit reports
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: plumbline-reports
           path: plumbline-audits/

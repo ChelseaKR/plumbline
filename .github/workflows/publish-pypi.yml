@@ -43,9 +43,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Refuse an unconfirmed run
+        env:
+          # An intermediate env var, not `${{ github.event.inputs.confirm }}`
+          # interpolated straight into the script: `github` context data is
+          # untrusted input as far as a `run:` step is concerned, and
+          # interpolating it directly is a shell-injection primitive
+          # (semgrep's yaml.github-actions.security.run-shell-injection
+          # rule, caught scanning this repository's own workflows).
+          CONFIRM: ${{ github.event.inputs.confirm }}
         run: |
-          if [ "${{ github.event.inputs.confirm }}" != "publish" ]; then
-            echo "::error::the 'confirm' input must be exactly 'publish'; got '${{ github.event.inputs.confirm }}'" >&2
+          if [ "$CONFIRM" != "publish" ]; then
+            echo "::error::the 'confirm' input must be exactly 'publish'; got '$CONFIRM'" >&2
             exit 1
           fi
 
