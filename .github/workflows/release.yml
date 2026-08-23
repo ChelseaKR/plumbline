@@ -1,24 +1,28 @@
-# Release: SBOM, OpenSSF Scorecard, and a keyless-signed release artifact.
+# Release: SBOM verification and a keyless-signed release artifact.
 #
 # Closes two "Not met" cells the README's Standards Conformance table names
-# against itself: "no SBOM, no OpenSSF Scorecard, no signed release"
-# (Security & Supply-Chain) and "no release workflow, no signed tag, no
-# published artifact" (Release & Versioning). This repository already has
-# the best possible starting position for it — zero third-party runtime
-# dependencies — so this is wiring, not redesign.
+# against itself: "no SBOM, ..., no signed release" (Security & Supply-Chain)
+# and "no release workflow, no signed tag, no published artifact" (Release &
+# Versioning). This repository already has the best possible starting
+# position for it — zero third-party runtime dependencies — so this is
+# wiring, not redesign.
 #
-# **This workflow has not been exercised.** It has never run against a real
-# tag on GitHub's own infrastructure; nothing here has been observed passing
-# the way `proof/matrix.md` observes every suite catching a defect. Every
-# action pin below — the two genuinely third-party ones, `ossf/scorecard-
-# action` and `sigstore/cosign-installer`, and the GitHub-maintained ones
-# alongside them — was looked up against its upstream repo's release page at
-# the time this file was written and cross-checked twice, but not run:
-# re-verify them (and prefer whatever is current) before the first real tag
-# depends on this file. Saying so here is the same posture the Standards
-# Conformance table takes on every other named gap: a claim this repository
-# has not backed with an observed run is recorded as not yet met, not
-# asserted as done.
+# OpenSSF Scorecard used to be a job in this file and is not anymore: pushing
+# the first real v0.2.0 tag exercised it for the first time and it failed —
+# `ossf/scorecard-action` refuses to analyze anything but the repository's
+# default branch, and a `push: tags:` trigger is never that. See
+# `scorecard.yml`, which triggers the way the action's own upstream template
+# does (push to `main`, plus a weekly schedule) — never on a tag.
+#
+# The sbom/sign/release chain below **has now been exercised**: v0.2.0 is
+# the first tag it ran against, on GitHub's own infrastructure, producing a
+# real signed SBOM and a real published Release — see the Standards
+# Conformance table for what that does and does not close. It first failed
+# on that same tag with a different, mechanical defect: `actions/upload-
+# artifact`'s pin was a 39-character string, one hex digit short of a real
+# SHA-1, so it could not resolve. Fixed and re-verified against the GitHub
+# API before the tag was moved and re-pushed. Every remaining action pin
+# below was cross-checked the same way.
 #
 # Keyless signing (Sigstore/cosign, via GitHub's own OIDC token) rather than
 # a stored private key: consistent with never committing a secret to this
@@ -59,39 +63,6 @@ jobs:
           name: sbom
           path: sbom.cdx.json
           if-no-files-found: error
-
-  scorecard:
-    name: OpenSSF Scorecard
-    runs-on: ubuntu-latest
-    permissions:
-      # Scorecard's own documented minimum: read the repo, write the SARIF
-      # upload to code scanning, and mint the OIDC token its own signing of
-      # the results needs.
-      contents: read
-      security-events: write
-      id-token: write
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-
-      - name: Run analysis
-        uses: ossf/scorecard-action@2d1146689b8cda280b9bc96326124645441f03bc # v2.4.4
-        with:
-          results_file: scorecard-results.sarif
-          results_format: sarif
-          publish_results: true
-
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: scorecard-results
-          path: scorecard-results.sarif
-          if-no-files-found: error
-
-      - name: Upload to code scanning
-        uses: github/codeql-action/upload-sarif@db488ddef3bf6cb639b32c2e9a7c0a7ea8271d28 # v4.37.8
-        with:
-          sarif_file: scorecard-results.sarif
 
   sign:
     name: keyless-sign the SBOM
