@@ -41,6 +41,8 @@ that stayed clean would report a number instead of an incident.
 
 from __future__ import annotations
 
+from typing import Any
+
 from ..bundle import Bundle
 from ..judges import Judge
 from ..stats import KIND_PROPORTION
@@ -81,7 +83,7 @@ class ConversationalIntegritySuite(Suite):
 
         not_recorded = [i.id for i in eligible
                         if not bundle.turn_responses_for(i.id)]
-        records: list[dict] = [{
+        records: list[dict[str, Any]] = [{
             "item": item_id,
             "verdict": UNVERIFIABLE,
             "reason": NOT_RECORDED_PER_TURN,

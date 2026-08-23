@@ -33,9 +33,12 @@ wrong question set costs one legible refusal instead of ten thousand requests.
 from __future__ import annotations
 
 import time
+from collections.abc import Callable
+from typing import Any
 
 from .. import network
 from ..bundle import Item
+from ..errors import OutboundError
 from . import AdapterError
 
 MAX_MIN_INTERVAL_SECONDS = 60.0
@@ -61,7 +64,8 @@ class HttpJsonAdapter:
 
     def __init__(self, *, shape: network.CallShape, headers: dict[str, str],
                  min_interval_seconds: float, max_items: int,
-                 on_error: str, sleep=time.sleep, clock=time.monotonic):
+                 on_error: str, sleep: Callable[[float], None] = time.sleep,
+                 clock: Callable[[], float] = time.monotonic) -> None:
         self._shape = shape
         self._headers = headers
         self._min_interval = min_interval_seconds
@@ -74,7 +78,7 @@ class HttpJsonAdapter:
     # --- construction -------------------------------------------------------
 
     @classmethod
-    def from_config(cls, cfg: dict) -> tuple["HttpJsonAdapter", list[str]]:
+    def from_config(cls, cfg: dict[str, Any]) -> tuple["HttpJsonAdapter", list[str]]:
         unknown_keys = sorted(set(cfg) - KNOWN_KEYS)
         if unknown_keys:
             raise AdapterError(
@@ -160,7 +164,7 @@ class HttpJsonAdapter:
 
     # --- provenance ---------------------------------------------------------
 
-    def describe(self) -> dict:
+    def describe(self) -> dict[str, Any]:
         """What goes into the recorded bundle's manifest. Header names, never
         header values; endpoint without query string or credentials."""
         return {
@@ -184,7 +188,7 @@ class HttpJsonAdapter:
         try:
             payload = network.call_json(self._shape, self._headers, body)
             answer = network.resolve_pointer(payload, self._shape.response_pointer)
-        except network.OutboundError as e:
+        except OutboundError as e:
             raise AdapterError(f"item '{item.id}': {e}") from e
         if not isinstance(answer, str):
             raise AdapterError(

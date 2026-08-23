@@ -13,6 +13,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 from . import __version__, bundle as bundle_mod
 from .baseline import (
@@ -64,7 +65,8 @@ class CoverageError(Exception):
     """
 
 
-def refuse_uncounted_silence(bundle, results: list[SuiteResult]) -> None:
+def refuse_uncounted_silence(bundle: bundle_mod.Bundle,
+                              results: list[SuiteResult]) -> None:
     """Refuse a run in which nobody counts the items nobody could read.
 
     Every absence suite now excludes an unreadable response instead of scoring
@@ -171,7 +173,7 @@ def validate_result(result: SuiteResult, *, suite_id: str, floor: float) -> None
             f"failures {result.hard_failures}")
 
 
-def run_id_of(report: dict) -> str:
+def run_id_of(report: dict[str, Any]) -> str:
     """The run id the report's own contents generate.
 
     Recomputable by anyone holding the report, because every input to
@@ -199,7 +201,7 @@ def run_id_of(report: dict) -> str:
     )
 
 
-def verify_run_id(report: dict, *, source: str = "report") -> str:
+def verify_run_id(report: dict[str, Any], *, source: str = "report") -> str:
     """Refuse a report whose run id its own contents do not generate.
 
     The seal proves a report has not moved since it was written. It cannot
@@ -238,11 +240,11 @@ def verify_run_id(report: dict, *, source: str = "report") -> str:
 @dataclass
 class AuditOutcome:
     verdict: str
-    report: dict
+    report: dict[str, Any]
     json_path: Path
     md_path: Path
     warnings: list[str]
-    comparison: dict | None = None
+    comparison: dict[str, Any] | None = None
 
 
 def compute_run_id(

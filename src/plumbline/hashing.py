@@ -10,6 +10,7 @@ from __future__ import annotations
 import hashlib
 import json
 from pathlib import Path
+from typing import Any
 
 SHORT_ID_LEN = 12
 
@@ -39,7 +40,7 @@ def canonical_json(obj: object) -> str:
     return json.dumps(obj, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
 
 
-def config_digest(config: dict) -> str:
+def config_digest(config: dict[str, Any]) -> str:
     """Hash of a configuration dict (e.g., the judge configuration)."""
     return sha256_text(canonical_json(config))
 

@@ -15,7 +15,9 @@ what it is.
 from __future__ import annotations
 
 import re
+from collections.abc import Callable
 from dataclasses import dataclass
+from typing import Any
 
 # --- Refusal detection ------------------------------------------------------
 REFUSAL_MARKERS = (
@@ -210,11 +212,11 @@ class LanguageRules:
         winners = [tag for tag, hits in scores.items() if hits == best]
         return winners[0] if len(winners) == 1 else None
 
-    def as_config(self) -> dict:
+    def as_config(self) -> dict[str, dict[str, list[str]]]:
         """Everything a report's judge configuration hash must cover."""
-        out: dict[str, dict] = {}
+        out: dict[str, dict[str, list[str]]] = {}
         for tag in self.tags():
-            entry: dict = {}
+            entry: dict[str, list[str]] = {}
             if tag in self.words:
                 entry["words"] = sorted(self.words[tag])
             if tag in self.scripts:
@@ -229,7 +231,8 @@ def default_language_rules() -> LanguageRules:
                          scripts=dict(LANGUAGE_SCRIPTS))
 
 
-def rules_from_config(declared: object, *, normalizer) -> tuple[LanguageRules, list[str]]:
+def rules_from_config(declared: object, *, normalizer: Callable[[str], str]
+                       ) -> tuple[LanguageRules, list[str]]:
     """Merge `[judge.languages]` over the shipped profiles.
 
     A declared tag replaces the shipped profile for that tag rather than
@@ -294,7 +297,8 @@ def rules_from_config(declared: object, *, normalizer) -> tuple[LanguageRules, l
     return merged, _collision_warnings(words)
 
 
-def _check_words(tag: str, raw: object, normalizer) -> frozenset[str]:
+def _check_words(tag: str, raw: object, normalizer: Callable[[str], str]
+                  ) -> frozenset[str]:
     if (not isinstance(raw, list) or not raw
             or not all(isinstance(w, str) for w in raw)):
         raise LanguageRulesError(
@@ -403,7 +407,7 @@ PII_SOLICITATION_MARKERS = (
 )
 
 
-def as_config(languages: LanguageRules | None = None) -> dict:
+def as_config(languages: LanguageRules | None = None) -> dict[str, Any]:
     """Everything above, in a form the judge configuration hash covers."""
     return {
         "refusal_markers": list(REFUSAL_MARKERS),

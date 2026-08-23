@@ -21,10 +21,10 @@ verify: lint test site-check
 # whole-tree reformat is a decision to take on its own, not a side effect of
 # turning a linter on.
 #
-# mypy checks `src/plumbline` only, at the default (non-strict) setting; see
-# the comment in `[tool.mypy]` in pyproject.toml for the recorded gap between
-# that and `--strict`. `tests` and `tools` are not type-checked: `tests` uses
-# `unittest`'s own dynamic patterns throughout, and neither is shipped.
+# mypy checks `src/plumbline` only, at `--strict` (see `[tool.mypy]` in
+# pyproject.toml for why that setting and not something narrower). `tests`
+# and `tools` are not type-checked: `tests` uses `unittest`'s own dynamic
+# patterns throughout, and neither is shipped.
 lint:
 	uv run ruff check src tests tools
 	uv run mypy

@@ -52,13 +52,17 @@ import shutil
 import subprocess
 import threading
 import time
+from collections.abc import Callable
 from pathlib import Path
-from typing import cast
+from typing import IO, Any, TypeVar, cast
 
 from .. import network
 from ..bundle import Item
+from ..errors import OutboundError
 from ..hashing import canonical_json, sha256_text
 from . import AdapterError
+
+_Number = TypeVar("_Number", int, float)
 
 DEFAULT_TIMEOUT_SECONDS = 30.0
 MAX_TIMEOUT_SECONDS = 900.0
@@ -89,7 +93,8 @@ def _sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
-def _bounded(value, *, name, default, low, high, kind=float):
+def _bounded(value: object, *, name: str, default: _Number, low: _Number,
+             high: _Number, kind: type[_Number]) -> _Number:
     if value is None:
         return kind(default)
     if isinstance(value, bool) or not isinstance(value, (int, float)):
@@ -105,11 +110,12 @@ class SubprocessAdapter:
     kind = "subprocess"
 
     def __init__(self, *, command: list[str], program: Path, workdir: Path,
-                 env: dict[str, str], input_mode: str, stdin_template,
+                 env: dict[str, str], input_mode: str, stdin_template: object,
                  output_mode: str, response_pointer: str | None,
                  timeout_seconds: float, max_output_bytes: int,
                  min_interval_seconds: float, max_items: int, on_error: str,
-                 sleep=time.sleep, clock=time.monotonic):
+                 sleep: Callable[[float], None] = time.sleep,
+                 clock: Callable[[], float] = time.monotonic) -> None:
         self._command = command
         self._program = program
         self._workdir = workdir
@@ -130,7 +136,7 @@ class SubprocessAdapter:
     # --- construction -------------------------------------------------------
 
     @classmethod
-    def from_config(cls, cfg: dict) -> tuple["SubprocessAdapter", list[str]]:
+    def from_config(cls, cfg: dict[str, Any]) -> tuple["SubprocessAdapter", list[str]]:
         unknown = sorted(set(cfg) - KNOWN_KEYS)
         if unknown:
             raise AdapterError(
@@ -232,14 +238,15 @@ class SubprocessAdapter:
 
         timeout = _bounded(cfg.get("timeout_seconds"), name="timeout_seconds",
                            default=DEFAULT_TIMEOUT_SECONDS, low=0.1,
-                           high=MAX_TIMEOUT_SECONDS)
+                           high=MAX_TIMEOUT_SECONDS, kind=float)
         max_output = _bounded(cfg.get("max_output_bytes"),
                               name="max_output_bytes",
                               default=DEFAULT_MAX_OUTPUT_BYTES, low=1,
                               high=MAX_MAX_OUTPUT_BYTES, kind=int)
         min_interval = _bounded(cfg.get("min_interval_seconds"),
                                 name="min_interval_seconds", default=0.0,
-                                low=0.0, high=MAX_MIN_INTERVAL_SECONDS)
+                                low=0.0, high=MAX_MIN_INTERVAL_SECONDS,
+                                kind=float)
         max_items = _bounded(cfg.get("max_items"), name="max_items",
                              default=DEFAULT_MAX_ITEMS, low=1,
                              high=CEILING_MAX_ITEMS, kind=int)
@@ -303,7 +310,7 @@ class SubprocessAdapter:
 
     # --- provenance ---------------------------------------------------------
 
-    def _call_shape(self) -> dict:
+    def _call_shape(self) -> dict[str, Any]:
         return {
             "command": list(self._command),
             "input": self._input_mode,
@@ -317,7 +324,7 @@ class SubprocessAdapter:
             },
         }
 
-    def describe(self) -> dict:
+    def describe(self) -> dict[str, Any]:
         """What goes into the recorded bundle's manifest.
 
         `program_sha256` is the part an HTTP recording cannot have: the exact
@@ -425,7 +432,7 @@ class SubprocessAdapter:
         assert self._response_pointer is not None
         try:
             value = network.resolve_pointer(payload, self._response_pointer)
-        except network.OutboundError as e:
+        except OutboundError as e:
             raise AdapterError(f"item '{item.id}': {e}") from e
         if not isinstance(value, str):
             raise AdapterError(
@@ -440,7 +447,8 @@ class SubprocessAdapter:
         text = raw.decode("utf-8", errors="replace").strip().replace("\n", " ")
         return text[:limit] + ("…" if len(text) > limit else "")
 
-    def _run(self, argv: list[str], payload: bytes | None):
+    def _run(self, argv: list[str], payload: bytes | None
+              ) -> tuple[bytes, bytes, int | None, str]:
         """One bounded run. Returns (stdout, stderr, returncode, outcome).
 
         The output ceiling is enforced by *killing the child*, not by
@@ -462,7 +470,12 @@ class SubprocessAdapter:
         stdout, stderr = bytearray(), bytearray()
         overflowed = threading.Event()
 
-        def pump(stream, sink: bytearray, cap: int, on_overflow):
+        def pump(stream: IO[bytes] | None, sink: bytearray, cap: int,
+                 on_overflow: Callable[[], None]) -> None:
+            # This Popen call always passes stdout=PIPE and stderr=PIPE, so
+            # the stream handed to each reader thread is always real, never
+            # None; Popen's own type just can't say so from here.
+            assert stream is not None
             try:
                 while True:
                     chunk = stream.read(65536)
@@ -518,7 +531,7 @@ class SubprocessAdapter:
         return bytes(stdout), bytes(stderr), proc.returncode, outcome
 
     @staticmethod
-    def _write_stdin(proc, payload: bytes | None) -> None:
+    def _write_stdin(proc: "subprocess.Popen[bytes]", payload: bytes | None) -> None:
         try:
             # This Popen call always passes stdin=PIPE, so proc.stdin is
             # always a real stream, never None; a closed or broken pipe

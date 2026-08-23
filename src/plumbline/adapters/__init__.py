@@ -32,7 +32,7 @@ registry refuses an unknown kind rather than falling back to anything.
 
 from __future__ import annotations
 
-from typing import Protocol
+from typing import Any, Protocol, cast
 
 from ..bundle import Item
 from ..errors import OutboundError
@@ -46,14 +46,14 @@ class AdapterError(OutboundError):
 class Adapter(Protocol):
     kind: str
 
-    def describe(self) -> dict:
+    def describe(self) -> dict[str, Any]:
         """Non-secret provenance recorded in the bundle manifest."""
 
     def respond(self, item: Item) -> str:
         """The target's answer to one item, or raise AdapterError."""
 
 
-def _factories() -> dict:
+def _factories() -> dict[str, Any]:
     from . import http_json, subprocess_cli
     return {
         http_json.HttpJsonAdapter.kind: http_json.HttpJsonAdapter,
@@ -65,7 +65,7 @@ def available() -> tuple[str, ...]:
     return tuple(sorted(_factories()))
 
 
-def make_adapter(config: dict) -> tuple[Adapter, list[str]]:
+def make_adapter(config: dict[str, Any]) -> tuple[Adapter, list[str]]:
     """Build the adapter a target configuration declares.
 
     Returns the adapter and any warnings worth printing (never fatal). An
@@ -85,4 +85,4 @@ def make_adapter(config: dict) -> tuple[Adapter, list[str]]:
             f"unknown adapter kind {kind!r} (implemented: "
             f"{', '.join(available())})"
         )
-    return factories[kind].from_config(config)
+    return cast("tuple[Adapter, list[str]]", factories[kind].from_config(config))

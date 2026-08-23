@@ -20,8 +20,11 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 
+from collections.abc import Callable
+from typing import Any
+
 from . import bundle as bundle_mod
-from .adapters import AdapterError
+from .adapters import Adapter, AdapterError
 from .errors import OutboundError
 
 RESPONSES_FILENAME = "responses.jsonl"
@@ -35,10 +38,10 @@ class RecordingError(OutboundError):
 @dataclass
 class RecordingResult:
     out_dir: Path
-    manifest: dict
+    manifest: dict[str, Any]
     dataset_sha256: str
     recorded: int
-    empty: list[dict] = field(default_factory=list)
+    empty: list[dict[str, Any]] = field(default_factory=list)
 
     @property
     def dataset_id(self) -> str:
@@ -79,9 +82,10 @@ def _prepare_out_dir(out_dir: Path, questions_dir: Path, *, overwrite: bool) -> 
     return out_dir
 
 
-def record(*, questions: bundle_mod.Bundle, adapter, out_dir: Path,
+def record(*, questions: bundle_mod.Bundle, adapter: Adapter, out_dir: Path,
            overwrite: bool = False, synthetic: bool = False,
-           note: str | None = None, progress=None) -> RecordingResult:
+           note: str | None = None,
+           progress: Callable[[str, str], None] | None = None) -> RecordingResult:
     """Ask the target every item in the question set and seal the result."""
     max_items = getattr(adapter, "max_items", None)
     if max_items is not None and len(questions.items) > max_items:
@@ -94,8 +98,8 @@ def record(*, questions: bundle_mod.Bundle, adapter, out_dir: Path,
     out_dir = _prepare_out_dir(out_dir, questions.path, overwrite=overwrite)
     on_error = getattr(adapter, "on_error", "abort")
 
-    responses: list[dict] = []
-    empty: list[dict] = []
+    responses: list[dict[str, Any]] = []
+    empty: list[dict[str, Any]] = []
     for item in questions.items:
         try:
             text = adapter.respond(item)
@@ -124,7 +128,7 @@ def record(*, questions: bundle_mod.Bundle, adapter, out_dir: Path,
 
 
 def _write_bundle(out_dir: Path, questions: bundle_mod.Bundle,
-                  responses: list[dict]) -> None:
+                  responses: list[dict[str, Any]]) -> None:
     """Copy the question set's files across, then write the responses.
 
     The manifest is written separately (it gains a `recording` block) and the
@@ -144,9 +148,9 @@ def _write_bundle(out_dir: Path, questions: bundle_mod.Bundle,
             f.write(json.dumps(entry, ensure_ascii=False) + "\n")
 
 
-def _build_manifest(questions: bundle_mod.Bundle, adapter,
-                    responses: list[dict], empty: list[dict], *,
-                    synthetic: bool, note: str | None) -> dict:
+def _build_manifest(questions: bundle_mod.Bundle, adapter: Adapter,
+                    responses: list[dict[str, Any]], empty: list[dict[str, Any]], *,
+                    synthetic: bool, note: str | None) -> dict[str, Any]:
     manifest = dict(questions.manifest)
     files = {k: v for k, v in questions.manifest.get("files", {}).items()}
     files["responses"] = RESPONSES_FILENAME
@@ -186,7 +190,7 @@ def _harness_version() -> str:
     return __version__
 
 
-def _write_json(path: Path, payload: dict) -> None:
+def _write_json(path: Path, payload: dict[str, Any]) -> None:
     with open(path, "w", encoding="utf-8") as f:
         json.dump(payload, f, indent=2, ensure_ascii=False)
         f.write("\n")

@@ -47,7 +47,10 @@ part a lexical judge can do well.
 
 from __future__ import annotations
 
-from ..bundle import Bundle, Source
+from collections.abc import Iterable
+from typing import Any
+
+from ..bundle import Bundle, Item, Source
 from ..judges import Judge, citations
 from ..stats import KIND_PROPORTION
 from . import (
@@ -116,7 +119,7 @@ class PassageAttributionSuite(Suite):
             SILENT: [],
             UNREADABLE: [],
         }
-        records: list[dict] = []
+        records: list[dict[str, Any]] = []
         sample: list[float] = []
         misattributed: list[str] = []
         hard_failures: list[str] = []
@@ -293,7 +296,8 @@ class PassageAttributionSuite(Suite):
             sample=sample,
         )
 
-    def _suggestions(self, bundle: Bundle, judge: Judge, eligible) -> dict:
+    def _suggestions(self, bundle: Bundle, judge: Judge,
+                     eligible: Iterable[Item]) -> dict[str, str]:
         """Where a dataset author should look first, for items that declare
         nothing.
 

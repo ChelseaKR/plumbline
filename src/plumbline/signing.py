@@ -36,6 +36,7 @@ import hashlib
 import hmac
 import json
 from pathlib import Path
+from typing import Any
 
 from .hashing import short_id
 from .report import verify_report
@@ -95,7 +96,7 @@ def _mac(seal_digest: str, key: bytes) -> str:
     return hmac.new(key, seal_digest.encode("ascii"), hashlib.sha256).hexdigest()
 
 
-def sign_report(report: dict, key: bytes, *, source: str = "report") -> dict:
+def sign_report(report: dict[str, Any], key: bytes, *, source: str = "report") -> dict[str, Any]:
     """Sign a report's own seal.
 
     Refuses an unsealed or tampered report first — the same discipline
@@ -113,7 +114,7 @@ def sign_report(report: dict, key: bytes, *, source: str = "report") -> dict:
     }
 
 
-def write_signature(signature: dict, report_path: Path) -> Path:
+def write_signature(signature: dict[str, Any], report_path: Path) -> Path:
     """Write a detached signature next to a report, as `report.sig`."""
     out = Path(report_path).parent / SIGNATURE_FILENAME
     with open(out, "w", encoding="utf-8") as f:
@@ -122,7 +123,7 @@ def write_signature(signature: dict, report_path: Path) -> Path:
     return out
 
 
-def read_signature(path: Path) -> dict:
+def read_signature(path: Path) -> dict[str, Any]:
     path = Path(path)
     try:
         with open(path, encoding="utf-8") as f:
@@ -134,7 +135,7 @@ def read_signature(path: Path) -> dict:
     return data
 
 
-def verify_signature(report: dict, key: bytes, signature: dict, *,
+def verify_signature(report: dict[str, Any], key: bytes, signature: dict[str, Any], *,
                      source: str = "report",
                      signature_source: str = SIGNATURE_FILENAME) -> str:
     """Recompute the report's seal, then check a detached signature against

@@ -23,7 +23,9 @@ three-quarters grounded; it is wrong in the way that matters.
 
 from __future__ import annotations
 
-from ..bundle import Bundle
+from typing import Any
+
+from ..bundle import Bundle, Item
 from ..judges import Judge, asserts_nothing, citations, strip_citations
 from ..stats import KIND_MEAN
 from . import (
@@ -53,7 +55,7 @@ NO_CLAIM_NOTE = (
 )
 
 
-def _sourced_answer_items(bundle: Bundle):
+def _sourced_answer_items(bundle: Bundle) -> list[Item]:
     """Answer items that had sources available: the population for which
     'was this grounded?' is a meaningful question."""
     return [i for i in bundle.items if i.behavior == "answer" and i.sources]
@@ -129,13 +131,14 @@ class GroundednessSuite(Suite):
                      "support for it is vacuously total; excluded from the "
                      "score, and not a pass"),
         } for item_id in vacuous)
-        sample, hard_failures = [], []
+        sample: list[float] = []
+        hard_failures: list[str] = []
         for item in population:
             response = bundle.response_for(item.id) or ""
             source_text = bundle.source_text_for(item)
             score, tokens, numbers, unsupported = _support(
                 judge, response, source_text)
-            record = {
+            record: dict[str, Any] = {
                 "item": item.id,
                 "score": round(score, 4),
                 "token_support": round(tokens, 4),
@@ -198,11 +201,13 @@ class CitationValiditySuite(Suite):
             "no answer item declares any sources, so no answer was expected "
             "to cite one",
         )
-        records, sample, hard_failures = [], [], []
+        records: list[dict[str, Any]] = []
+        sample = []
+        hard_failures = []
         for item in population:
             response = bundle.response_for(item.id) or ""
             cited = citations(response)
-            record = {"item": item.id, "cited": cited}
+            record: dict[str, Any] = {"item": item.id, "cited": cited}
             if not cited:
                 score = 0.0
                 record["note"] = (
@@ -292,7 +297,8 @@ class CitationAccuracySuite(Suite):
             "scores that absence)",
         )
 
-        records, sample = [], []
+        records: list[dict[str, Any]] = []
+        sample = []
         for item, response, cited in population:
             cited_text = "\n".join(_resolved_text(bundle, c) for c in cited)
             score, tokens, numbers, unsupported = _support(
@@ -309,7 +315,7 @@ class CitationAccuracySuite(Suite):
                 if judge.support_score(_resolved_text(bundle, c),
                                        strip_citations(response)) == 0.0
             ]
-            record = {
+            record: dict[str, Any] = {
                 "item": item.id,
                 "score": round(score, 4),
                 "cited": cited,

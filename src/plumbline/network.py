@@ -25,6 +25,7 @@ Nothing here is called during `plumbline audit` or `plumbline gate`.
 
 from __future__ import annotations
 
+import email.message
 import json
 import os
 import re
@@ -32,7 +33,9 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+from collections.abc import Callable
 from dataclasses import dataclass, field
+from typing import IO, Any, NoReturn, TypeVar
 
 from . import __version__
 from .errors import OutboundError
@@ -116,7 +119,11 @@ def check_method(method: object) -> str:
 
 # --- Bounds -----------------------------------------------------------------
 
-def _bounded_number(value, *, name, default, low, high, kind=float):
+_Number = TypeVar("_Number", int, float)
+
+
+def _bounded_number(value: object, *, name: str, default: _Number, low: _Number,
+                     high: _Number, kind: type[_Number]) -> _Number:
     if value is None:
         return kind(default)
     if isinstance(value, bool) or not isinstance(value, (int, float)):
@@ -137,11 +144,12 @@ class Bounds:
     retry_delay_seconds: float = 0.0
 
     @classmethod
-    def from_config(cls, cfg: dict) -> "Bounds":
+    def from_config(cls, cfg: dict[str, Any]) -> "Bounds":
         return cls(
             timeout_seconds=_bounded_number(
                 cfg.get("timeout_seconds"), name="timeout_seconds",
-                default=DEFAULT_TIMEOUT_SECONDS, low=0.1, high=MAX_TIMEOUT_SECONDS),
+                default=DEFAULT_TIMEOUT_SECONDS, low=0.1, high=MAX_TIMEOUT_SECONDS,
+                kind=float),
             max_response_bytes=_bounded_number(
                 cfg.get("max_response_bytes"), name="max_response_bytes",
                 default=DEFAULT_MAX_RESPONSE_BYTES, low=1,
@@ -151,10 +159,10 @@ class Bounds:
                 high=MAX_RETRIES, kind=int),
             retry_delay_seconds=_bounded_number(
                 cfg.get("retry_delay_seconds"), name="retry_delay_seconds",
-                default=0.0, low=0.0, high=MAX_RETRY_DELAY_SECONDS),
+                default=0.0, low=0.0, high=MAX_RETRY_DELAY_SECONDS, kind=float),
         )
 
-    def as_config(self) -> dict:
+    def as_config(self) -> dict[str, Any]:
         return {
             "timeout_seconds": self.timeout_seconds,
             "max_response_bytes": self.max_response_bytes,
@@ -236,7 +244,7 @@ def fill_template(template: object, values: dict[str, str]) -> object:
     string `{prompot}` to a target would produce evidence of nothing.
     """
     if isinstance(template, str):
-        def replace(match: re.Match) -> str:
+        def replace(match: re.Match[str]) -> str:
             key = match.group(1)
             if key not in values:
                 raise OutboundConfigError(
@@ -315,7 +323,7 @@ class CallShape:
     response_pointer: str = ""
     bounds: Bounds = field(default_factory=Bounds)
 
-    def as_config(self) -> dict:
+    def as_config(self) -> dict[str, Any]:
         return {
             "endpoint": public_endpoint(self.url),
             "method": self.method,
@@ -330,7 +338,9 @@ class CallShape:
 
 
 class _RefuseRedirects(urllib.request.HTTPRedirectHandler):
-    def redirect_request(self, req, fp, code, msg, headers, newurl):
+    def redirect_request(self, req: urllib.request.Request, fp: IO[bytes],
+                          code: int, msg: str, headers: email.message.Message,
+                          newurl: str) -> NoReturn:
         raise NetworkError(
             f"the target redirected ({code}) to {newurl}; Plumbline does not "
             f"follow redirects, because an audit should talk to the endpoint "
@@ -347,7 +357,7 @@ def _snippet(raw: bytes, limit: int = 200) -> str:
 
 
 def call_json(shape: CallShape, headers: dict[str, str], body: object,
-              *, sleep=time.sleep) -> object:
+              *, sleep: Callable[[float], None] = time.sleep) -> object:
     """Make one bounded call and return the decoded JSON response.
 
     Every failure raises NetworkError with a reason a human can act on. There
