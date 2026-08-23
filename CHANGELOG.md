@@ -27,6 +27,25 @@ may break the interface.
   push and pull request (see the Security & Supply-Chain conformance row);
   Scorecard's check does not recognize that configuration.
 
+### Fixed
+
+- **6 Semgrep findings that only surfaced on push to `main`, not on PR
+  checks.** `semgrep ci` diffs against the PR base on a `pull_request`
+  event — only new findings block — but scans the whole tree on a plain
+  push, with nothing to diff against. 3 pre-existing finding types
+  (6 occurrences) had been invisible in every PR check this session ran
+  and were only found while auditing which jobs are safe to require for
+  branch protection: a real `run-shell-injection` primitive in
+  `publish-pypi.yml` (`${{ github.event.inputs.confirm }}` interpolated
+  directly into a `run:` script rather than passed through `env:`),
+  four floating `@v4`/`@v5` action tags in `gate/github-actions.example.yml`
+  now pinned to 40-character SHAs, and one real false positive —
+  `python.django-no-csrf-token` firing on a static HTML fixture's
+  `<form method="post">` with no Django anywhere in the stack — fixed
+  with a documented `.semgrepignore` entry rather than editing the
+  fixture, which is content-hashed into `checksums.json`. Verified with
+  `semgrep scan --config auto` locally: 0 findings, 0 blocking.
+
 ## [0.2.0] - 2026-08-22
 
 Six proposals from `docs/feature-expansion-ideas.md`, merged as six
