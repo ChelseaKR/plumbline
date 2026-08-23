@@ -9,114 +9,6 @@ may break the interface.
 
 ## [Unreleased]
 
-### Added
-
-- **A Definition of Done and a metrics ledger**
-  ([`docs/definition-of-done.md`](docs/definition-of-done.md),
-  [`docs/metrics-ledger.md`](docs/metrics-ledger.md)), closing the gap
-  the Quality & Metrics conformance row named against itself. The
-  Definition of Done is a mechanical, checkable list — a command or a
-  factual question, never "looks good" — of what has to be true before a
-  change here is finished, split into what every change owes, what a
-  `src/plumbline/` change owes on top of that, and what a change to this
-  repository's own claims about itself owes. The metrics ledger is this
-  repository's code-quality numbers (suite count, test count, coverage,
-  ruff, mypy, complexity) as an append-only history rather than a single
-  point-in-time table row; every row was produced by checking out that
-  tagged or merged commit in an isolated worktree and running the same
-  commands `make verify` runs today, not recalled or carried forward —
-  which caught two numbers this session would otherwise have gotten
-  wrong (mypy's default-mode error count immediately before it was
-  wired was 29, not the 27 an earlier document's stale figure implied).
-  Both name against themselves that nothing currently enforces they stay
-  current.
-- **An operations runbook** ([`docs/operations-runbook.md`](docs/operations-runbook.md)),
-  closing the gap the Observability conformance row named against itself.
-  Split for the two people who actually hit it: someone gating a
-  repository with Plumbline (every exit code, keyed to what it means and
-  what to do, plus the gate hanging instead of exiting), and someone
-  maintaining this repository (CI failure modes, the security and release
-  workflows, and the human-only duties nothing here schedules — a
-  retention sweep, a signing-key rotation, a tag push). Documents, for
-  the first time in one place, the exact two-pass baseline regeneration
-  order this repository's own artifacts require after any
-  `src/plumbline/` edit — self-referential because the baseline's own
-  hash feeds into the run id of the next report that names it, and the
-  single most common way this repository's own CI has actually gone red.
-- **`tools/check_site_a11y.py`** holds the published evidence page,
-  `site/index.html`, to the same kind of structural check
-  `src/plumbline/suites/accessibility.py` runs against a *target's*
-  captured interface — closing the gap the Accessibility conformance row
-  named against itself. Seven checks: language declaration, heading order,
-  link text, image alt text, a single `main` landmark, zoom not disabled,
-  and WCAG AA contrast — computed with the same `contrast_ratio` function
-  the scoring suite uses, against both the light and dark palette declared
-  in the page's own `<style>` block, since `color-scheme: light dark`
-  means a visitor gets whichever one their system prefers. Wired into
-  `make verify` (folded into `site-check`) and into
-  `.github/workflows/pages.yml`, which now refuses to deploy a page that
-  fails its own accessibility standard. Pinned by
-  [`tests/test_site_a11y.py`](tests/test_site_a11y.py), 27 tests proving
-  each of the seven checks can actually fail, not only that the committed
-  page currently passes.
-- **`mypy` is wired into `make lint` and CI**, checking `src/plumbline` at
-  mypy's default (non-strict) setting; both `make lint` and CI's `quality`
-  job now fail on a type error, not only on a ruff finding. The gap this
-  closes was recorded against itself in the README's Code Quality
-  conformance row: 27 default-mode errors, mostly a `Judge` protocol that
-  named only the methods each suite happened to call rather than the full
-  contract every judge implements, plus a handful of guard clauses (a
-  `None`-checked value, an already-validated dict) that a static checker
-  cannot see across the method boundary they live on the other side of.
-  Fixed rather than suppressed in every case; `pyproject.toml`'s
-  `[tool.mypy]` records why this stops short of `--strict` (174 findings,
-  almost all a bare `dict` missing its type argument) as the next open gap,
-  the same way the ruff select set records its own.
-- **A longer-form "what it caught in its own harness" draft**
-  ([`docs/what-it-caught-in-its-own-harness.md`](docs/what-it-caught-in-its-own-harness.md)),
-  written for external publication (a blog post or similar), distinct from
-  the README section it is drawn from. Walks through the silence/absence
-  defect across its three rounds, the consumer-found wrong-paragraph gap,
-  and the coupling-disclosure fix, as narrative rather than changelog
-  entries. Marked as a draft in its own header — edit before publishing.
-- **A dated responsible-tech statement** ([`docs/responsible-tech.md`](docs/responsible-tech.md)),
-  closing the gap the Responsible-Tech Framework conformance row named
-  against itself. Written from the point of view of the people a graded
-  system serves rather than the people running the harness: what a `PASS`
-  does and does not mean, residual risks present even when every suite
-  works exactly as designed (a floor is a policy choice, not a ceiling on
-  harm; a lexical screen catches what is on its list; the demo dataset's
-  coverage is not the world's), misuse this repository can name but not
-  prevent, and — in its own closing section — that the statement itself has
-  not been reviewed by anyone outside this repository.
-- **A model card for the optional model judge**
-  ([`docs/model-card-judge.md`](docs/model-card-judge.md)), closing the gap
-  the AI Evaluation conformance row named against itself. Covers what the
-  judge decides (only `answer_score`) and what stays lexical regardless,
-  how a judgment is produced and cached, the adversarial surface a second
-  model widens and its mitigation, and the limitations the card names
-  against itself — chiefly that nothing measures how often the model judge
-  agrees with a human rater.
-- **PyPI packaging.** `pyproject.toml`'s distribution name is now
-  `plumbline-eval` — `plumbline` is taken by an unrelated, long-dormant
-  geospatial package; the import name, the package directory, and the
-  `plumbline` CLI command are all unaffected. `sbom.cdx.json` and `uv.lock`
-  regenerated to match. `.github/workflows/publish-pypi.yml` is a
-  manual-only (`workflow_dispatch`, with a typed confirmation) publish
-  workflow using PyPI's keyless Trusted Publishing — no stored secret.
-  Verified locally: `python3 -m build` produces a clean sdist and wheel, and
-  installing the wheel into a fresh virtualenv gives a `plumbline` command
-  that runs identically. Not yet run: publishing needs a human to register
-  the trusted publisher on PyPI first, which nothing in this repository can
-  do on its own.
-- **`action.yml`: pin the harness from GitHub Actions directly.** A second
-  way to pin the gate for a repository whose CI is GitHub Actions, alongside
-  `gate/plumbline-gate.sh` (which stays the way to gate from anything else).
-  `uses: ChelseaKR/plumbline@<sha>` is the pin — the same mechanism this
-  project's own workflows already use for `actions/checkout` — so a
-  consumer needs neither the shell script nor a `plumbline.pin` file. Not
-  yet exercised from an external consuming repository.
-
 ## [0.2.0] - 2026-08-22
 
 Six proposals from `docs/feature-expansion-ideas.md`, merged as six
@@ -318,6 +210,114 @@ statement treats those as MINOR while below `1.0.0`.
   and a comparison against a 0.1.0 baseline is refused as incomparable — which
   is the harness declining to subtract scores produced by different rules, and
   is correct of it.
+
+### Added
+
+- **A Definition of Done and a metrics ledger**
+  ([`docs/definition-of-done.md`](docs/definition-of-done.md),
+  [`docs/metrics-ledger.md`](docs/metrics-ledger.md)), closing the gap
+  the Quality & Metrics conformance row named against itself. The
+  Definition of Done is a mechanical, checkable list — a command or a
+  factual question, never "looks good" — of what has to be true before a
+  change here is finished, split into what every change owes, what a
+  `src/plumbline/` change owes on top of that, and what a change to this
+  repository's own claims about itself owes. The metrics ledger is this
+  repository's code-quality numbers (suite count, test count, coverage,
+  ruff, mypy, complexity) as an append-only history rather than a single
+  point-in-time table row; every row was produced by checking out that
+  tagged or merged commit in an isolated worktree and running the same
+  commands `make verify` runs today, not recalled or carried forward —
+  which caught two numbers this session would otherwise have gotten
+  wrong (mypy's default-mode error count immediately before it was
+  wired was 29, not the 27 an earlier document's stale figure implied).
+  Both name against themselves that nothing currently enforces they stay
+  current.
+- **An operations runbook** ([`docs/operations-runbook.md`](docs/operations-runbook.md)),
+  closing the gap the Observability conformance row named against itself.
+  Split for the two people who actually hit it: someone gating a
+  repository with Plumbline (every exit code, keyed to what it means and
+  what to do, plus the gate hanging instead of exiting), and someone
+  maintaining this repository (CI failure modes, the security and release
+  workflows, and the human-only duties nothing here schedules — a
+  retention sweep, a signing-key rotation, a tag push). Documents, for
+  the first time in one place, the exact two-pass baseline regeneration
+  order this repository's own artifacts require after any
+  `src/plumbline/` edit — self-referential because the baseline's own
+  hash feeds into the run id of the next report that names it, and the
+  single most common way this repository's own CI has actually gone red.
+- **`tools/check_site_a11y.py`** holds the published evidence page,
+  `site/index.html`, to the same kind of structural check
+  `src/plumbline/suites/accessibility.py` runs against a *target's*
+  captured interface — closing the gap the Accessibility conformance row
+  named against itself. Seven checks: language declaration, heading order,
+  link text, image alt text, a single `main` landmark, zoom not disabled,
+  and WCAG AA contrast — computed with the same `contrast_ratio` function
+  the scoring suite uses, against both the light and dark palette declared
+  in the page's own `<style>` block, since `color-scheme: light dark`
+  means a visitor gets whichever one their system prefers. Wired into
+  `make verify` (folded into `site-check`) and into
+  `.github/workflows/pages.yml`, which now refuses to deploy a page that
+  fails its own accessibility standard. Pinned by
+  [`tests/test_site_a11y.py`](tests/test_site_a11y.py), 27 tests proving
+  each of the seven checks can actually fail, not only that the committed
+  page currently passes.
+- **`mypy` is wired into `make lint` and CI**, checking `src/plumbline` at
+  mypy's default (non-strict) setting; both `make lint` and CI's `quality`
+  job now fail on a type error, not only on a ruff finding. The gap this
+  closes was recorded against itself in the README's Code Quality
+  conformance row: 27 default-mode errors, mostly a `Judge` protocol that
+  named only the methods each suite happened to call rather than the full
+  contract every judge implements, plus a handful of guard clauses (a
+  `None`-checked value, an already-validated dict) that a static checker
+  cannot see across the method boundary they live on the other side of.
+  Fixed rather than suppressed in every case; `pyproject.toml`'s
+  `[tool.mypy]` records why this stops short of `--strict` (174 findings,
+  almost all a bare `dict` missing its type argument) as the next open gap,
+  the same way the ruff select set records its own.
+- **A longer-form "what it caught in its own harness" draft**
+  ([`docs/what-it-caught-in-its-own-harness.md`](docs/what-it-caught-in-its-own-harness.md)),
+  written for external publication (a blog post or similar), distinct from
+  the README section it is drawn from. Walks through the silence/absence
+  defect across its three rounds, the consumer-found wrong-paragraph gap,
+  and the coupling-disclosure fix, as narrative rather than changelog
+  entries. Marked as a draft in its own header — edit before publishing.
+- **A dated responsible-tech statement** ([`docs/responsible-tech.md`](docs/responsible-tech.md)),
+  closing the gap the Responsible-Tech Framework conformance row named
+  against itself. Written from the point of view of the people a graded
+  system serves rather than the people running the harness: what a `PASS`
+  does and does not mean, residual risks present even when every suite
+  works exactly as designed (a floor is a policy choice, not a ceiling on
+  harm; a lexical screen catches what is on its list; the demo dataset's
+  coverage is not the world's), misuse this repository can name but not
+  prevent, and — in its own closing section — that the statement itself has
+  not been reviewed by anyone outside this repository.
+- **A model card for the optional model judge**
+  ([`docs/model-card-judge.md`](docs/model-card-judge.md)), closing the gap
+  the AI Evaluation conformance row named against itself. Covers what the
+  judge decides (only `answer_score`) and what stays lexical regardless,
+  how a judgment is produced and cached, the adversarial surface a second
+  model widens and its mitigation, and the limitations the card names
+  against itself — chiefly that nothing measures how often the model judge
+  agrees with a human rater.
+- **PyPI packaging.** `pyproject.toml`'s distribution name is now
+  `plumbline-eval` — `plumbline` is taken by an unrelated, long-dormant
+  geospatial package; the import name, the package directory, and the
+  `plumbline` CLI command are all unaffected. `sbom.cdx.json` and `uv.lock`
+  regenerated to match. `.github/workflows/publish-pypi.yml` is a
+  manual-only (`workflow_dispatch`, with a typed confirmation) publish
+  workflow using PyPI's keyless Trusted Publishing — no stored secret.
+  Verified locally: `python3 -m build` produces a clean sdist and wheel, and
+  installing the wheel into a fresh virtualenv gives a `plumbline` command
+  that runs identically. Not yet run: publishing needs a human to register
+  the trusted publisher on PyPI first, which nothing in this repository can
+  do on its own.
+- **`action.yml`: pin the harness from GitHub Actions directly.** A second
+  way to pin the gate for a repository whose CI is GitHub Actions, alongside
+  `gate/plumbline-gate.sh` (which stays the way to gate from anything else).
+  `uses: ChelseaKR/plumbline@<sha>` is the pin — the same mechanism this
+  project's own workflows already use for `actions/checkout` — so a
+  consumer needs neither the shell script nor a `plumbline.pin` file. Not
+  yet exercised from an external consuming repository.
 
 ## [0.1.0] - 2026-08-16
 
