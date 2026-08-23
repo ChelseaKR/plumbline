@@ -11,6 +11,25 @@ may break the interface.
 
 ### Added
 
+- **A Definition of Done and a metrics ledger**
+  ([`docs/definition-of-done.md`](docs/definition-of-done.md),
+  [`docs/metrics-ledger.md`](docs/metrics-ledger.md)), closing the gap
+  the Quality & Metrics conformance row named against itself. The
+  Definition of Done is a mechanical, checkable list — a command or a
+  factual question, never "looks good" — of what has to be true before a
+  change here is finished, split into what every change owes, what a
+  `src/plumbline/` change owes on top of that, and what a change to this
+  repository's own claims about itself owes. The metrics ledger is this
+  repository's code-quality numbers (suite count, test count, coverage,
+  ruff, mypy, complexity) as an append-only history rather than a single
+  point-in-time table row; every row was produced by checking out that
+  tagged or merged commit in an isolated worktree and running the same
+  commands `make verify` runs today, not recalled or carried forward —
+  which caught two numbers this session would otherwise have gotten
+  wrong (mypy's default-mode error count immediately before it was
+  wired was 29, not the 27 an earlier document's stale figure implied).
+  Both name against themselves that nothing currently enforces they stay
+  current.
 - **An operations runbook** ([`docs/operations-runbook.md`](docs/operations-runbook.md)),
   closing the gap the Observability conformance row named against itself.
   Split for the two people who actually hit it: someone gating a
