@@ -23,9 +23,11 @@ import json
 import sys
 import traceback
 from pathlib import Path
+from typing import Any, cast
 
 from . import __version__
 from .audit import (
+    AuditOutcome,
     CoverageError,
     DEFAULT_SEED,
     ResultError,
@@ -120,7 +122,7 @@ def cmd_seal(args: argparse.Namespace) -> int:
     return EXIT_PASS
 
 
-def _read_report(source: Path) -> dict:
+def _read_report(source: Path) -> dict[str, Any]:
     try:
         with open(source, encoding="utf-8") as f:
             report = json.load(f)
@@ -336,14 +338,15 @@ def cmd_retire(args: argparse.Namespace) -> int:
     return EXIT_PASS
 
 
-def _audit_from_args(args: argparse.Namespace, *, offline_only: bool = False):
+def _audit_from_args(args: argparse.Namespace, *, offline_only: bool = False
+                     ) -> AuditOutcome:
     config = load_config(Path(args.config))
     baseline_path = Path(args.baseline) if args.baseline else None
     return run_audit(config, seed=args.seed, out_dir=Path(args.out),
                      baseline_path=baseline_path, offline_only=offline_only)
 
 
-def _suite_lines(report: dict) -> list[str]:
+def _suite_lines(report: dict[str, Any]) -> list[str]:
     lines = []
     for s in report["suites"]:
         ci = ("ci n/a" if s["ci"] is None
@@ -360,13 +363,13 @@ def _suite_lines(report: dict) -> list[str]:
     return lines
 
 
-def _coupling_lines(report: dict) -> list[str]:
+def _coupling_lines(report: dict[str, Any]) -> list[str]:
     """Say it in the build log too. Three red suites should not send somebody
     chasing three bugs when the matrix already established they are one."""
     return summarize_couplings(report.get("couplings") or {})
 
 
-def _judge_line(report: dict) -> str:
+def _judge_line(report: dict[str, Any]) -> str:
     """One line naming the instrument. A model judge says so here too, not
     only in the report file somebody may never open."""
     judge = report.get("judge") or {}
@@ -377,7 +380,7 @@ def _judge_line(report: dict) -> str:
             f"mode {judge.get('mode')}")
 
 
-def _baseline_exit(outcome, args) -> int | None:
+def _baseline_exit(outcome: AuditOutcome, args: argparse.Namespace) -> int | None:
     """The configuration-error code when a strict run got an incomparable
     baseline, otherwise None."""
     if (outcome.comparison and not outcome.comparison["comparable"]
@@ -642,7 +645,7 @@ def _add_baseline_arguments(parser: argparse.ArgumentParser) -> None:
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     try:
-        return args.func(args)
+        return cast(int, args.func(args))
     except IntegrityError as e:
         print(f"INTEGRITY REFUSAL: {e}", file=sys.stderr)
         print("Nothing was scored. If this change to the evidence is legitimate, "

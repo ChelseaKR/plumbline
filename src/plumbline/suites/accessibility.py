@@ -79,7 +79,7 @@ class _Snapshot(HTMLParser):
     def __init__(self) -> None:
         super().__init__(convert_charrefs=True)
         self.root_lang: str | None = None
-        self.controls: list[tuple[str, dict]] = []
+        self.controls: list[tuple[str, dict[str, str]]] = []
         self.label_targets: set[str] = set()
         self.live_regions: list[str] = []
         self.headings: list[int] = []
@@ -87,7 +87,7 @@ class _Snapshot(HTMLParser):
         self._in_contrast_script = False
         self.contrast_json: str | None = None
 
-    def handle_starttag(self, tag, attrs):
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         attributes = {k.lower(): (v or "") for k, v in attrs}
         if attributes.get("id"):
             self.ids.add(attributes["id"])
@@ -106,11 +106,11 @@ class _Snapshot(HTMLParser):
             self.live_regions.append(
                 attributes.get("id") or attributes.get("role") or tag)
 
-    def handle_endtag(self, tag):
+    def handle_endtag(self, tag: str) -> None:
         if tag == "script":
             self._in_contrast_script = False
 
-    def handle_data(self, data):
+    def handle_data(self, data: str) -> None:
         if self._in_contrast_script:
             self.contrast_json = (self.contrast_json or "") + data
 

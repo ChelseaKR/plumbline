@@ -47,11 +47,15 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import TYPE_CHECKING, Any
 
 from . import network
 from .errors import OutboundError
 from .hashing import canonical_json, config_digest, sha256_text
 from .judges import LexicalJudge, language_rules, strip_citations
+
+if TYPE_CHECKING:
+    from .bundle import Item
 
 CACHE_FORMAT = "plumbline-judgments"
 CACHE_FORMAT_VERSION = 1
@@ -123,7 +127,7 @@ def _parse_score(value: object, *, where: str) -> float:
     return score
 
 
-def _prompt_identity(model: str, body_template: object) -> dict:
+def _prompt_identity(model: str, body_template: object) -> dict[str, Any]:
     """What a recorded judgment is bound to: the model, and the question it
     was asked.
 
@@ -151,10 +155,10 @@ class JudgmentCache:
     set of judgments behind its scores.
     """
 
-    def __init__(self, path: Path | None, identity: dict):
+    def __init__(self, path: Path | None, identity: dict[str, Any]):
         self.path = Path(path) if path else None
         self.identity = identity
-        self.judgments: dict[str, dict] = {}
+        self.judgments: dict[str, dict[str, Any]] = {}
         if self.path and self.path.is_file():
             self._load()
 
@@ -242,7 +246,7 @@ class ModelJudge:
     # --- construction -------------------------------------------------------
 
     @classmethod
-    def from_config(cls, cfg: dict) -> tuple["ModelJudge", list[str]]:
+    def from_config(cls, cfg: dict[str, Any]) -> tuple["ModelJudge", list[str]]:
         unknown = sorted(set(cfg) - KNOWN_KEYS)
         if unknown:
             raise ModelJudgeError(
@@ -329,7 +333,7 @@ class ModelJudge:
 
     # --- identity -----------------------------------------------------------
 
-    def config(self) -> dict:
+    def config(self) -> dict[str, Any]:
         """The judge configuration hashed into every report.
 
         Covers the model, the exact request shape (endpoint, template, bounds,
@@ -358,7 +362,7 @@ class ModelJudge:
     def config_hash(self) -> str:
         return config_digest(self.config())
 
-    def describe(self) -> dict:
+    def describe(self) -> dict[str, Any]:
         """What the report says on its face."""
         return {
             "kind": self.kind,
@@ -419,7 +423,7 @@ class ModelJudge:
         try:
             payload = network.call_json(self._shape, self._headers, body)
             value = network.resolve_pointer(payload, self._shape.response_pointer)
-        except network.OutboundError as e:
+        except OutboundError as e:
             raise ModelJudgeError(f"judgment {key[:12]}: {e}") from e
         return _parse_score(value, where=f"judgment {key[:12]}")
 
@@ -431,22 +435,22 @@ class ModelJudge:
     def support_score(self, claim: str, source_text: str) -> float:
         return self._lexical.support_score(claim, source_text)
 
-    def number_support(self, claim: str, source_text: str):
+    def number_support(self, claim: str, source_text: str) -> tuple[float, list[str]]:
         return self._lexical.number_support(claim, source_text)
 
-    def supported_languages(self):
+    def supported_languages(self) -> tuple[str, ...]:
         return self._lexical.supported_languages()
 
-    def detect_language(self, text: str):
+    def detect_language(self, text: str) -> str | None:
         return self._lexical.detect_language(text)
 
-    def harm_markers_in(self, text: str):
+    def harm_markers_in(self, text: str) -> list[str]:
         return self._lexical.harm_markers_in(text)
 
-    def pii_in(self, text: str):
+    def pii_in(self, text: str) -> list[tuple[str, str]]:
         return self._lexical.pii_in(text)
 
-    def solicitations_in(self, text: str):
+    def solicitations_in(self, text: str) -> list[str]:
         return self._lexical.solicitations_in(text)
 
     def contains(self, response: str, phrase: str) -> bool:
@@ -460,5 +464,5 @@ class ModelJudge:
         # failure this suite exists to catch.
         return self._lexical.asserted(response, phrase)
 
-    def forbidden_in(self, response: str, item):
+    def forbidden_in(self, response: str, item: "Item") -> tuple[list[str], list[str]]:
         return self._lexical.forbidden_in(response, item)

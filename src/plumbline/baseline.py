@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any, cast
 
 from .hashing import canonical_json, sha256_text
 
@@ -43,7 +44,7 @@ class BaselineError(Exception):
     """The baseline file is missing or unusable (configuration error)."""
 
 
-def build_baseline(report: dict) -> dict:
+def build_baseline(report: dict[str, Any]) -> dict[str, Any]:
     """Distil a report into the record a repository commits as its bar."""
     provenance = report["provenance"]
     return {
@@ -80,7 +81,7 @@ def build_baseline(report: dict) -> dict:
     }
 
 
-def write_baseline(baseline: dict, path: Path) -> Path:
+def write_baseline(baseline: dict[str, Any], path: Path) -> Path:
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:
@@ -89,7 +90,7 @@ def write_baseline(baseline: dict, path: Path) -> Path:
     return path
 
 
-def load_baseline(path: Path) -> dict:
+def load_baseline(path: Path) -> dict[str, Any]:
     path = Path(path)
     if not path.is_file():
         raise BaselineError(
@@ -98,7 +99,7 @@ def load_baseline(path: Path) -> dict:
         )
     try:
         with open(path, encoding="utf-8") as f:
-            baseline = json.load(f)
+            baseline = cast(dict[str, Any], json.load(f))
     except (OSError, json.JSONDecodeError) as e:
         raise BaselineError(f"unreadable baseline {path}: {e}") from e
     if baseline.get("format") != BASELINE_FORMAT:
@@ -118,13 +119,13 @@ def load_baseline(path: Path) -> dict:
     return baseline
 
 
-def baseline_digest(baseline: dict) -> str:
+def baseline_digest(baseline: dict[str, Any]) -> str:
     """Identity of a baseline document, folded into the run id so that a run
     compared against a different bar is a different run."""
     return sha256_text(canonical_json(baseline))
 
 
-def compare(report: dict, baseline: dict) -> dict:
+def compare(report: dict[str, Any], baseline: dict[str, Any]) -> dict[str, Any]:
     """Compare a finished report against a baseline record."""
     provenance = report["provenance"]
     current = {s["suite"]: s for s in report["suites"]}
@@ -278,7 +279,7 @@ def compare(report: dict, baseline: dict) -> dict:
     }
 
 
-def render_markdown(comparison: dict) -> list[str]:
+def render_markdown(comparison: dict[str, Any]) -> list[str]:
     """Markdown lines for the report's regression section."""
     lines = ["## Regression against baseline", ""]
     against = comparison["against"]
@@ -351,7 +352,7 @@ def render_markdown(comparison: dict) -> list[str]:
     return lines
 
 
-def summarize_for_terminal(comparison: dict) -> list[str]:
+def summarize_for_terminal(comparison: dict[str, Any]) -> list[str]:
     """The build-log lines. Everything the comparison found has to reach here.
 
     The markdown report and the JSON have named added and removed suites since

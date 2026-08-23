@@ -8,11 +8,15 @@ the no-silent-skip rule applies to the registry itself.
 
 from __future__ import annotations
 
+from collections.abc import Iterable, Sized
 from dataclasses import dataclass, field
+from typing import Any, TypeVar
 
-from ..bundle import Bundle
+from ..bundle import Bundle, Item
 from ..judges import Judge, normalize, strip_citations
 from ..stats import KIND_PROPORTION
+
+_Population = TypeVar("_Population", bound=Sized)
 
 PASS = "PASS"
 FAIL = "FAIL"
@@ -77,7 +81,7 @@ def readable(text: str | None) -> bool:
     return bool(normalize(strip_citations(text or "")))
 
 
-def unreadable_reason(bundle, item) -> str | None:
+def unreadable_reason(bundle: Bundle, item: Item) -> str | None:
     """`SILENT`, `UNREADABLE`, or None when the response can be checked."""
     text = bundle.response_for(item.id) or ""
     if readable(text):
@@ -85,7 +89,7 @@ def unreadable_reason(bundle, item) -> str | None:
     return SILENT if not text.strip() else UNREADABLE
 
 
-def responded(bundle, item) -> bool:
+def responded(bundle: Bundle, item: Item) -> bool:
     """Whether the target said something this suite can actually read.
 
     The distinction this draws is the difference between "we checked and found
@@ -96,7 +100,7 @@ def responded(bundle, item) -> bool:
     return unreadable_reason(bundle, item) is None
 
 
-def silence_record(item_id: str, reason: str = SILENT) -> dict:
+def silence_record(item_id: str, reason: str = SILENT) -> dict[str, Any]:
     """The per-item record for an item excluded because nothing was said, or
     because what was said has nothing in it."""
     return {
@@ -107,14 +111,15 @@ def silence_record(item_id: str, reason: str = SILENT) -> dict:
     }
 
 
-def split_unreadable(bundle, items) -> tuple[list, dict[str, list[str]]]:
+def split_unreadable(bundle: Bundle, items: Iterable[Item]
+                      ) -> tuple[list[Item], dict[str, list[str]]]:
     """(items whose response can be checked, reason id -> excluded item ids).
 
     Every suite that excludes unreadable responses does it the same way, so
     the split lives here: a suite that wrote its own would be one refactor away
     from checking `.strip()` again.
     """
-    scorable: list = []
+    scorable: list[Item] = []
     excluded: dict[str, list[str]] = {SILENT: [], UNREADABLE: []}
     for item in items:
         reason = unreadable_reason(bundle, item)
@@ -125,7 +130,7 @@ def split_unreadable(bundle, items) -> tuple[list, dict[str, list[str]]]:
     return scorable, excluded
 
 
-def unreadable_records(excluded: dict[str, list[str]]) -> list[dict]:
+def unreadable_records(excluded: dict[str, list[str]]) -> list[dict[str, Any]]:
     """One per-item record per excluded item, in a deterministic order."""
     return [silence_record(item_id, reason)
             for reason, ids in sorted(excluded.items())
@@ -148,8 +153,8 @@ class SuiteResult:
     floor: float
     verdict: str          # PASS | FAIL
     n: int                # items considered
-    details: dict = field(default_factory=dict)
-    item_records: list[dict] = field(default_factory=list)
+    details: dict[str, Any] = field(default_factory=dict)
+    item_records: list[dict[str, Any]] = field(default_factory=list)
 
     # Severity: item ids that failed a load-bearing check and therefore fail
     # the suite regardless of the pooled average (spec R3).
@@ -164,9 +169,9 @@ class SuiteResult:
     strata: dict[str, list[float]] = field(default_factory=dict)
 
     # Filled in centrally by the audit runner; no suite can forget them.
-    ci: dict | None = None
+    ci: dict[str, Any] | None = None
     mde: float | None = None
-    stats_meta: dict = field(default_factory=dict)
+    stats_meta: dict[str, Any] = field(default_factory=dict)
 
 
 class Suite:
@@ -186,7 +191,7 @@ class Suite:
     def verdict_for(score: float, floor: float) -> str:
         return PASS if score >= floor else FAIL
 
-    def require_population(self, units, requirement: str):
+    def require_population(self, units: _Population, requirement: str) -> _Population:
         """Refuse to score nothing. Returns `units` when non-empty."""
         if not units:
             raise EmptyPopulationError(
@@ -198,7 +203,7 @@ class Suite:
 
 
 def unverifiable_block(reasons: dict[str, list[str]], *, eligible: int,
-                       scored: int, note: str) -> dict:
+                       scored: int, note: str) -> dict[str, Any]:
     """The standard shape for "what this suite could not check, and why".
 
     A suite that silently narrows its own population reports a score over

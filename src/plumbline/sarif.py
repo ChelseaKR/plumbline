@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any
 
 from .suites import UNVERIFIABLE
 
@@ -44,7 +45,7 @@ LEVEL_WARNING = "warning"
 LEVEL_NOTE = "note"
 
 
-def _record_id(record: dict) -> str:
+def _record_id(record: dict[str, Any]) -> str:
     """The identifier a record carries under whichever key this suite uses.
 
     `item` is near-universal; `accessibility` uses `check` (it scores fixed
@@ -64,7 +65,7 @@ def _record_id(record: dict) -> str:
     return "(unidentified item)"
 
 
-def _rule(suite: dict) -> dict:
+def _rule(suite: dict[str, Any]) -> dict[str, Any]:
     metric = (suite.get("details") or {}).get("metric")
     return {
         "id": suite["suite"],
@@ -80,7 +81,7 @@ def _rule(suite: dict) -> dict:
     }
 
 
-def _unverifiable_rule(suite_id: str) -> dict:
+def _unverifiable_rule(suite_id: str) -> dict[str, Any]:
     return {
         "id": f"{suite_id}.unverifiable",
         "shortDescription": {
@@ -97,7 +98,7 @@ def _unverifiable_rule(suite_id: str) -> dict:
     }
 
 
-def _result(suite_id: str, record: dict) -> dict:
+def _result(suite_id: str, record: dict[str, Any]) -> dict[str, Any]:
     item_id = _record_id(record)
     if record.get("verdict") == UNVERIFIABLE:
         rule_id = f"{suite_id}.unverifiable"
@@ -126,7 +127,7 @@ def _result(suite_id: str, record: dict) -> dict:
     }
 
 
-def build_sarif(report: dict) -> dict:
+def build_sarif(report: dict[str, Any]) -> dict[str, Any]:
     """The report, projected onto one SARIF run.
 
     Load-bearing item failures — the ones named in a suite's own
@@ -136,8 +137,8 @@ def build_sarif(report: dict) -> dict:
     PR's annotation count) cannot mistake "could not be checked" for "was
     checked and failed".
     """
-    rules: list[dict] = []
-    results: list[dict] = []
+    rules: list[dict[str, Any]] = []
+    results: list[dict[str, Any]] = []
     seen_rules: set[str] = set()
     for suite in report.get("suites", []):
         hard = set(suite.get("hard_failures") or [])
@@ -186,7 +187,7 @@ def build_sarif(report: dict) -> dict:
     }
 
 
-def write_sarif(report: dict, run_dir: Path) -> Path:
+def write_sarif(report: dict[str, Any], run_dir: Path) -> Path:
     """Write sarif.json next to a run's report.json/report.md."""
     out = Path(run_dir) / SARIF_FILENAME
     with open(out, "w", encoding="utf-8") as f:

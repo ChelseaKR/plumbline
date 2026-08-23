@@ -11,6 +11,7 @@ from __future__ import annotations
 import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 from . import suites as suite_registry
 
@@ -23,7 +24,7 @@ class ConfigError(Exception):
 class TargetConfig:
     name: str
     dataset_path: Path
-    judge: dict = field(default_factory=lambda: {"kind": "lexical"})
+    judge: dict[str, Any] = field(default_factory=lambda: {"kind": "lexical"})
     # suite id -> floor, enabled suites only
     suites: dict[str, float] = field(default_factory=dict)
     # Committed baseline record to compare this run against, if any.
@@ -31,7 +32,7 @@ class TargetConfig:
     # How `plumbline record` reaches the live target. Read by that command and
     # by nothing else: an audit grades the committed bundle, so declaring an
     # adapter here can never put a network call inside the gate.
-    adapter: dict = field(default_factory=dict)
+    adapter: dict[str, Any] = field(default_factory=dict[str, Any])
     # Question set to record against, when it is not the dataset being graded.
     questions_path: Path | None = None
 

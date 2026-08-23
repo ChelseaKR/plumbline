@@ -35,6 +35,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any
 
 from .report import verify_report
 
@@ -52,14 +53,14 @@ class HistoryError(Exception):
     error)."""
 
 
-def _suite_summary(report: dict) -> dict[str, dict]:
+def _suite_summary(report: dict[str, Any]) -> dict[str, dict[str, Any]]:
     return {
         s["suite"]: {"score": s["score"], "floor": s["floor"], "mde": s["mde"]}
         for s in report.get("suites", [])
     }
 
 
-def record_from_report(report: dict, *, source: str = "report") -> dict:
+def record_from_report(report: dict[str, Any], *, source: str = "report") -> dict[str, Any]:
     """The compact record `history append` stores for one run.
 
     Refuses a report that does not match its own seal first — the same
@@ -82,7 +83,7 @@ def record_from_report(report: dict, *, source: str = "report") -> dict:
     }
 
 
-def load_history(path: Path) -> list[dict]:
+def load_history(path: Path) -> list[dict[str, Any]]:
     path = Path(path)
     if not path.exists():
         return []
@@ -99,7 +100,7 @@ def load_history(path: Path) -> list[dict]:
     return runs
 
 
-def write_history(runs: list[dict], path: Path) -> Path:
+def write_history(runs: list[dict[str, Any]], path: Path) -> Path:
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:
@@ -110,7 +111,7 @@ def write_history(runs: list[dict], path: Path) -> Path:
     return path
 
 
-def append(report: dict, history_path: Path, *, source: str = "report") -> tuple[list[dict], bool]:
+def append(report: dict[str, Any], history_path: Path, *, source: str = "report") -> tuple[list[dict[str, Any]], bool]:
     """Append one run's record to a history file. Returns (runs, appended) —
     appended is False when the newest entry already names this run id, so
     re-running `history append` after a byte-identical re-run is a no-op
@@ -124,7 +125,7 @@ def append(report: dict, history_path: Path, *, source: str = "report") -> tuple
     return runs, True
 
 
-def _comparable_chain(runs: list[dict]) -> list[dict]:
+def _comparable_chain(runs: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """The trailing run of entries sharing the newest entry's dataset and
     judge configuration hash — the same two fields `baseline.py` refuses to
     compare across, applied to a whole window instead of one pair."""
@@ -151,7 +152,7 @@ def _is_declining(scores: list[float]) -> bool:
     return non_increasing and scores[-1] < scores[0]
 
 
-def trends(runs: list[dict], *, min_streak: int = DEFAULT_MIN_STREAK) -> dict:
+def trends(runs: list[dict[str, Any]], *, min_streak: int = DEFAULT_MIN_STREAK) -> dict[str, Any]:
     """Per-suite trend over the trailing comparable chain.
 
     `chain_len` is how many runs the trend actually looks back over — always
@@ -161,7 +162,7 @@ def trends(runs: list[dict], *, min_streak: int = DEFAULT_MIN_STREAK) -> dict:
     at all; there is no vacuous trend the way there is no vacuous pass.
     """
     chain = _comparable_chain(runs)
-    declining: list[dict] = []
+    declining: list[dict[str, Any]] = []
     result: dict[str, object] = {
         "chain_len": len(chain),
         "min_streak": min_streak,
@@ -186,7 +187,7 @@ def trends(runs: list[dict], *, min_streak: int = DEFAULT_MIN_STREAK) -> dict:
     return result
 
 
-def render_terminal(result: dict) -> list[str]:
+def render_terminal(result: dict[str, Any]) -> list[str]:
     lines = [
         f"history: {result['chain_len']} run(s) in the comparable chain "
         f"(same dataset and judge hash as the newest)",

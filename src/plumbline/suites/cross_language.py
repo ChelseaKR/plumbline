@@ -29,7 +29,9 @@ from __future__ import annotations
 
 from itertools import combinations
 
-from ..bundle import Bundle
+from typing import Any
+
+from ..bundle import Bundle, Item
 from ..judges import Judge, extract_numbers, strip_citations
 from ..stats import KIND_PROPORTION
 from . import (
@@ -53,7 +55,7 @@ class CrossLanguageSuite(Suite):
     default_floor = 1.00
 
     def evaluate(self, bundle: Bundle, judge: Judge, floor: float) -> SuiteResult:
-        by_fact: dict[str, list] = {}
+        by_fact: dict[str, list[Item]] = {}
         unlinked = []
         for item in bundle.items:
             if item.fact_id:
@@ -82,7 +84,7 @@ class CrossLanguageSuite(Suite):
         # answers that were never given is not evidence the two languages are
         # served the same, so a pair with a silent side is excluded and named
         # rather than scored 1.0.
-        records = []
+        records: list[dict[str, Any]] = []
         excluded_pairs: dict[str, list[str]] = {}
         pairs = []
         for fact_id, left, right in eligible:

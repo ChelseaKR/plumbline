@@ -19,9 +19,13 @@ only on the run seed and never on the Python implementation's PRNG.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from math import sqrt
 from statistics import NormalDist
+from typing import Any, TypeVar
+
+_Replicate = TypeVar("_Replicate")
 
 # --- Chosen constants (demonstration defaults; see DESIGN.md) ---------------
 CONFIDENCE = 0.95          # two-sided
@@ -131,7 +135,8 @@ def _percentile(sorted_values: list[float], q: float) -> float:
     return sorted_values[low] * (1 - frac) + sorted_values[high] * frac
 
 
-def bootstrap(statistic, resample, *, seed: int,
+def bootstrap(statistic: Callable[[_Replicate], float],
+              resample: Callable[[SplitMix64], _Replicate], *, seed: int,
               resamples: int = BOOTSTRAP_RESAMPLES,
               confidence: float = CONFIDENCE) -> tuple[tuple[float, float], float]:
     """Percentile bootstrap. Returns ((lower, upper), standard_error).
@@ -152,9 +157,9 @@ def bootstrap(statistic, resample, *, seed: int,
 @dataclass
 class Statistics:
     """What gets stamped onto a suite result."""
-    ci: dict | None
+    ci: dict[str, Any] | None
     mde: float | None
-    meta: dict
+    meta: dict[str, Any]
 
 
 def _round(value: float) -> float:

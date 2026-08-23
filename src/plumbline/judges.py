@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import re
 from collections import Counter
-from typing import TYPE_CHECKING, Protocol
+from typing import TYPE_CHECKING, Any, Protocol
 
 from . import lexicons
 from .hashing import config_digest
@@ -44,8 +44,8 @@ class Judge(Protocol):
     config happens to pick.
     """
 
-    def config(self) -> dict: ...
-    def describe(self) -> dict: ...
+    def config(self) -> dict[str, Any]: ...
+    def describe(self) -> dict[str, Any]: ...
     def answer_score(self, expected: str, actual: str) -> float: ...
     def is_refusal(self, text: str) -> bool: ...
     def support_score(self, claim: str, source_text: str) -> float: ...
@@ -124,7 +124,7 @@ class LexicalJudge:
         # judge configuration hash on every report.
         self._languages = languages or lexicons.default_language_rules()
 
-    def config(self) -> dict:
+    def config(self) -> dict[str, Any]:
         return {
             "kind": self.kind,
             "version": 3,
@@ -140,7 +140,7 @@ class LexicalJudge:
     def config_hash(self) -> str:
         return config_digest(self.config())
 
-    def describe(self) -> dict:
+    def describe(self) -> dict[str, Any]:
         """What the report says about the instrument on its face. The lexical
         judge's answer is the boring one, and that is the point.
 
@@ -260,7 +260,8 @@ class LexicalJudge:
             window = window.rpartition(boundary)[2]
         return any(marker in window for marker in lexicons.DENIAL_MARKERS)
 
-    def forbidden_in(self, response: str, item) -> tuple[list[str], list[str]]:
+    def forbidden_in(self, response: str, item: "Item"
+                     ) -> tuple[list[str], list[str]]:
         """(phrases that must not appear and did, claims asserted anyway).
 
         One call so no suite can screen half of an item's declarations. The two
@@ -321,7 +322,8 @@ class LexicalJudge:
         return [m for m in lexicons.PII_SOLICITATION_MARKERS if m in lowered]
 
 
-def language_rules(judge_config: dict) -> tuple[lexicons.LanguageRules, list[str]]:
+def language_rules(judge_config: dict[str, Any]
+                    ) -> tuple[lexicons.LanguageRules, list[str]]:
     """The language profiles a target configuration puts in force.
 
     Plumbline cannot enumerate the world's languages, and a harness that
@@ -336,7 +338,7 @@ def language_rules(judge_config: dict) -> tuple[lexicons.LanguageRules, list[str
                                       normalizer=normalize)
 
 
-def make_judge(judge_config: dict, *, offline_only: bool = False
+def make_judge(judge_config: dict[str, Any], *, offline_only: bool = False
                ) -> tuple[Judge, list[str]]:
     """Build a judge from target configuration, with any warnings.
 

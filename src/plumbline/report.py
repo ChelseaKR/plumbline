@@ -12,6 +12,7 @@ from __future__ import annotations
 import copy
 import json
 from pathlib import Path
+from typing import Any
 
 from .baseline import render_markdown as render_baseline_markdown
 from .couplings import render_markdown as render_couplings_markdown
@@ -29,7 +30,7 @@ class ReportSealError(Exception):
     """A report's contents do not match its own seal (integrity refusal)."""
 
 
-def report_digest(report: dict) -> str:
+def report_digest(report: dict[str, Any]) -> str:
     """sha256 over the report's canonical JSON, with the seal field removed.
 
     Provenance used to describe the *inputs* to a run — evidence hash, judge
@@ -46,13 +47,13 @@ def report_digest(report: dict) -> str:
     return sha256_text(canonical_json(body))
 
 
-def seal_report(report: dict) -> dict:
+def seal_report(report: dict[str, Any]) -> dict[str, Any]:
     """Stamp a finished report with the digest of its own body, in place."""
     report["provenance"][REPORT_SEAL_FIELD] = report_digest(report)
     return report
 
 
-def verify_report(report: dict, *, source: str = "report") -> str:
+def verify_report(report: dict[str, Any], *, source: str = "report") -> str:
     """Recompute a report's seal and refuse if the body has moved."""
     recorded = (report.get("provenance") or {}).get(REPORT_SEAL_FIELD)
     if not recorded:
@@ -75,14 +76,14 @@ def verify_report(report: dict, *, source: str = "report") -> str:
 def build_report(
     *,
     verdict: str,
-    provenance: dict,
-    judge: dict,
+    provenance: dict[str, Any],
+    judge: dict[str, Any],
     target: str,
-    dataset_info: dict,
+    dataset_info: dict[str, Any],
     results: list[SuiteResult],
     warnings: list[str],
-    couplings: dict | None = None,
-) -> dict:
+    couplings: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     return {
         "verdict": verdict,  # first key, per spec: overall verdict first
         "provenance": provenance,
@@ -125,7 +126,7 @@ def build_report(
     }
 
 
-def _format_ci(ci: dict | None) -> str:
+def _format_ci(ci: dict[str, Any] | None) -> str:
     if not ci:
         return "n/a"
     return f"{ci['lower']:.4f} – {ci['upper']:.4f}"
@@ -135,7 +136,7 @@ def _format_mde(mde: float | None) -> str:
     return "n/a" if mde is None else f"{mde:.4f}"
 
 
-def _recording_lines(recording: dict | None) -> list[str]:
+def _recording_lines(recording: dict[str, Any] | None) -> list[str]:
     """Where the graded answers came from, when the bundle records it.
 
     A hand-written transcript and a transcript captured from a production
@@ -168,7 +169,7 @@ def _recording_lines(recording: dict | None) -> list[str]:
     return lines
 
 
-def _unverifiable_lines(report: dict) -> list[str]:
+def _unverifiable_lines(report: dict[str, Any]) -> list[str]:
     """What each suite could not check, and how much of its population that
     was.
 
@@ -194,7 +195,7 @@ def _unverifiable_lines(report: dict) -> list[str]:
     return lines
 
 
-def render_markdown(report: dict) -> str:
+def render_markdown(report: dict[str, Any]) -> str:
     p = report["provenance"]
     lines: list[str] = []
     lines.append(f"# Audit verdict: {report['verdict']}")
@@ -295,7 +296,7 @@ def render_markdown(report: dict) -> str:
     return "\n".join(lines)
 
 
-def write_reports(report: dict, out_dir: Path) -> tuple[Path, Path]:
+def write_reports(report: dict[str, Any], out_dir: Path) -> tuple[Path, Path]:
     """Write report.json and report.md under <out_dir>/<run_id>/.
 
     Deterministic bytes: fixed key order (insertion order of build_report),

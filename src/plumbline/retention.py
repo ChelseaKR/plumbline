@@ -31,6 +31,7 @@ import json
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any, cast
 
 from . import bundle as bundle_mod
 from .judges import LexicalJudge
@@ -56,7 +57,7 @@ class RetentionResult:
     redacted_count: int
 
 
-def _recording_block(bundle) -> dict:
+def _recording_block(bundle: bundle_mod.Bundle) -> dict[str, Any]:
     recording = bundle.manifest.get("recording")
     if not recording:
         raise RetentionError(
@@ -65,10 +66,10 @@ def _recording_block(bundle) -> dict:
             f"governs recordings of a live target; a hand-written or "
             f"synthetic bundle has no recording date to retire it against."
         )
-    return recording
+    return cast(dict[str, Any], recording)
 
 
-def age_days(recording: dict, *, now: datetime | None = None) -> float:
+def age_days(recording: dict[str, Any], *, now: datetime | None = None) -> float:
     """Days since a recording was made, from the manifest's own
     `recording.recorded_at` — the one timestamp this harness writes down on
     purpose, and the only place an age like this can honestly come from."""
@@ -88,7 +89,7 @@ def age_days(recording: dict, *, now: datetime | None = None) -> float:
     return (now - recorded).total_seconds() / 86400.0
 
 
-def screen(bundle) -> dict[str, list[tuple[str, str]]]:
+def screen(bundle: bundle_mod.Bundle) -> dict[str, list[tuple[str, str]]]:
     """Every personal-data pattern found in each recorded response.
 
     Reuses `LexicalJudge.pii_in` directly: this is `privacy.py`'s own check,
@@ -116,7 +117,7 @@ def _redact_text(text: str, matches: list[tuple[str, str]]) -> str:
     return text
 
 
-def redact(bundle, findings: dict[str, list[tuple[str, str]]]) -> int:
+def redact(bundle: bundle_mod.Bundle, findings: dict[str, list[tuple[str, str]]]) -> int:
     """Rewrite this bundle's responses.jsonl in place, replacing every
     matched span with a placeholder naming the kind of data it was, then
     reseal — the only legitimate way to change evidence, and it always

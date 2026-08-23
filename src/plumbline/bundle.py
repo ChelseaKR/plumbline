@@ -11,8 +11,10 @@ from __future__ import annotations
 
 import json
 import re
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 from .hashing import bundle_digest, sha256_file, short_id
 
@@ -56,7 +58,7 @@ class Item:
     load_bearing: bool = False
     fact_id: str | None = None
     group: str | None = None
-    translation: dict | None = None
+    translation: dict[str, Any] | None = None
     sources: list[str] = field(default_factory=list)  # source ids retrieved for this item
     # Opt-in: the source ids that actually ANSWER this question, as opposed to
     # the ones that were merely retrieved. Only the `passage_attribution`
@@ -83,7 +85,7 @@ class Item:
 @dataclass
 class Bundle:
     path: Path
-    manifest: dict
+    manifest: dict[str, Any]
     items: list[Item]
     responses: dict[str, str]  # item id -> recorded response text
     dataset_sha256: str
@@ -143,7 +145,7 @@ class Bundle:
 
     @property
     def name(self) -> str:
-        return self.manifest.get("name", self.path.name)
+        return str(self.manifest.get("name", self.path.name))
 
     def response_for(self, item_id: str) -> str | None:
         return self.responses.get(item_id)
@@ -203,7 +205,7 @@ def check_hashable_name(name: str) -> str:
     return name
 
 
-def _walk(bundle_dir: Path):
+def _walk(bundle_dir: Path) -> Iterator[Path]:
     """Every regular file anywhere under the bundle, depth first.
 
     Symbolic links are refused outright, directories included. A link is a
@@ -254,7 +256,7 @@ def hashed_files(bundle_dir: Path) -> dict[str, Path]:
     return dict(sorted(found.items()))
 
 
-def compute_checksums(bundle_dir: Path) -> dict:
+def compute_checksums(bundle_dir: Path) -> dict[str, Any]:
     files = {name: sha256_file(p)
              for name, p in hashed_files(bundle_dir).items()}
     return {
@@ -266,7 +268,7 @@ def compute_checksums(bundle_dir: Path) -> dict:
     }
 
 
-def seal(bundle_dir: Path) -> dict:
+def seal(bundle_dir: Path) -> dict[str, Any]:
     """(Re)generate checksums.json. The only legitimate way to change
     evidence; it always leaves a trace, because the bundle hash changes."""
     bundle_dir = Path(bundle_dir)

@@ -23,12 +23,14 @@ new coupling cannot stay in the proof file either.
 
 from __future__ import annotations
 
+from typing import Any
+
 from .suites import CAUSE_FORBIDDEN, FAIL, SuiteResult
 
 FORBIDDEN_LIST = "forbidden-list"
 PER_ITEM_ANSWER_SCORE = "per-item-answer-score"
 
-DECLARATIONS: list[dict] = [
+DECLARATIONS: list[dict[str, Any]] = [
     {
         "id": FORBIDDEN_LIST,
         "suites": ["adversarial", "privacy", "representational_harms"],
@@ -96,7 +98,7 @@ def _identically_scored_items(results: dict[str, SuiteResult],
                   if len({table[item] for table in tables}) == 1)
 
 
-def _evidence_for(declaration: dict, results: dict[str, SuiteResult],
+def _evidence_for(declaration: dict[str, Any], results: dict[str, SuiteResult],
                   present: list[str], failed: list[str]) -> list[str]:
     if declaration["id"] == FORBIDDEN_LIST:
         # Over the suites that FAILED, not over every enabled one. An answer
@@ -115,7 +117,7 @@ def _evidence_for(declaration: dict, results: dict[str, SuiteResult],
     return []
 
 
-def _reading(declaration: dict, failed: list[str], shared: list[str]) -> str:
+def _reading(declaration: dict[str, Any], failed: list[str], shared: list[str]) -> str:
     """What a reader should take from the coupling, in this run."""
     if len(failed) < 2:
         return ("Fewer than two of them failed, so nothing here is being "
@@ -141,7 +143,7 @@ def _reading(declaration: dict, failed: list[str], shared: list[str]) -> str:
     )
 
 
-def analyze(results: list[SuiteResult]) -> dict:
+def analyze(results: list[SuiteResult]) -> dict[str, Any]:
     """The coupling disclosure for one run.
 
     Only declarations with at least two of their suites enabled appear: a
@@ -179,7 +181,7 @@ def analyze(results: list[SuiteResult]) -> dict:
     }
 
 
-def render_markdown(couplings: dict) -> list[str]:
+def render_markdown(couplings: dict[str, Any]) -> list[str]:
     """The section a reader sees directly under the suite table."""
     entries = couplings.get("shared_inputs") or []
     if not entries:
@@ -199,7 +201,7 @@ def render_markdown(couplings: dict) -> list[str]:
     return lines
 
 
-def summarize_for_terminal(couplings: dict) -> list[str]:
+def summarize_for_terminal(couplings: dict[str, Any]) -> list[str]:
     """One line per coupling that actually produced more than one failure.
 
     A passing run says nothing here; a build log with three red suites should

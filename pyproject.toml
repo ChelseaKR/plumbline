@@ -73,19 +73,19 @@ select = ["E4", "E7", "E9", "F"]
 ignore = ["F541"]
 
 [tool.mypy]
-# Default mypy, not `--strict`: `--strict` finds 174 findings across 28 files
-# today, almost all `dict` without a type argument in code written before
-# this was wired in. That is a recorded gap, the same shape as the ruff select
-# set above, not a decision that those findings are fine — widen this when
-# they are fixed, not before. `mypy src/plumbline` is what CI runs and what
-# is green now: `Success: no issues found in 38 source files`.
+# `--strict`, not default mypy: it found 174 findings across 28 files when
+# this file recorded that as the next open gap — almost all `dict` without a
+# type argument in code written before mypy was wired in at all, the rest a
+# missing parameter or return annotation. Fixed rather than suppressed in
+# every case (no `# type: ignore`, no narrowed scope), the same posture the
+# original wiring took on its own 27 default-mode errors. `mypy src/plumbline`
+# is what CI runs and what is green now: `Success: no issues found in 38
+# source files`.
+strict = true
 python_version = "3.11"
 files = ["src/plumbline"]
-# Catches an `# type: ignore` that stopped being needed and a `cast()` that
-# stopped changing anything — both rot silently under plain mypy, the same
-# way a stale `noqa` does under ruff.
-warn_unused_ignores = true
-warn_redundant_casts = true
+# Not part of `--strict`: catches a branch mypy proved can never run, which
+# a stale guard clause or an outdated `isinstance` check can leave behind.
 warn_unreachable = true
 
 [tool.coverage.run]
