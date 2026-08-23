@@ -1,0 +1,15 @@
+# Semgrep's own defaults (.git, node_modules, etc.) still apply; this file
+# only adds exclusions this repository has a specific, documented reason for.
+#
+# datasets/riverbend-demo/interface.html is a static HTML fixture -- a
+# captured structural snapshot for the accessibility suite to check, not a
+# served page and not a Django template. Its `<form method="post">` false-
+# positives python.django.security.django-no-csrf-token, which fires on the
+# HTML pattern regardless of whether Django is anywhere in the stack. The
+# file cannot carry an inline nosemgrep comment instead: it is content-hashed
+# into datasets/riverbend-demo/checksums.json, and editing it would move that
+# hash the same way editing src/plumbline/ moves harness_source_sha256 (see
+# pyproject.toml's own comment on F541 for that pattern) -- for one demo
+# fixture, not the whole suite, but the same "don't touch checksummed
+# evidence for a linter" reasoning applies.
+datasets/riverbend-demo/interface.html
