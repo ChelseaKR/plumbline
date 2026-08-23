@@ -9,6 +9,24 @@ may break the interface.
 
 ## [Unreleased]
 
+### Changed
+
+- **OpenSSF Scorecard moved out of `release.yml` into its own `scorecard.yml`.**
+  The action refuses to analyze anything but the repository's default
+  branch, and `release.yml` only ever triggers on a `v*` tag — a combination
+  that can never pass, discovered by the `v0.2.0` retag (see `[0.2.0]`'s own
+  Fixed entry). `scorecard.yml` follows the pattern in OpenSSF's own
+  [`scorecard-analysis.yml`](https://github.com/ossf/scorecard/blob/main/.github/workflows/scorecard-analysis.yml):
+  push to `main`, plus a weekly schedule. First run, 2026-08-23: **6.1/10**
+  — 10/10 on Security-Policy, Dangerous-Workflow, Binary-Artifacts,
+  Token-Permissions, Dependency-Update-Tool, License, and Vulnerabilities;
+  8/10 on Pinned-Dependencies and Signed-Releases; 0/10 on Branch-Protection,
+  Code-Review, SAST, Maintained (the repository is under 90 days old), and
+  CII-Best-Practices. The SAST score is a real gap in what Scorecard
+  *credits*, not in what runs: Semgrep and TruffleHog already run on every
+  push and pull request (see the Security & Supply-Chain conformance row);
+  Scorecard's check does not recognize that configuration.
+
 ## [0.2.0] - 2026-08-22
 
 Six proposals from `docs/feature-expansion-ideas.md`, merged as six
@@ -318,6 +336,23 @@ statement treats those as MINOR while below `1.0.0`.
   project's own workflows already use for `actions/checkout` — so a
   consumer needs neither the shell script nor a `plumbline.pin` file. Not
   yet exercised from an external consuming repository.
+
+### Fixed
+
+- **The `v0.2.0` tag itself, after it exposed two defects `release.yml`'s own
+  header had flagged as possible.** The first push failed immediately:
+  `actions/upload-artifact`'s pin was `ea165f8d65b6e75b540449e92b4886f43607fa9`,
+  39 hex characters — one short of a real SHA-1 — so it could not resolve.
+  Verified the correct SHA against the GitHub API
+  (`ea165f8d65b6e75b540449e92b4886f43607fa02`) and swept every other `uses:`
+  pin in every workflow file the same way; nothing else was wrong. The tag
+  was deleted and re-pushed at the fixed commit, which is why this note is
+  here rather than in a later version: the fix landed inside the commit
+  `v0.2.0` actually points to. Retagging got further — a real, signed
+  GitHub Release now exists for `v0.2.0` — but exposed a second, structural
+  defect: OpenSSF Scorecard refuses to analyze anything but the default
+  branch, and this workflow only triggers on a tag push. That one could not
+  be fixed inside the same tag; see `scorecard.yml` under `[Unreleased]`.
 
 ## [0.1.0] - 2026-08-16
 
