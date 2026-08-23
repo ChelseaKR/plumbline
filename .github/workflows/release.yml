@@ -54,7 +54,7 @@ jobs:
       - name: sbom.cdx.json must be what pyproject.toml produces
         run: python3 tools/build_sbom.py --check
 
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa9 # v4.6.2
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: sbom
           path: sbom.cdx.json
@@ -82,7 +82,7 @@ jobs:
           results_format: sarif
           publish_results: true
 
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa9 # v4.6.2
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: scorecard-results
           path: scorecard-results.sarif
@@ -113,7 +113,7 @@ jobs:
       - name: Sign the SBOM (keyless)
         run: cosign sign-blob --yes --bundle sbom.cdx.json.sigstore.json sbom.cdx.json
 
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa9 # v4.6.2
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: sbom-signature
           path: |
