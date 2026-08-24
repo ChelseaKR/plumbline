@@ -112,19 +112,21 @@ runs:
         [ -n "$INPUT_SUMMARY_FILE" ] && args+=(--summary-file "$INPUT_SUMMARY_FILE")
         [ "$INPUT_SARIF" = "true" ] && args+=(--sarif)
 
-        # The action's own checkout, at the pinned ref -- not a package this
-        # step resolves itself. That resolution already happened when the
-        # workflow's `uses:` line was evaluated.
-        PYTHONPATH="$PLUMBLINE_ACTION_PATH/src" "$INPUT_PYTHON" -m plumbline "${args[@]}"
-        code=$?
+        # Capture stdout while preserving real-time terminal output and exit code
+        tmp_out=$(mktemp)
+        PYTHONPATH="$PLUMBLINE_ACTION_PATH/src" "$INPUT_PYTHON" -m plumbline "${args[@]}" | tee "$tmp_out"
+        code=${PIPESTATUS[0]}
 
-        report_dir=$(find "$INPUT_OUT" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | sort | tail -n1 || true)
+        report_json=$(grep -E '^reports:\s*' "$tmp_out" 2>/dev/null | head -n1 | sed -E 's/^reports:\s*//' || true)
+        rm -f "$tmp_out"
+
         {
           echo "exit-code=$code"
-          if [ -n "$report_dir" ] && [ -f "$report_dir/report.json" ]; then
-            verdict=$("$INPUT_PYTHON" -c "import json,sys; print(json.load(open(sys.argv[1]))['verdict'])" "$report_dir/report.json" 2>/dev/null || true)
+          if [ -n "$report_json" ] && [ -f "$report_json" ]; then
+            report_dir=$(dirname "$report_json")
+            verdict=$("$INPUT_PYTHON" -c "import json,sys; print(json.load(open(sys.argv[1]))['verdict'])" "$report_json" 2>/dev/null || true)
             echo "verdict=$verdict"
-            echo "report-json=$report_dir/report.json"
+            echo "report-json=$report_json"
             echo "report-md=$report_dir/report.md"
             [ "$INPUT_SARIF" = "true" ] && [ -f "$report_dir/sarif.json" ] && echo "sarif-json=$report_dir/sarif.json"
           fi

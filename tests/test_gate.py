@@ -302,6 +302,13 @@ class ShippedGateArtifactsTests(unittest.TestCase):
         self.assertNotIn("continue-on-error", steps)
         self.assertNotIn("|| true", steps)
 
+    def test_the_action_yaml_is_valid_and_captures_current_run(self):
+        action_path = REPO_ROOT / "action.yml"
+        self.assertTrue(action_path.is_file())
+        text = action_path.read_text(encoding="utf-8")
+        self.assertIn("reports:", text)
+        self.assertNotIn("find \"$INPUT_OUT\" -mindepth 1 -maxdepth 1 -type d", text)
+
     def test_the_readme_documents_every_exit_code(self):
         readme = (REPO_ROOT / "gate" / "README.md").read_text(encoding="utf-8")
         # Discovered from the CLI's own constants rather than written out here.
