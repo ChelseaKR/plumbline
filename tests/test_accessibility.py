@@ -149,6 +149,42 @@ class AccessibilitySuiteTests(unittest.TestCase):
         with self.assertRaises(EmptyPopulationError):
             get_suite("accessibility").evaluate(bundle, self.judge, 1.0)
 
+    def test_unlabeled_button_fails_control_labels(self):
+        html = """<html lang="en">
+<head><meta charset="utf-8"><title>Test</title>
+<script type="application/json" id="plumbline-contrast">[
+  {"name": "text", "foreground": "#000000", "background": "#ffffff"}
+]</script>
+</head>
+<body>
+<h1>Heading</h1>
+<div role="log" aria-live="polite"></div>
+<button id="send-icon"><svg aria-hidden="true"></svg></button>
+</body>
+</html>"""
+        result = self._evaluate(html)
+        self.assertEqual(result.verdict, FAIL)
+        self.assertIn("control_labels", result.details["failed_checks"])
+        self.assertIn("send-icon", self._detail(result, "control_labels")["detail"])
+
+    def test_labeled_button_passes_control_labels(self):
+        html = """<html lang="en">
+<head><meta charset="utf-8"><title>Test</title>
+<script type="application/json" id="plumbline-contrast">[
+  {"name": "text", "foreground": "#000000", "background": "#ffffff"}
+]</script>
+</head>
+<body>
+<h1>Heading</h1>
+<div role="log" aria-live="polite"></div>
+<button id="send-btn">Send question</button>
+</body>
+</html>"""
+        result = self._evaluate(html)
+        self.assertEqual(result.verdict, PASS)
+        self.assertEqual(result.details["failed_checks"], [])
+        self.assertEqual(self._detail(result, "control_labels")["score"], 1.0)
+
 
 if __name__ == "__main__":
     unittest.main()

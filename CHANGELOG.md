@@ -11,6 +11,16 @@ may break the interface.
 
 ### Fixed
 
+- **`<button>` controls were invisible to `accessibility` suite's `control_labels` check (#32).**
+  `CONTROL_TAGS` in `src/plumbline/suites/accessibility.py` only contained
+  `{"input", "select", "textarea"}`. `<button>` elements (such as icon-only
+  or submit buttons) were never recorded in `snapshot.controls`, allowing
+  unlabeled button controls to silently pass WCAG 4.1.2 accessible name
+  checks. Added `"button"` to `CONTROL_TAGS`, accumulated button text
+  content across child tags, and treated non-empty button text (alongside
+  `aria-label`, `aria-labelledby`, `title`, and associated `<label for="...">`)
+  as self-naming. Regenerated committed demo audit artifacts and baselines.
+
 - **`$125.00` and `$125` were different numbers to the judge.**
   `judges.extract_numbers` stripped commas and a trailing dot and
   stopped there, so a response that correctly said "$125" against a

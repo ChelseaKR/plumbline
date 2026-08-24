@@ -46,7 +46,7 @@ AA_LARGE = 3.0
 
 LIVE_ROLES = {"status", "alert", "log"}
 LIVE_POLITENESS = {"polite", "assertive"}
-CONTROL_TAGS = {"input", "select", "textarea"}
+CONTROL_TAGS = {"input", "select", "textarea", "button"}
 # Controls whose visible text supplies their name.
 SELF_NAMING_INPUT_TYPES = {"submit", "reset", "button", "image"}
 
@@ -86,6 +86,7 @@ class _Snapshot(HTMLParser):
         self.ids: set[str] = set()
         self._in_contrast_script = False
         self.contrast_json: str | None = None
+        self._button_stack: list[dict[str, str]] = []
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         attributes = {k.lower(): (v or "") for k, v in attrs}
@@ -94,6 +95,9 @@ class _Snapshot(HTMLParser):
         if tag == "html":
             self.root_lang = attributes.get("lang") or None
         elif tag in CONTROL_TAGS:
+            if tag == "button":
+                attributes["text"] = ""
+                self._button_stack.append(attributes)
             self.controls.append((tag, attributes))
         elif tag == "label" and attributes.get("for"):
             self.label_targets.add(attributes["for"])
@@ -109,10 +113,14 @@ class _Snapshot(HTMLParser):
     def handle_endtag(self, tag: str) -> None:
         if tag == "script":
             self._in_contrast_script = False
+        elif tag == "button" and self._button_stack:
+            self._button_stack.pop()
 
     def handle_data(self, data: str) -> None:
         if self._in_contrast_script:
             self.contrast_json = (self.contrast_json or "") + data
+        if self._button_stack:
+            self._button_stack[-1]["text"] += data
 
 
 def _check_language(snapshot: _Snapshot) -> tuple[bool, str]:
@@ -134,6 +142,7 @@ def _check_labels(snapshot: _Snapshot) -> tuple[bool, str]:
             or (attributes.get("id") and attributes["id"] in snapshot.label_targets)
             or (tag == "input" and input_type in SELF_NAMING_INPUT_TYPES
                 and (attributes.get("value") or attributes.get("alt")))
+            or (tag == "button" and attributes.get("text", "").strip())
         )
         if not named:
             unnamed.append(attributes.get("id") or f"<{tag}>")
