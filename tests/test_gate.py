@@ -8,8 +8,10 @@ that do not exist, so `git` fails immediately rather than touching a network.
 
 import contextlib
 import io
+import json
 import os
 import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -291,7 +293,182 @@ class GateRunnerTests(GateFixture):
         self.assertIn("cannot reach the pinned harness", result.stderr)
 
 
+ACTION = REPO_ROOT / "action.yml"
+
+
+def action_step_script() -> str:
+    """The composite action's own shell step, lifted out of action.yml.
+
+    Read as text rather than through a YAML parser because the runtime has
+    no third-party dependency and the tests run on the standard library
+    alone. The alternative -- asserting on substrings of action.yml -- is
+    what this file used to do, and a grep for a string cannot tell whether
+    the script it appears in still picks the right run.
+    """
+    lines = ACTION.read_text(encoding="utf-8").splitlines()
+    start = lines.index("      run: |") + 1
+    body = []
+    for line in lines[start:]:
+        if line.strip() and not line.startswith("        "):
+            break
+        body.append(line[8:])
+    return "\n".join(body) + "\n"
+
+
+class GitHubActionStepTests(unittest.TestCase):
+    """The composite action's step, executed.
+
+    The gate itself is stubbed: what is under test is the step's own
+    bookkeeping -- which report it names, which verdict it publishes, and
+    which exit code it passes through -- not the harness it invokes.
+    """
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        self.root = Path(self._tmp.name)
+        self.out = self.root / "plumbline-audits"
+        self.out.mkdir()
+        self.github_output = self.root / "github_output"
+        self.github_output.write_text("", encoding="utf-8")
+
+    def write_run(self, run_id: str, verdict: str) -> Path:
+        run_dir = self.out / run_id
+        run_dir.mkdir()
+        (run_dir / "report.json").write_text(
+            json.dumps({"verdict": verdict}), encoding="utf-8")
+        (run_dir / "report.md").write_text(f"# {verdict}\n", encoding="utf-8")
+        return run_dir
+
+    def stub_python(self, stdout: str, code: int) -> Path:
+        """An interpreter that fakes `-m plumbline` and is real otherwise.
+
+        The step reads the verdict back with a real `python -c`, so the stub
+        has to hand anything that is not the gate invocation to a genuine
+        interpreter.
+        """
+        canned = self.root / "gate-stdout.txt"
+        canned.write_text(stdout, encoding="utf-8")
+        stub = self.root / "python-stub"
+        stub.write_text(
+            "#!/bin/sh\n"
+            'if [ "$1" = "-m" ]; then\n'
+            f'  cat "{canned}"\n'
+            f"  exit {code}\n"
+            "fi\n"
+            f'exec "{sys.executable}" "$@"\n',
+            encoding="utf-8")
+        stub.chmod(0o755)
+        return stub
+
+    def run_step(self, *, stdout: str, code: int, sarif: str = "false"):
+        script = self.root / "step.sh"
+        script.write_text(action_step_script(), encoding="utf-8")
+        env = dict(os.environ)
+        env.update({
+            "PLUMBLINE_ACTION_PATH": str(REPO_ROOT),
+            "INPUT_CONFIG": "plumbline/target.toml",
+            "INPUT_OUT": str(self.out),
+            "INPUT_BASELINE": "",
+            "INPUT_REQUIRE_COMPARABLE": "false",
+            "INPUT_SUMMARY_FILE": "",
+            "INPUT_SARIF": sarif,
+            "INPUT_PYTHON": str(self.stub_python(stdout, code)),
+            "GITHUB_OUTPUT": str(self.github_output),
+        })
+        result = subprocess.run(["bash", str(script)], env=env,
+                                capture_output=True, text=True)
+        outputs = {}
+        for line in self.github_output.read_text(encoding="utf-8").splitlines():
+            if "=" in line:
+                key, _, value = line.partition("=")
+                outputs[key] = value
+        return result, outputs
+
+    def test_it_names_the_run_that_just_executed_not_the_one_that_sorts_last(self):
+        # Run ids are a truncated sha256 of the run's inputs, so they are in
+        # no order at all, and nothing removes an earlier run from --out. The
+        # step used to take the directory that sorted last, which is this
+        # stale PASS rather than the FAIL that just happened.
+        stale = self.write_run("ffffbbbb33334444", "PASS")
+        current = self.write_run("0000aaaa11112222", "FAIL")
+        self.assertGreater(stale.name, current.name)
+        result, outputs = self.run_step(
+            stdout=f"GATE: FAIL\nreports: {current / 'report.json'}\n", code=1)
+        self.assertEqual(result.returncode, EXIT_SUITE_FAILURE)
+        self.assertEqual(outputs["verdict"], "FAIL")
+        self.assertEqual(outputs["report-json"], str(current / "report.json"))
+        self.assertEqual(outputs["report-md"], str(current / "report.md"))
+        self.assertEqual(outputs["exit-code"], "1")
+
+    def test_a_pass_is_reported_from_the_run_that_produced_it(self):
+        current = self.write_run("0000aaaa11112222", "PASS")
+        self.write_run("ffffbbbb33334444", "FAIL")
+        result, outputs = self.run_step(
+            stdout=f"GATE: PASS\nreports: {current / 'report.json'}\n", code=0)
+        self.assertEqual(result.returncode, EXIT_PASS)
+        self.assertEqual(outputs["verdict"], "PASS")
+        self.assertEqual(outputs["report-json"], str(current / "report.json"))
+
+    def test_a_measurement_whose_report_cannot_be_read_back_fails(self):
+        # Exit 0 means a report was written. A step that cannot find it has
+        # no verdict to publish, and publishing nothing while exiting 0 is
+        # the green-but-unchecked result this repository exists to refuse.
+        self.write_run("0000aaaa11112222", "PASS")
+        result, outputs = self.run_step(stdout="GATE: PASS\n", code=0)
+        self.assertEqual(result.returncode, 5)
+        self.assertEqual(outputs["exit-code"], "5")
+        self.assertNotIn("verdict", outputs)
+        self.assertIn("could not read a verdict back", result.stdout + result.stderr)
+
+    def test_an_integrity_refusal_passes_through_without_inventing_a_verdict(self):
+        # Exit 3 wrote no report, so there is nothing to read back and
+        # nothing wrong with saying so. The stale directory below must not
+        # be picked up and reported as this run's result.
+        self.write_run("ffffbbbb33334444", "PASS")
+        result, outputs = self.run_step(
+            stdout="INTEGRITY REFUSAL: the bundle did not verify\n", code=3)
+        self.assertEqual(result.returncode, EXIT_INTEGRITY_REFUSAL)
+        self.assertEqual(outputs["exit-code"], "3")
+        self.assertNotIn("verdict", outputs)
+        self.assertNotIn("report-json", outputs)
+
+    def test_the_sarif_output_is_the_path_the_run_printed(self):
+        current = self.write_run("0000aaaa11112222", "PASS")
+        sarif = current / "sarif.json"
+        sarif.write_text("{}", encoding="utf-8")
+        _, outputs = self.run_step(
+            stdout=(f"GATE: PASS\nreports: {current / 'report.json'}\n"
+                    f"sarif:   {sarif}\n"),
+            code=0, sarif="true")
+        self.assertEqual(outputs["sarif-json"], str(sarif))
+
+    def test_a_verdict_the_report_does_not_actually_carry_is_refused(self):
+        # Anything that is not PASS or FAIL is not a verdict. Passing one
+        # through would put an uninterpretable value on an output a
+        # consuming workflow branches on.
+        run_dir = self.out / "0000aaaa11112222"
+        run_dir.mkdir()
+        (run_dir / "report.json").write_text(
+            json.dumps({"verdict": "SKIP"}), encoding="utf-8")
+        result, outputs = self.run_step(
+            stdout=f"GATE: ?\nreports: {run_dir / 'report.json'}\n", code=0)
+        self.assertEqual(result.returncode, 5)
+        self.assertNotIn("verdict", outputs)
+
+
 class ShippedGateArtifactsTests(unittest.TestCase):
+    def test_the_action_never_guesses_which_report_a_run_wrote(self):
+        text = ACTION.read_text(encoding="utf-8")
+        code = "\n".join(line for line in text.splitlines()
+                         if not line.lstrip().startswith("#"))
+        self.assertNotIn('find "$INPUT_OUT"', code)
+        self.assertIn("sed -n 's/^reports:[[:space:]]*//p'", code)
+        # `\s` is a GNU extension: on a BSD sed it matches the letter s, the
+        # captured path keeps its leading space, and every output vanishes.
+        # The comments above the line discuss it, so only code is checked.
+        self.assertNotIn("\\s", code)
+
     def test_the_example_ci_job_has_no_escape_hatch(self):
         workflow = (REPO_ROOT / "gate" / "github-actions.example.yml").read_text(
             encoding="utf-8")

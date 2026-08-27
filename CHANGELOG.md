@@ -11,6 +11,54 @@ may break the interface.
 
 ### Fixed
 
+- **The GitHub action's outputs could describe a different run than the
+  one that had just executed.** `action.yml` found the report by taking
+  the last directory in `--out` by name: `find "$INPUT_OUT" -type d |
+  sort | tail -n1`. A run id is a truncated sha256 of the run's inputs
+  (`audit.compute_run_id`), not a timestamp, and `report.write_reports`
+  never removes an earlier run from the output directory — so the two
+  assumptions holding that line up are both false as soon as a second
+  run lands in the same `--out`. Observed with three runs into one
+  directory: the action named the run that sorted highest, and with a
+  stale passing run left beside a failing one it published
+  `verdict=PASS` for a run whose real verdict was `FAIL`, with
+  `report-json`, `report-md` and `sarif-json` all pointing at the wrong
+  report. The paths are now read back from what the run itself printed
+  (`reports:` and `sarif:` on the gate's own stdout, teed so the build
+  log is unchanged, with `${PIPESTATUS[0]}` preserving the gate's exit
+  code). Exit 0 and exit 1 mean a report was written, so if no verdict
+  can be read back from one the step now fails with the internal-error
+  code instead of exiting 0 having published nothing. A verdict that is
+  not `PASS` or `FAIL` is refused rather than passed through to a
+  workflow that branches on it. The step is now executed by the test
+  suite rather than grepped: six tests run the real shell out of
+  `action.yml` against a stubbed gate, and all six fail on the previous
+  version.
+
+- **An unlabelled `<button>` was invisible to the `accessibility` suite.**
+  `CONTROL_TAGS` held `{"input", "select", "textarea"}`, so `<button>`
+  never reached `snapshot.controls` and never reached the
+  `control_labels` check. An interface whose only send control was an
+  icon-only `<button id="send"></button>` scored `control_labels` 1.00
+  and the whole suite 1.00 against its floor of 1.00 — a green row for
+  the one WCAG 4.1.2 defect a chat interface is most likely to have.
+  `<button>` is now a control, and its accessible name is read the way
+  a browser's accessible name computation reads it, which closes two
+  adjacent ways of passing that adding the tag alone leaves open: a
+  `<button>` with no end tag collected every word after it and reported
+  itself named on the rest of the page, and text inside an
+  `aria-hidden="true"` subtree — announced to nobody — counted as a
+  name. An `<img alt>` inside a button does count, because it is a name
+  a screen reader reads, and a check that fails correct markup is a
+  check people switch off. A whitespace-only `aria-label`, `title` or
+  `aria-labelledby` is no longer a name either, for any control. The
+  failure now says which of these it was rather than only that the
+  control is unnamed. Eleven tests pin it, each observed failing on the
+  previous code. No demo score moved: the demonstration interface
+  snapshot has no `<button>` in it, which is how this survived. The
+  committed audit, baseline, proof matrix and site are regenerated for
+  the source hash.
+
 - **`$125.00` and `$125` were different numbers to the judge.**
   `judges.extract_numbers` stripped commas and a trailing dot and
   stopped there, so a response that correctly said "$125" against a

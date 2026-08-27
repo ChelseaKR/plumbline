@@ -71,7 +71,11 @@ outputs:
     description: "PASS or FAIL, read back from the written report."
     value: ${{ steps.gate.outputs.verdict }}
   exit-code:
-    description: "The gate's own exit code (0 pass / 1 fail / 3 integrity refusal / 4 configuration error / 5 internal error)."
+    description: >-
+      The gate's own exit code (0 pass / 1 fail / 3 integrity refusal /
+      4 configuration error / 5 internal error). 5 is also what this step
+      reports if the gate measured something but its report could not be
+      read back, because a step that produced no verdict has not passed.
     value: ${{ steps.gate.outputs.exit-code }}
   report-json:
     description: "Path to the written report.json, relative to the calling repository."
@@ -115,18 +119,67 @@ runs:
         # The action's own checkout, at the pinned ref -- not a package this
         # step resolves itself. That resolution already happened when the
         # workflow's `uses:` line was evaluated.
-        PYTHONPATH="$PLUMBLINE_ACTION_PATH/src" "$INPUT_PYTHON" -m plumbline "${args[@]}"
-        code=$?
+        #
+        # stdout is teed rather than swallowed, so the build log still shows
+        # the gate's own output as it happens, and ${PIPESTATUS[0]} keeps the
+        # gate's exit code rather than tee's.
+        captured=$(mktemp)
+        PYTHONPATH="$PLUMBLINE_ACTION_PATH/src" "$INPUT_PYTHON" -m plumbline "${args[@]}" | tee "$captured"
+        code=${PIPESTATUS[0]}
 
-        report_dir=$(find "$INPUT_OUT" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | sort | tail -n1 || true)
+        # Which report this run wrote is read back from what the run itself
+        # printed, never guessed from the output directory.
+        #
+        # It used to be guessed, with `find "$INPUT_OUT" -type d | sort |
+        # tail -n1`, on the assumption that the newest run sorts last. A run
+        # id is a truncated sha256 of the run's inputs (audit.py,
+        # compute_run_id) and write_reports never removes an earlier run from
+        # --out, so the assumption is false the moment a second run lands in
+        # the same directory: with three runs there, the outputs below
+        # described whichever run happened to sort highest, and a workflow
+        # reading `verdict` could be handed a stale PASS from a run that was
+        # not the one that had just failed.
+        #
+        # `[[:space:]]` and not `\s`: `\s` is a GNU extension. On a macOS
+        # runner's BSD sed it does not match a space, the captured path keeps
+        # a leading one, `[ -f "$report_json" ]` is then false, and every
+        # output below disappears without a word.
+        report_json=$(sed -n 's/^reports:[[:space:]]*//p' "$captured" | head -n 1)
+        sarif_json=$(sed -n 's/^sarif:[[:space:]]*//p' "$captured" | head -n 1)
+        rm -f "$captured"
+
+        verdict=""
+        report_dir=""
+        if [ -n "$report_json" ] && [ -f "$report_json" ]; then
+          report_dir=$(dirname "$report_json")
+          verdict=$("$INPUT_PYTHON" -c "import json,sys; print(json.load(open(sys.argv[1]))['verdict'])" "$report_json" 2>/dev/null || true)
+        fi
+        case "$verdict" in
+          PASS|FAIL) ;;
+          *) verdict="" ;;
+        esac
+
+        # Exit 0 and exit 1 are measurements, and a measurement always wrote a
+        # report. If this step cannot read that report back, it cannot say
+        # what was measured -- and a step that exits 0 while publishing no
+        # verdict at all is the green-but-unchecked result this harness
+        # exists to refuse. It fails instead, with the internal-error code,
+        # which is the code that already means "no verdict was produced".
+        if [ "$code" = "0" ] || [ "$code" = "1" ]; then
+          if [ -z "$verdict" ]; then
+            echo "::error::plumbline gate action: the gate exited $code, so it wrote a report, but this step could not read a verdict back from it. Refusing to report a result it cannot point at." >&2
+            echo "exit-code=5" >> "$GITHUB_OUTPUT"
+            exit 5
+          fi
+        fi
+
         {
           echo "exit-code=$code"
-          if [ -n "$report_dir" ] && [ -f "$report_dir/report.json" ]; then
-            verdict=$("$INPUT_PYTHON" -c "import json,sys; print(json.load(open(sys.argv[1]))['verdict'])" "$report_dir/report.json" 2>/dev/null || true)
+          if [ -n "$verdict" ]; then
             echo "verdict=$verdict"
-            echo "report-json=$report_dir/report.json"
-            echo "report-md=$report_dir/report.md"
-            [ "$INPUT_SARIF" = "true" ] && [ -f "$report_dir/sarif.json" ] && echo "sarif-json=$report_dir/sarif.json"
+            echo "report-json=$report_json"
+            [ -f "$report_dir/report.md" ] && echo "report-md=$report_dir/report.md"
+            [ "$INPUT_SARIF" = "true" ] && [ -n "$sarif_json" ] && [ -f "$sarif_json" ] && echo "sarif-json=$sarif_json"
           fi
         } >> "$GITHUB_OUTPUT"
 
