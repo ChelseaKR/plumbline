@@ -23,7 +23,8 @@ BAD_CONTRAST = """[
 
 
 def interface(*, lang='lang="en"', contrast=GOOD_CONTRAST, live=True,
-              labelled=True, headings="<h1>Navigator</h1><h2>Ask</h2>"):
+              labelled=True, headings="<h1>Navigator</h1><h2>Ask</h2>",
+              extra="", trailing=""):
     live_attrs = ' role="log" aria-live="polite"' if live else ""
     label = '<label for="q">Your question</label>' if labelled else ""
     contrast_block = (
@@ -39,7 +40,9 @@ def interface(*, lang='lang="en"', contrast=GOOD_CONTRAST, live=True,
 {label}
 <textarea id="q" name="q"></textarea>
 <input type="submit" value="Send">
+{extra}
 </form>
+{trailing}
 </body>
 </html>
 """
@@ -100,6 +103,83 @@ class AccessibilitySuiteTests(unittest.TestCase):
         result = self._evaluate(interface(labelled=False))
         self.assertIn("control_labels", result.details["failed_checks"])
         self.assertIn("q", self._detail(result, "control_labels")["detail"])
+
+    def test_an_unlabelled_button_fails_and_names_it(self):
+        result = self._evaluate(interface(extra='<button id="send"></button>'))
+        self.assertIn("control_labels", result.details["failed_checks"])
+        self.assertIn("send", self._detail(result, "control_labels")["detail"])
+
+    def test_a_button_named_by_its_own_text_passes(self):
+        result = self._evaluate(
+            interface(extra='<button id="send">Send question</button>'))
+        self.assertEqual(result.details["failed_checks"], [])
+
+    def test_an_unclosed_button_does_not_take_the_page_as_its_name(self):
+        # A `<button>` with no end tag collects every word after it. Reading
+        # that as the button's accessible name reports an unlabelled control
+        # as labelled, which is the false pass this check exists to prevent.
+        result = self._evaluate(interface(
+            extra='<button id="send">',
+            trailing="<p>Riverbend County accepts walk-ins Monday to Friday.</p>",
+        ))
+        detail = self._detail(result, "control_labels")["detail"]
+        self.assertIn("control_labels", result.details["failed_checks"])
+        self.assertIn("send", detail)
+        self.assertIn("</button>", detail)
+
+    def test_aria_hidden_text_does_not_name_a_button(self):
+        # Hidden from the accessibility tree is hidden from the accessible
+        # name computation: a screen reader announces nothing here.
+        result = self._evaluate(interface(
+            extra='<button id="send"><span aria-hidden="true">Send</span></button>'))
+        detail = self._detail(result, "control_labels")["detail"]
+        self.assertIn("control_labels", result.details["failed_checks"])
+        self.assertIn("send", detail)
+        self.assertIn("aria-hidden", detail)
+
+    def test_a_button_with_a_hidden_icon_and_visible_text_still_passes(self):
+        result = self._evaluate(interface(
+            extra=('<button id="send"><span aria-hidden="true">&#x2192;</span>'
+                   'Send</button>')))
+        self.assertEqual(result.details["failed_checks"], [])
+
+    def test_an_image_alt_inside_a_button_names_it(self):
+        result = self._evaluate(interface(
+            extra='<button id="send"><img src="s.svg" alt="Send question"></button>'))
+        self.assertEqual(result.details["failed_checks"], [])
+
+    def test_a_decorative_image_alone_does_not_name_a_button(self):
+        result = self._evaluate(interface(
+            extra='<button id="send"><img src="s.svg" alt=""></button>'))
+        self.assertIn("control_labels", result.details["failed_checks"])
+
+    def test_a_text_attribute_is_not_an_accessible_name(self):
+        # `text` is not an HTML attribute an assistive technology reads. It is
+        # here because collecting a button's text into its own attribute map
+        # under that key would make this markup pass.
+        result = self._evaluate(
+            interface(extra='<button id="send" text="Send"></button>'))
+        self.assertIn("control_labels", result.details["failed_checks"])
+
+    def test_a_whitespace_only_accessible_name_is_not_a_name(self):
+        result = self._evaluate(
+            interface(extra='<button id="send" aria-label=" "></button>'))
+        self.assertIn("control_labels", result.details["failed_checks"])
+
+    def test_a_button_labelled_the_ordinary_ways_passes(self):
+        for markup in (
+            '<button id="send" aria-label="Send question"></button>',
+            '<button id="send" title="Send question"></button>',
+            '<label for="send">Send</label><button id="send"></button>',
+        ):
+            with self.subTest(markup=markup):
+                result = self._evaluate(interface(extra=markup))
+                self.assertEqual(result.details["failed_checks"], [])
+
+    def test_script_text_inside_a_button_does_not_name_it(self):
+        result = self._evaluate(interface(
+            extra='<button id="send"><script>var label = "Send";</script></button>'))
+        self.assertIn("control_labels", result.details["failed_checks"])
 
     def test_missing_live_region_fails(self):
         result = self._evaluate(interface(live=False))
