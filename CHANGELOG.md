@@ -11,6 +11,30 @@ may break the interface.
 
 ### Fixed
 
+- **The GitHub action's outputs could describe a different run than the
+  one that had just executed.** `action.yml` found the report by taking
+  the last directory in `--out` by name: `find "$INPUT_OUT" -type d |
+  sort | tail -n1`. A run id is a truncated sha256 of the run's inputs
+  (`audit.compute_run_id`), not a timestamp, and `report.write_reports`
+  never removes an earlier run from the output directory — so the two
+  assumptions holding that line up are both false as soon as a second
+  run lands in the same `--out`. Observed with three runs into one
+  directory: the action named the run that sorted highest, and with a
+  stale passing run left beside a failing one it published
+  `verdict=PASS` for a run whose real verdict was `FAIL`, with
+  `report-json`, `report-md` and `sarif-json` all pointing at the wrong
+  report. The paths are now read back from what the run itself printed
+  (`reports:` and `sarif:` on the gate's own stdout, teed so the build
+  log is unchanged, with `${PIPESTATUS[0]}` preserving the gate's exit
+  code). Exit 0 and exit 1 mean a report was written, so if no verdict
+  can be read back from one the step now fails with the internal-error
+  code instead of exiting 0 having published nothing. A verdict that is
+  not `PASS` or `FAIL` is refused rather than passed through to a
+  workflow that branches on it. The step is now executed by the test
+  suite rather than grepped: six tests run the real shell out of
+  `action.yml` against a stubbed gate, and all six fail on the previous
+  version.
+
 - **An unlabelled `<button>` was invisible to the `accessibility` suite.**
   `CONTROL_TAGS` held `{"input", "select", "textarea"}`, so `<button>`
   never reached `snapshot.controls` and never reached the
