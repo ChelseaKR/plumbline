@@ -4,6 +4,21 @@ Selection of enabled suites and their floors is per-target configuration; the
 harness ships demonstration defaults only. Malformed config, unknown suites,
 or an empty suite selection are configuration errors (exit 4) — an audit with
 zero suites would be a vacuous pass, and there is no vacuous pass.
+
+Every key inside a `[suites.<id>]` table has to be one this file knows. A
+typo in a key name is silently ignored by TOML, and a silently ignored
+`floor` leaves the suite running at the harness's *demonstration* default —
+a gate quietly weaker than the reviewable file that configures it appears to
+say. The same reasoning governs `enabled`, which has to be a real boolean:
+`enabled = 0` reads as "off" to a person and switches the suite off with no
+word said, and `enabled = "false"` is a non-empty string, so it reads as
+"off" to a person and leaves the suite on.
+
+What this file records but does not refuse is the *shape* of a selection: a
+configuration that enables two suites out of fifteen is legitimate, and
+`TargetConfig.unscored` carries the other thirteen through to the report so
+the run discloses them. See `scope.py` and
+`docs/adr/0004-unscored-suites-are-disclosed-not-enforced.md`.
 """
 
 from __future__ import annotations
@@ -14,10 +29,18 @@ from pathlib import Path
 from typing import Any
 
 from . import suites as suite_registry
+from .scope import ABSENT, DISABLED
 
 
 class ConfigError(Exception):
     """Malformed or unusable target configuration (exit 4)."""
+
+
+# Everything a `[suites.<id>]` table may say. Anything else is a typo, and a
+# typo here is not cosmetic: TOML ignores the unknown key, the suite falls
+# back to a demonstration default, and the gate then runs at a bar the
+# configuration file does not state anywhere.
+SUITE_KEYS = frozenset({"enabled", "floor"})
 
 
 @dataclass
@@ -27,6 +50,10 @@ class TargetConfig:
     judge: dict[str, Any] = field(default_factory=lambda: {"kind": "lexical"})
     # suite id -> floor, enabled suites only
     suites: dict[str, float] = field(default_factory=dict)
+    # Implemented suites this configuration does not score, suite id -> the
+    # reason (`scope.ABSENT` or `scope.DISABLED`). Carried so the report can
+    # disclose what the run left out rather than only what it covered.
+    unscored: dict[str, str] = field(default_factory=dict)
     # Committed baseline record to compare this run against, if any.
     baseline_path: Path | None = None
     # How `plumbline record` reaches the live target. Read by that command and
@@ -97,8 +124,11 @@ def load_config(path: Path) -> TargetConfig:
         adapter["workdir"] = str(_resolve(path, adapter["workdir"]))
 
     available = suite_registry.available()
+    declared = raw.get("suites", {})
+    if not isinstance(declared, dict):
+        raise ConfigError(f"{path}: [suites] must be a table")
     enabled: dict[str, float] = {}
-    for suite_id, spec in raw.get("suites", {}).items():
+    for suite_id, spec in declared.items():
         if not isinstance(spec, dict):
             raise ConfigError(f"{path}: [suites.{suite_id}] must be a table")
         if suite_id not in available:
@@ -106,7 +136,25 @@ def load_config(path: Path) -> TargetConfig:
                 f"{path}: unknown suite '{suite_id}' "
                 f"(available: {', '.join(sorted(available))})"
             )
-        if not spec.get("enabled", True):
+        unknown = sorted(set(spec) - SUITE_KEYS)
+        if unknown:
+            raise ConfigError(
+                f"{path}: [suites.{suite_id}] sets unknown key(s) "
+                f"{', '.join(repr(k) for k in unknown)}; known keys are "
+                f"{', '.join(sorted(SUITE_KEYS))}. A misspelled key is not a "
+                f"harmless one: TOML ignores it, the suite falls back to the "
+                f"harness's demonstration default, and the gate then runs at "
+                f"a bar this file does not state."
+            )
+        switch = spec.get("enabled", True)
+        if not isinstance(switch, bool):
+            raise ConfigError(
+                f"{path}: [suites.{suite_id}].enabled must be true or false, "
+                f"not {switch!r}. `0` and `\"false\"` are not booleans in "
+                f"TOML: one switches the suite off without saying so and the "
+                f"other leaves it on."
+            )
+        if not switch:
             continue
         cls = available[suite_id]
         if not cls.implemented:
@@ -140,8 +188,18 @@ def load_config(path: Path) -> TargetConfig:
             f"vacuous pass, and there is no vacuous pass"
         )
 
+    # What this configuration does NOT hold the target to. A skeleton suite is
+    # not in here: it is not something a configuration could have run, and
+    # enabling one is already an error above.
+    unscored = {
+        suite_id: (DISABLED if suite_id in declared else ABSENT)
+        for suite_id, cls in sorted(available.items())
+        if cls.implemented and suite_id not in enabled
+    }
+
     return TargetConfig(name=name, dataset_path=dataset_path, judge=judge,
-                        suites=enabled, baseline_path=baseline_path,
+                        suites=enabled, unscored=unscored,
+                        baseline_path=baseline_path,
                         adapter=adapter, questions_path=questions_path)
 
 

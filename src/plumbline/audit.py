@@ -31,6 +31,7 @@ from .hashing import (
 )
 from .judges import make_judge
 from .report import ReportSealError, build_report, write_reports
+from .scope import analyze as analyze_scope
 from .stats import compute as compute_statistics
 from .suites import FAIL, PASS, SuiteResult, get as get_suite
 
@@ -380,6 +381,10 @@ def run_audit(config: TargetConfig, *, seed: int = DEFAULT_SEED, out_dir: Path,
         dataset_info=dataset_info,
         results=results,
         warnings=warnings,
+        # What this configuration held the target to, and what it did not.
+        # Taken from the config rather than from `results`, because the
+        # suites that did not run leave no result to read it off.
+        scope=analyze_scope(scored=config.suites, unscored=config.unscored),
         # Which of these suites are reading the same evidence, and whether
         # this run's failures are therefore fewer findings than rows.
         couplings=analyze_couplings(results),

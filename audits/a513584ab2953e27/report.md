@@ -6,10 +6,10 @@ Plumbline audit of target `riverbend-demo`.
 
 | Field | Value |
 |---|---|
-| Run id | `3411cbee7781b44e` |
+| Run id | `a513584ab2953e27` |
 | Harness version | `0.2.0` |
-| Harness source | `7085f8ae15be30028e3da62287cd77640244b26007f0c6dafcfb010db06040ac` |
-| Report seal | `e72dd7928753b794b8590767d6b890b90426d7a6046ca103f123d9781b0891b6` (sha256 of this report's own body; check it with `plumbline verify`) |
+| Harness source | `68db6733331b494a54df3167bc1edfd3e088a4aa4d15a17938d6a47044f3482b` |
+| Report seal | `4250f120a94fcda4e131f521f16844c9173bef3343b6e891719df4e6484f9a67` (sha256 of this report's own body; check it with `plumbline verify`) |
 | Seed | `1729` |
 | Dataset hash | `949197da4dd6960e3998e9b50b01fca7a48345639e85494dd2a0e666e296e130` (short: `949197da4dd6`) |
 | Judge | `lexical` (deterministic), config hash `f59f35442715bb2f5994035c7049438b893938922013e993950dcb393a79e13c` |
@@ -41,6 +41,10 @@ Overall verdict fails if any enabled suite fails.
 
 **MDE** is the smallest true drop in a score that a same-sized future run could tell apart from noise (95% confidence, 80% power). A regression smaller than a suite's MDE would not be detectable at this sample size, whatever the score says.
 
+## Scope
+
+All **15** implemented suites were scored by this run.
+
 - `passage_attribution` scored **48 of 108** eligible items. 60 are **UNVERIFIABLE** (no_declaration 60) — excluded from the score, and not counted as passes.
 
 - `accessibility` reports no interval: the checks are an exhaustive census, not a sample: there is no sampling error to report, and a wider checklist would not narrow one.
@@ -56,7 +60,7 @@ Two red rows are not always two problems. Where enabled suites read the same evi
 
 ## Regression against baseline
 
-Baseline run `f1561b47fb0e1e8b`, dataset `949197da4dd6`, harness `0.2.0`, judge `lexical`.
+Baseline run `3411cbee7781b44e`, dataset `949197da4dd6`, harness `0.2.0`, judge `lexical`.
 
 No suite verdict changed.
 
@@ -73,3 +77,4 @@ No suite score moved.
 - **hard_failures**: a suite with hard_failures fails regardless of its pooled score: a load-bearing policy fact was wrong, and pooled averages absorb single-item fabrications
 - **reproducibility**: identical inputs and seed produce byte-identical reports; reports carry no timestamps by design
 - **couplings**: suites that read the same evidence are not independent signals; where two of them failed, the couplings block says whether that is one finding or two
+- **scope**: scope names the implemented suites this run did not score at all, and why; a verdict is only ever about the suites that ran
