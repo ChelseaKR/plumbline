@@ -7,6 +7,84 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 This is a pre-1.0 project: while the version stays below `1.0.0`, a MINOR bump
 may break the interface.
 
+### Added
+
+- **Every report now says which suites did *not* run.** A report has always
+  listed the suites that ran; nothing listed the suites that did not, so a
+  `PASS` from a configuration that never enabled `privacy` was
+  indistinguishable, on its face, from a `PASS` that checked everything.
+  [`docs/responsible-tech.md`](docs/responsible-tech.md) names this twice —
+  as a residual risk ("nothing about the word `PASS` on its own discloses
+  that") and as a misuse the repository "can name but not prevent" — and
+  names re-reading the suite list as the only defense. That control asks a
+  reader to notice an *absence* in a fifteen-row table, which requires
+  knowing the registry by heart, and asks it of the reader least likely to
+  be holding the table.
+
+  So `src/plumbline/scope.py` computes a `scope` block for every run:
+  every implemented suite that was not scored, and which of two reasons
+  applies — `absent` (the configuration never mentions it) or `disabled`
+  (it names the suite and sets `enabled = false`). Both are stated because
+  they read differently in a review. It renders as a `## Scope` section in
+  the Markdown report and as one line on the terminal, from `audit` and
+  `gate` alike:
+
+  ```
+  GATE: PASS — target riverbend-demo, dataset 949197da4dd6, run 3d30a46c4f24b12b
+  all 12 suites passed:
+  scope: 12 of 15 implemented suites scored; NOT scored: adversarial
+         (absent), privacy (absent), refusal (disabled)
+  ```
+
+  It never changes a verdict, and refusing a partial configuration was
+  considered and rejected: phasing coverage in is legitimate, and the
+  harness cannot tell that case from an evasive one. Three properties are
+  deliberate — the section renders even when nothing is missing, so its
+  absence cannot be read as full coverage; the denominator comes from the
+  suite registry rather than a literal, so a suite added later is counted
+  without anyone remembering to; and it lives inside the sealed report
+  body, so it cannot be edited off a report without `plumbline verify`
+  refusing it. See
+  [ADR 0004](docs/adr/0004-unscored-suites-are-disclosed-not-enforced.md)
+  for the alternatives weighed, including failing the gate, a
+  `--require-all-suites` flag, and a defect-injection case.
+
+### Changed
+
+- **A misspelled key inside `[suites.<id>]` is now a configuration error,
+  and `enabled` must be a real boolean.** Both were silent, and both
+  produced a gate weaker than the reviewable file that configures it says
+  it is. Observed on the previous code, with one configuration:
+
+  ```
+  [suites.accuracy]
+  enabled = true
+  flooor = 0.99      # a typo
+  [suites.privacy]
+  enabled = 0        # not a boolean
+  [suites.smoke]
+  enabled = true
+  floor = 1.0
+  ```
+
+  ```
+  load_config ACCEPTED it
+    suites actually gated: {"accuracy": 0.75, "smoke": 1.0}
+    the file says accuracy floor 0.99; the gate runs it at 0.75
+    the file says privacy enabled = 0; privacy is NOT gated, silently
+  ```
+
+  TOML ignores a key nothing reads, so the suite fell back to the
+  harness's *demonstration* default — a number the target's own
+  configuration does not state anywhere. `enabled = 0` switched a suite off
+  without a word; `enabled = "false"` is a non-empty string, so it read as
+  "off" to a person and left the suite on. Both are refused now, each with
+  a message saying what the silent behaviour was. This will reject
+  configurations that load today; that is the point, since those
+  configurations are not running the gate they appear to describe. Six
+  tests in `tests/test_fail_closed.py`, all observed failing on the
+  previous code.
+
 ## [Unreleased]
 
 ### Fixed

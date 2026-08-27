@@ -123,7 +123,7 @@ minimum detectable effect, baseline regression comparison, a pinned
 fail-closed CI gate, live-target recording over HTTP or against a local
 program, and an optional model judge — none of which the gate can reach. Every
 suite has been **observed failing** on a defect it exists to catch; see
-[`proof/matrix.md`](proof/matrix.md). 593 tests, standard library only,
+[`proof/matrix.md`](proof/matrix.md). 633 tests, standard library only,
 offline.
 
 The fourteenth and fifteenth suites are beyond the specification. The
@@ -419,6 +419,12 @@ valid. Pass `--require-comparable-baseline` if you want it to.
   harness source that produced it, not just a version string.
 - **A disclosure of which suites are not independent signals**, in every
   report, computed from that run's own per-item records.
+- **A disclosure of which suites did not run at all**, in every report and
+  on the terminal: a `PASS` from a configuration that never enabled
+  `privacy` now arrives with that fact attached, instead of leaving a
+  reader to notice an absence in a fifteen-row table. It never changes the
+  verdict, because which suites a target is held to is a policy decision;
+  see [ADR 0004](docs/adr/0004-unscored-suites-are-disclosed-not-enforced.md).
 - **Beyond the gate itself**: `plumbline sign`/`verify --key-file`
   (shared-secret report signatures), `--sarif` on `audit`/`gate` (SARIF 2.1.0
   for a consuming repository's PR annotations), `plumbline history

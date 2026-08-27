@@ -12,6 +12,7 @@ import unittest
 from pathlib import Path
 
 from plumbline.report import build_report, write_reports
+from plumbline.scope import analyze as analyze_scope
 from plumbline.signing import (
     SignatureMismatchError,
     SigningError,
@@ -52,6 +53,7 @@ def _report() -> dict:
         dataset_info={"name": "fixture", "items": 1, "synthetic": True},
         results=[],
         warnings=[],
+        scope=analyze_scope(scored=["smoke"], unscored={}),
     )
 
 

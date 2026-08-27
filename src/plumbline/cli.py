@@ -49,6 +49,7 @@ from .bundle import (
 from .config import ConfigError, load_config
 from . import history as history_mod
 from .couplings import summarize_for_terminal as summarize_couplings
+from .scope import summarize_for_terminal as summarize_scope
 from .errors import OutboundError
 from .report import ReportSealError, verify_report
 from .retention import RetentionError, retire as retire_bundle
@@ -363,6 +364,17 @@ def _suite_lines(report: dict[str, Any]) -> list[str]:
     return lines
 
 
+def _scope_lines(report: dict[str, Any]) -> list[str]:
+    """Say what was left out in the build log too.
+
+    The build log is where a verdict is most often read and least often read
+    next to the suite table it belongs to. A `PASS` from a run that never
+    enabled `privacy` should not be able to reach a reader with nothing
+    attached saying so.
+    """
+    return summarize_scope(report.get("scope") or {})
+
+
 def _coupling_lines(report: dict[str, Any]) -> list[str]:
     """Say it in the build log too. Three red suites should not send somebody
     chasing three bugs when the matrix already established they are one."""
@@ -398,6 +410,8 @@ def cmd_audit(args: argparse.Namespace) -> int:
     print(f"verdict: {outcome.verdict}")
     print(f"judge:   {_judge_line(outcome.report)}")
     for line in _suite_lines(outcome.report):
+        print(line)
+    for line in _scope_lines(outcome.report):
         print(line)
     for line in _coupling_lines(outcome.report):
         print(line)
@@ -438,6 +452,8 @@ def cmd_gate(args: argparse.Namespace) -> int:
     else:
         print(f"all {len(report['suites'])} suites passed:")
     for line in _suite_lines(report):
+        print(line)
+    for line in _scope_lines(report):
         print(line)
     for line in _coupling_lines(report):
         print(line)
