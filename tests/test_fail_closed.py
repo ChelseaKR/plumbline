@@ -688,6 +688,71 @@ floor = 0.0
         self.assertEqual(code, EXIT_CONFIG_ERROR)
 
 
+class AMisspelledKeyIsNotAConfiguredFloor(_Tmp):
+    """TOML ignores a key nothing reads, and the suite then ran at the
+    harness's demonstration default rather than at the number the reviewable
+    file appears to set. A gate weaker than its own configuration says.
+    """
+
+    def _config(self, name: str, body: str) -> Path:
+        bundle_dir = write_bundle(self.root, _items(), _responses(),
+                                  name=name)
+        return self.write_config(f"{name}.toml", f"""
+[target]
+name = "{name}"
+[dataset]
+path = {json.dumps(str(bundle_dir))}
+{body}
+""")
+
+    def test_a_misspelled_floor_is_refused_rather_than_defaulted(self):
+        config = self._config("typo", """
+[suites.accuracy]
+enabled = true
+flooor = 0.99
+""")
+        with self.assertRaises(ConfigError) as caught:
+            load_config(config)
+        message = str(caught.exception)
+        self.assertIn("'flooor'", message)
+        self.assertIn("demonstration default", message)
+
+    def test_the_cli_refuses_it_rather_than_running_a_weaker_gate(self):
+        config = self._config("typo2", """
+[suites.accuracy]
+enabled = true
+flooor = 0.99
+""")
+        code, _, _ = run_cli("audit", "--config", str(config),
+                             "--out", str(self.root / "o"))
+        self.assertEqual(code, EXIT_CONFIG_ERROR)
+
+    def test_a_correctly_spelled_floor_is_still_accepted(self):
+        # The refusal above has to be about the typo, not about the table.
+        config = self._config("fine", """
+[suites.accuracy]
+enabled = true
+floor = 0.99
+""")
+        self.assertEqual(load_config(config).suites, {"accuracy": 0.99})
+
+    def test_an_enabled_that_is_not_a_boolean_is_refused(self):
+        # `enabled = 0` reads as "off" to a person and switches the suite off
+        # with no word said; `enabled = "false"` is a non-empty string, so it
+        # reads as "off" to a person and leaves the suite on. Both are a
+        # configuration whose effect is not what it says.
+        for value in ("0", '"false"', "1", '"true"'):
+            with self.subTest(value=value):
+                config = self._config(f"switch{value.strip(chr(34))}", f"""
+[suites.accuracy]
+enabled = {value}
+floor = 0.9
+""")
+                with self.assertRaises(ConfigError) as caught:
+                    load_config(config)
+                self.assertIn("must be true or false", str(caught.exception))
+
+
 # ---------------------------------------------------------------------------
 # 4. The overall verdict cannot be reached by a value nobody recognized.
 # ---------------------------------------------------------------------------

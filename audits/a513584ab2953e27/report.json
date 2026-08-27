@@ -1,17 +1,17 @@
 {
   "verdict": "PASS",
   "provenance": {
-    "run_id": "3411cbee7781b44e",
+    "run_id": "a513584ab2953e27",
     "harness": "plumbline",
     "harness_version": "0.2.0",
-    "harness_source_sha256": "7085f8ae15be30028e3da62287cd77640244b26007f0c6dafcfb010db06040ac",
+    "harness_source_sha256": "68db6733331b494a54df3167bc1edfd3e088a4aa4d15a17938d6a47044f3482b",
     "harness_source_note": "sha256 over every .py file in the installed plumbline package",
     "seed": 1729,
     "dataset_sha256": "949197da4dd6960e3998e9b50b01fca7a48345639e85494dd2a0e666e296e130",
     "dataset_id": "949197da4dd6",
     "judge_kind": "lexical",
     "judge_config_sha256": "f59f35442715bb2f5994035c7049438b893938922013e993950dcb393a79e13c",
-    "report_sha256": "e72dd7928753b794b8590767d6b890b90426d7a6046ca103f123d9781b0891b6"
+    "report_sha256": "4250f120a94fcda4e131f521f16844c9173bef3343b6e891719df4e6484f9a67"
   },
   "judge": {
     "kind": "lexical",
@@ -12628,6 +12628,13 @@
       ]
     }
   ],
+  "scope": {
+    "implemented": 15,
+    "scored": 15,
+    "not_scored": [],
+    "summary": "all 15 implemented suites were scored by this run",
+    "note": "scope lists the implemented suites this configuration did not score. A verdict is only ever about the suites that ran; which suites a target is held to is a policy decision, and this block is here so reading the verdict does not require knowing the registry by heart"
+  },
   "couplings": {
     "note": "Suites are not independent instruments. Where two enabled suites read the same evidence, one defect fails both, and counting red rows overcounts the findings. Each entry names a shared input; `reading` is computed from this run's own per-item records",
     "double_counting_risk": false,
@@ -12768,11 +12775,11 @@
     "comparable": true,
     "summary": "no verdict changed and no score moved",
     "against": {
-      "source_run_id": "f1561b47fb0e1e8b",
+      "source_run_id": "3411cbee7781b44e",
       "dataset_id": "949197da4dd6",
       "harness_version": "0.2.0",
       "judge_kind": "lexical",
-      "baseline_sha256": "49b1105669c1122b94ef935f5c74906dfbe2a510ee3c2f488b6791b0b2b1b35a"
+      "baseline_sha256": "90cc01eec0a52db303a3000797f71a9e980326fbe5ed989d0d8d16aa9cddad6a"
     },
     "refusals": [],
     "caveats": [],
@@ -12786,6 +12793,7 @@
     "mde": "mde is the smallest true drop in a suite's score that a same-sized future run could tell apart from noise; a regression smaller than it would not be detectable at this sample size",
     "hard_failures": "a suite with hard_failures fails regardless of its pooled score: a load-bearing policy fact was wrong, and pooled averages absorb single-item fabrications",
     "reproducibility": "identical inputs and seed produce byte-identical reports; reports carry no timestamps by design",
-    "couplings": "suites that read the same evidence are not independent signals; where two of them failed, the couplings block says whether that is one finding or two"
+    "couplings": "suites that read the same evidence are not independent signals; where two of them failed, the couplings block says whether that is one finding or two",
+    "scope": "scope names the implemented suites this run did not score at all, and why; a verdict is only ever about the suites that ran"
   }
 }

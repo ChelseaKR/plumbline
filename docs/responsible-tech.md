@@ -89,6 +89,12 @@ will not catch what those people would have hit.
   and an easy way to produce a clean-looking report about a system nobody
   checked for the things those two suites exist to check. The same
   suite-list discipline above is the only defense named in this document.
+  *(Added 2026-08-27: it is no longer the only one. Every report and every
+  terminal run now carries a `scope` block naming the implemented suites
+  the run did not score and why, so the omission travels with the verdict
+  instead of waiting to be noticed. It still does not prevent the misuse,
+  and deliberately does not — see
+  [ADR 0004](adr/0004-unscored-suites-are-disclosed-not-enforced.md).)*
 - **Citing a `PASS` outside the context that produced it.** A verdict
   detached from its dataset hash, its floors, and its suite list is a
   claim this repository does not make and cannot back once it is

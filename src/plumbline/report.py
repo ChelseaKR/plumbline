@@ -16,6 +16,7 @@ from typing import Any
 
 from .baseline import render_markdown as render_baseline_markdown
 from .couplings import render_markdown as render_couplings_markdown
+from .scope import render_markdown as render_scope_markdown
 from .hashing import canonical_json, sha256_text
 from .suites import SuiteResult
 
@@ -82,6 +83,7 @@ def build_report(
     dataset_info: dict[str, Any],
     results: list[SuiteResult],
     warnings: list[str],
+    scope: dict[str, Any],
     couplings: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     return {
@@ -109,6 +111,11 @@ def build_report(
             }
             for r in results
         ],
+        # The other half of the suite table: which implemented suites this
+        # configuration did not score at all. A verdict quoted without it is
+        # a claim about the suites that ran, read as a claim about all of
+        # them. Never affects the verdict; see scope.py and ADR 0004.
+        "scope": scope,
         # Which enabled suites are not independent signals, and what that
         # means for this run's failures. A reader counting red rows would
         # otherwise count one finding several times.
@@ -122,6 +129,7 @@ def build_report(
             "hard_failures": "a suite with hard_failures fails regardless of its pooled score: a load-bearing policy fact was wrong, and pooled averages absorb single-item fabrications",
             "reproducibility": "identical inputs and seed produce byte-identical reports; reports carry no timestamps by design",
             "couplings": "suites that read the same evidence are not independent signals; where two of them failed, the couplings block says whether that is one finding or two",
+            "scope": "scope names the implemented suites this run did not score at all, and why; a verdict is only ever about the suites that ran",
         },
     }
 
@@ -268,6 +276,8 @@ def render_markdown(report: dict[str, Any]) -> str:
         for s in hard:
             lines.append(f"- `{s['suite']}`: {', '.join(s['hard_failures'])}")
         lines.append("")
+    if report.get("scope"):
+        lines.extend(render_scope_markdown(report["scope"]))
     lines.extend(_unverifiable_lines(report))
     for s in report["suites"]:
         reason = (s.get("stats") or {}).get("reason")
