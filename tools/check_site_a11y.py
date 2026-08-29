@@ -40,6 +40,12 @@ There is no confidence interval to report here for the same reason
 
     python3 tools/check_site_a11y.py
 
+An eighth, `palette_coverage`, checks that the seventh was asked about
+every colour the page declares: `CONTRAST_PAIRS` is a hand-written list, so
+without it a colour added later is simply absent from the check and the page
+still reports a clean pass. Every declared colour is either in a checked
+pair or in `UNCHECKED_PALETTE_VARS` with a reason.
+
 Exit 0 all checks passed, 1 otherwise. Run by `make verify` (folded into
 `site-check`) and by `tests/test_site_a11y.py`.
 """
@@ -73,6 +79,31 @@ CONTRAST_PAIRS = [
     (".stop (table cell, on --bg)", "stop", "bg"),
     (".stop (inside .card)", "stop", "card"),
 ]
+
+UNCHECKED_PALETTE_VARS = {
+    "rule": (
+        "a 1px border colour, never used for text or for a control's "
+        "boundary that conveys state. WCAG 1.4.11 asks 3:1 of non-text "
+        "contrast; this check measures the 4.5:1 text bar, which is the "
+        "wrong bar for it. Listed rather than omitted so that the omission "
+        "is a decision on the record."
+    ),
+}
+"""Palette colours deliberately outside the contrast check, and why.
+
+`CONTRAST_PAIRS` is written by hand, so on its own it can only prove that
+the pairs somebody remembered are sound. It is silent about a colour added
+to the palette later and never listed -- the page would grow a new colour,
+the check would go on reporting "all 9 declared pairs meet WCAG AA", and
+nothing would say that the ninth was not the last one. That is the same
+shape as a checksum file that notices an edited entry and not a missing
+one, which this repository refuses in `plumbline validate` (a file present
+but not listed is an integrity refusal, not a pass).
+
+So every colour the page declares has to be accounted for: checked in a
+pair, or named here with a reason. Adding a colour without doing either
+fails `palette_coverage`.
+"""
 
 GENERIC_LINK_TEXT = {
     "here", "click here", "read more", "more", "link", "click", "this",
@@ -211,18 +242,66 @@ def _extract_palette(block: str) -> dict[str, str]:
     return dict(re.findall(r"--([\w-]+):\s*(#[0-9a-fA-F]{3,8})", block))
 
 
-def _check_contrast(snapshot: _Snapshot) -> tuple[bool, str]:
+def _palettes(snapshot: _Snapshot) -> tuple[dict[str, str], dict[str, str]] | str:
+    """Both palettes, or a string saying why they could not be read.
+
+    The dark palette lives inside `@media (prefers-color-scheme: dark)`;
+    everything before that keyword is the light (default) palette. One split
+    is enough because the page declares exactly one such block.
+    """
     if not snapshot.style_text.strip():
-        return False, "the page has no <style> block to check"
-    # The dark palette lives inside `@media (prefers-color-scheme: dark)`;
-    # everything before that keyword is the light (default) palette. One
-    # split is enough because the page declares exactly one such block.
+        return "the page has no <style> block to check"
     light_text, _, dark_text = snapshot.style_text.partition("@media")
     light = _extract_palette(light_text)
     dark = _extract_palette(dark_text)
     if not light or not dark:
-        return False, ("could not find both a light and a dark palette in "
-                       "the page's <style> block")
+        return ("could not find both a light and a dark palette in "
+                "the page's <style> block")
+    return light, dark
+
+
+def _check_palette_coverage(snapshot: _Snapshot) -> tuple[bool, str]:
+    """Every colour the page declares is checked, or exempt with a reason.
+
+    Without this, `contrast` proves only that the pairs someone remembered
+    to list are sound. A colour added to the palette and never listed is
+    invisible to it, and the page reports a clean pass over a bar the new
+    colour was never held to.
+    """
+    palettes = _palettes(snapshot)
+    if isinstance(palettes, str):
+        return False, palettes
+    light, dark = palettes
+    if set(light) != set(dark):
+        only_light = sorted(set(light) - set(dark))
+        only_dark = sorted(set(dark) - set(light))
+        return False, (
+            "the light and dark palettes declare different colours, so one "
+            "theme falls back to the other's value: "
+            f"light only {only_light}, dark only {only_dark}")
+    declared = set(light)
+    covered = {name for _, fg, bg in CONTRAST_PAIRS for name in (fg, bg)}
+    unclassified = sorted(declared - covered - set(UNCHECKED_PALETTE_VARS))
+    if unclassified:
+        return False, (
+            "declared in the palette but neither checked for contrast nor "
+            f"listed in UNCHECKED_PALETTE_VARS with a reason: {unclassified}")
+    stale = sorted(set(UNCHECKED_PALETTE_VARS) - declared)
+    if stale:
+        return False, (
+            "UNCHECKED_PALETTE_VARS exempts colours the page no longer "
+            f"declares, so the exemption is stale: {stale}")
+    return True, (
+        f"all {len(declared)} declared colours are accounted for: "
+        f"{len(declared - set(UNCHECKED_PALETTE_VARS))} checked for contrast, "
+        f"{len(UNCHECKED_PALETTE_VARS)} exempt with a stated reason")
+
+
+def _check_contrast(snapshot: _Snapshot) -> tuple[bool, str]:
+    palettes = _palettes(snapshot)
+    if isinstance(palettes, str):
+        return False, palettes
+    light, dark = palettes
     failures = []
     for theme_name, palette in (("light", light), ("dark", dark)):
         for selector, fg_name, bg_name in CONTRAST_PAIRS:
@@ -252,6 +331,7 @@ CHECKS = (
     ("main_landmark", _check_main_landmark),
     ("zoom_not_disabled", _check_zoom_not_disabled),
     ("contrast", _check_contrast),
+    ("palette_coverage", _check_palette_coverage),
 )
 
 
