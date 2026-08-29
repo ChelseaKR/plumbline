@@ -9,6 +9,63 @@ may break the interface.
 
 ### Fixed
 
+- **The prose was making claims about the evidence that nothing checked.**
+  `site/index.html` is regenerated from the committed artifacts and compared
+  byte for byte, so the published page cannot drift. `README.md` and
+  `DESIGN.md` had no such check and had drifted. The demo bundle grew from 174
+  items to 178 when the multi-turn items landed; `tools/build_site.py` reads
+  the count out of `report["dataset"]["items"]`, so the page said 178 the
+  moment it was rebuilt, while three README sentences went on saying 174 and
+  the figure derived from one of them stayed at 0.9943 where 177 of 178 is
+  0.9944. `DESIGN.md` still described a 174-item bundle of 48 source passages
+  and 48 adversarial probes; it holds 178, 74 and 52.
+
+  Fixed by deriving rather than by retyping. `tools/defect_matrix.py` grew a
+  note that is a function of the observation the case produced, so the
+  tolerated-refusal sentence in `proof/matrix.md` is now computed from the run
+  that produced it and cannot disagree with the `refusal -0.0056` printed
+  beside it (which is 1/178, and was already right). `tools/check_claims.py`
+  is new and is the general fix: eight anchored claims across the two
+  documents, each with its figures punched out and computed from
+  `audits/*/report.json`, `proof/matrix.json` and the sealed bundle, plus the
+  test count taken by discovering the suite. It runs in `make verify` as
+  `claims-check`, a sibling of `site-check`, and therefore in CI.
+
+  A claim whose sentence has been reworded fails rather than passing quietly,
+  because a checker that drifts off its subject and keeps reporting green is
+  the failure mode this repository exists to argue against. Observed failing
+  thirteen ways from the prose side, one per figure plus a reworded anchor,
+  and four ways from the evidence side: the report's item count moved, the
+  matrix note's score moved, a 179th item added to the bundle, and three tests
+  added to the suite -- each with the documents untouched, each caught.
+
+- **"Where it runs" named a pin cairn had moved off, and read its ruleset
+  backwards.** The bullet pinned cairn at
+  `f4b285ea13beb0c43bb1f26ac0b99fb39d761822`; cairn's own `plumbline.pin` has
+  read `a258b2e2e3cd859b1f80caaeb417ad579ade9ac2` since 2026-08-23. The same
+  bullet, as amended immediately before this change, said cairn's ruleset
+  requires ten contexts of which none is this harness. One of them is:
+  `audit (merge gate — must be required in branch protection)` is the job that
+  runs `./plumbline-gate.sh` in `ChelseaKR/cairn`'s `ci.yml`. A failing audit
+  blocks a merge there, and the section had it the other way round. Both
+  corrected from the GitHub API on 2026-08-29. They are claims about *other* repositories, which nothing here
+  can gate: `make verify` is offline by construction and a check that reached
+  GitHub would spend the property the paragraph sits next to. So the section
+  now carries the review date and the commands it was read with, in place of
+  an implied freshness, and names the administrator bypass on cairn's ruleset
+  rather than leaving the arrangement sounding stronger than it is.
+
+- **A code-quality measurement cited a ledger row that did not exist.** The
+  conformance table dated its wide-ruff and complexity figures 2026-08-23 and
+  pointed at `docs/metrics-ledger.md` as "the measured trail"; the ledger's
+  newest row was 2026-08-22. Re-running the ledger's own commands today gives
+  352 findings (264 line length) and 18 over complexity 10, against the 326
+  (241) and 17 published -- on a newer ruff, so the movement is partly this
+  repository and partly the tool, and nothing recorded at the time can
+  separate them. Rather than back-fill a measurement nobody took, the ledger
+  gains a `2026-08-29` row that states the tool versions it was measured on,
+  the first row here to do so, and the README points at that.
+
 - **The published page had no canonical URL, on an origin it shares with five
   other sites.** `site/index.html` carried a title and a description and
   nothing else: no `<link rel="canonical">`, no Open Graph, no Twitter card, so
