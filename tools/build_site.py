@@ -69,6 +69,29 @@ PAGE_URL = "https://chelseakr.github.io/plumbline/"
 # instead of the page. Both restate what the page already says of itself and count nothing:
 # every number on this page is produced by the build, and a figure pasted into a preview card
 # is outside the reach of the freshness check that keeps the rest of it honest.
+# The canonical carries an inline `nosemgrep`, and this is why.
+#
+# `html.security.audit.missing-integrity` fires on any `<link>` whose href has a scheme and
+# no `integrity` attribute. It has no condition on `rel` at all, and it already carves out
+# `rel="preconnect"` -- which is the identical case. A canonical URL is a metadata hint: the
+# browser never fetches it, so there is no delivered file to hash and `integrity` has nothing
+# to attach to. Adding one would not be a weaker fix, it would be meaningless markup.
+#
+# CI runs `semgrep ci --config auto` (.github/workflows/security.yml), which pulls the
+# registry HTML rules, and the finding is blocking. Verified with
+# `semgrep scan --config r/html.security.audit.missing-integrity`: 1 finding before, 0 after.
+#
+# Two details this cost a round trip to learn, so they are written down. The comment must sit
+# on the SAME line as the tag: on the preceding line it is not honoured for this rule, and the
+# scan still reported the finding. And the id must be the full, doubled
+# `html.security.audit.missing-integrity.missing-integrity`; the shorter path prefix is not a
+# match, and semgrep does not warn -- it simply does not suppress.
+#
+# It is a line-level suppression naming the one rule, not a `.semgrepignore` entry. That file
+# says why in its own comment: it is for a file that CANNOT carry an inline comment because
+# it is content-hashed. This page is generated, so the comment belongs in the generator and
+# the regenerated page still matches its build-parity check. Ignoring `site/index.html`
+# wholesale would blind semgrep to the entire published page to silence one false positive.
 PAGE_TITLE = "Plumbline — audit evidence"
 PAGE_DESCRIPTION = (
     "The committed audit report of the Plumbline evaluation harness, "
@@ -390,7 +413,7 @@ def render(data: dict) -> str:
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{PAGE_TITLE}</title>
 <meta name="description" content="{PAGE_DESCRIPTION}">
-<link rel="canonical" href="{PAGE_URL}">
+<link rel="canonical" href="{PAGE_URL}"> <!-- nosemgrep: html.security.audit.missing-integrity.missing-integrity -->
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Plumbline">
 <meta property="og:title" content="{PAGE_TITLE}">

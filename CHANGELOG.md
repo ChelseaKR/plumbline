@@ -33,6 +33,20 @@ may break the interface.
   the bare origin; a newline reintroduced into the description;
   `twitter:card` raised to `summary_large_image` with no image to show.
 
+  The canonical carries a line-level `nosemgrep` for
+  `html.security.audit.missing-integrity`, which fires on any `<link>` whose
+  href has a scheme and no `integrity` attribute. The rule has no condition on
+  `rel` at all and already carves out `rel="preconnect"`, which is the identical
+  case: a canonical URL is a metadata hint the browser never fetches, so there
+  is no delivered file to hash and `integrity` would be meaningless markup. CI
+  runs `semgrep ci --config auto`, which pulls the registry HTML rules, and the
+  finding is blocking, so without this the SAST job would have failed on a false
+  positive. It is a one-rule, one-line suppression rather than a
+  `.semgrepignore` entry, because that file's own comment reserves itself for a
+  file that *cannot* carry an inline comment, and ignoring `site/index.html`
+  wholesale would blind semgrep to the entire published page.
+  Measured: 1 finding before, 0 after.
+
 - **The published page's contrast check could not see a colour nobody had
   listed.** `tools/check_site_a11y.py` proves that nine hand-written
   `CONTRAST_PAIRS` meet WCAG AA in both palettes. It said nothing about a
