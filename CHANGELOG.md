@@ -7,6 +7,98 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 This is a pre-1.0 project: while the version stays below `1.0.0`, a MINOR bump
 may break the interface.
 
+### Fixed
+
+- **The published page's contrast check could not see a colour nobody had
+  listed.** `tools/check_site_a11y.py` proves that nine hand-written
+  `CONTRAST_PAIRS` meet WCAG AA in both palettes. It said nothing about a
+  colour added to `:root` later and never added to that list: the page would
+  grow a colour, the check would go on reporting "all 9 declared pairs meet
+  WCAG AA", and nothing would say the ninth was not the last one.
+
+  That is the same shape this repository refuses one level down. `plumbline
+  validate` treats a file *present but not listed* in `checksums.json` as an
+  integrity refusal rather than a pass, and the accessibility suite refuses a
+  target that declares no contrast pairs at all ("unverified contrast is not
+  passing contrast"). The page holding targets to that standard was not held
+  to it itself, which is the objection its own module docstring raises: "the
+  thing a harness holds targets to and never checks about itself is a standard
+  that only ever points outward."
+
+  An eighth check, `palette_coverage`, closes it. Every colour the page
+  declares is either in a checked pair or in `UNCHECKED_PALETTE_VARS` with a
+  written reason; a colour that is neither fails the gate. It also refuses a
+  stale exemption for a colour the page no longer declares, and palettes whose
+  light and dark halves declare different colours, which would leave one theme
+  silently inheriting the other's value.
+
+  Today exactly one colour is exempt: `--rule`, a 1px border never used for
+  text, whose bar is WCAG 1.4.11's 3:1 for non-text rather than the 4.5:1 this
+  check measures. It was already outside the list; the difference is that the
+  omission is now a decision on the record instead of a gap.
+
+  Demonstrated on the real page, not only a fixture: adding `--warn:#ffcc00`
+  to both palettes leaves `contrast` reporting its nine pairs clean and makes
+  `palette_coverage` fail, exit 1.
+
+- **`make verify` passed on trees `.github/workflows/tests.yml` rejects.**
+  Three of that workflow's steps were inline script with no target behind
+  them: the byte-for-byte reproduction of the committed audit, the re-check of
+  the committed report against its own seal, and the tamper drill. The
+  Makefile said so deliberately, with a reason -- both mutate the working
+  tree, and "a gate people learn to run `git checkout --` after is a gate
+  people learn to ignore."
+
+  The reason was right about the symptom and wrong about the cure. Neither
+  check needs to mutate anything. `make reproduce` writes the run into a
+  temporary directory and compares with `diff -r`; `make tamper-drill` tampers
+  with a copy of the checkout. Both are in `make verify` now, and the checkout
+  is untouched by either.
+
+  `diff -r` and not a content diff of tracked files: it fails on a changed
+  byte, on a report the run no longer writes, *and* on a directory the run
+  writes that is not committed. The run id is the output directory's name, so
+  a change that moves it leaves the committed directory untouched and writes a
+  new one beside it -- the failure the workflow's own comment already named.
+
+  Both targets carry a floor against passing over nothing: `reproduce` refuses
+  an empty `audits/`, and `tamper-drill` refuses a copy with no dataset in it.
+  The drill still captures exit codes explicitly rather than leaning on `&&`,
+  and it was demonstrated catching a tamper that never landed: pointing its
+  edit at a string absent from the file makes the gate exit 0 instead of 3,
+  and the drill fails with "expected exit 3 (integrity refusal), got 0".
+
+  `tests/test_ci_parity.py` keeps it closed: every `run:` step in tests.yml
+  must be a make target, that target must exist, and `verify` must reach it.
+  Demonstrated failing twice -- by reintroducing an inline CI-only step, and
+  by dropping `reproduce` from `verify`.
+
+  The matrix job keeps the property it exists for. Its steps run `make
+  test-bare`, `make reproduce` and `make tamper-drill`, all of which use plain
+  `python3`: `make` is not a Python package, so routing the suite through a
+  target does not spend the claim that Plumbline runs on the standard library
+  alone with nothing installed.
+
+  `.github/workflows/security.yml` is deliberately **not** held to this rule,
+  and the exemption is a tooling fact rather than a preference: its semgrep
+  step runs inside a pinned semgrep container and its secret scan is a pinned
+  marketplace action, so neither is a shell command a Makefile could run
+  identically. `make sast` is added as a local approximation of the first and
+  says so in its comment.
+
+- **`.semgrepignore`'s own comment described the opposite mechanism.** It said
+  "Semgrep's own defaults (.git, node_modules, etc.) still apply; this file only
+  adds exclusions". A repository-root `.semgrepignore` *replaces* the built-in
+  list rather than extending it, and the built-in list drops `tests/`. Measured
+  both ways on 2026-08-28 with `semgrep scan --config p/python .`: with the file
+  present, 77 of 77 tracked Python files are scanned and 1 is skipped; with it
+  moved aside, 46 are scanned and 32 are skipped, all 31 files in `tests/` among
+  them. The coverage is right and the reason recorded for it was not, which
+  means it was holding by accident: this repository's tests are scanned only
+  because the file exists at all, for an unrelated single HTML fixture. The
+  comment now carries the measurement and a warning that adding a broad path
+  there takes the coverage back silently.
+
 ### Added
 
 - **Every report now says which suites did *not* run.** A report has always

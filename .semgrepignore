@@ -1,5 +1,14 @@
-# Semgrep's own defaults (.git, node_modules, etc.) still apply; this file
-# only adds exclusions this repository has a specific, documented reason for.
+# This file REPLACES semgrep's built-in ignore list; it does not extend it.
+# That is the opposite of what this comment used to say, and the difference
+# matters: the built-in list drops `tests/`. Measured on 2026-08-28 with
+# `semgrep scan --config p/python .` -- with this file present, 77 of 77
+# tracked Python files are scanned and 1 is skipped; with it moved aside, 46
+# are scanned and 32 are skipped, all 31 files in `tests/` among them.
+#
+# So the one exclusion below is the only exclusion in force, and this
+# repository's tests are in scope. They are gates, and a fixture is where a
+# secret or an injection pattern most often hides. Keep it that way: adding a
+# broad path here silently takes back the coverage this file is what provides.
 #
 # datasets/riverbend-demo/interface.html is a static HTML fixture -- a
 # captured structural snapshot for the accessibility suite to check, not a
