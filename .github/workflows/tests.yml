@@ -36,69 +36,35 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
+      # No uv here on purpose: this job's property is that the suite, the
+      # reproduction and the drill all pass on a bare interpreter with nothing
+      # installed. `make` is not a Python package, and the targets these steps
+      # call use plain `python3` for exactly that reason.
       - name: Run the suite
-        run: PYTHONPATH=src:tests python3 -m unittest discover -s tests
+        run: make test-bare
 
       # The audit of the bundled demo is committed. If a change to the harness
-      # moves a score, a hash, or a byte of the report, this step fails — which
-      # is the reproducibility claim, enforced.
+      # moves a score, a hash, or a byte of the report, this fails — which is
+      # the reproducibility claim, enforced. It also re-checks the committed
+      # report against its own seal.
       #
-      # `git status --porcelain` and not `git diff --exit-code` alone: the run
-      # id is the output directory's name, so anything that moves the run id
-      # writes a *new, untracked* directory and leaves the committed one
-      # untouched. A diff sees nothing and reports success, which is this
-      # repository's own favourite failure — a check that passed because it did
-      # not run. Untracked output is a failure here.
+      # `make reproduce` and not inline script: a step that exists only in this
+      # file is a step `make verify` cannot run, and a contributor whose gate
+      # is green on a tree this workflow rejects has been told the wrong thing.
+      # tests/test_ci_parity.py fails if any step here stops being a make
+      # target. The target writes to a temporary directory and compares with
+      # `diff -r`, which catches a changed byte, a report no longer written,
+      # and an uncommitted directory a moved run id would create.
       - name: The committed demo audit must still reproduce byte for byte
-        run: |
-          PYTHONPATH=src python3 -m plumbline gate \
-            --config examples/riverbend.toml --out audits
-          git diff -- audits baselines
-          dirty=$(git status --porcelain -- audits baselines)
-          if [ -n "$dirty" ]; then
-            echo "the committed audit is not what this code produces:" >&2
-            echo "$dirty" >&2
-            exit 1
-          fi
-
-      # The committed report must still match its own seal.
-      - name: The committed report has not been edited since it was produced
-        run: PYTHONPATH=src python3 -m plumbline verify audits/*/report.json
+        run: make reproduce
 
       # The tamper drill, as documented in the README. Exit codes are captured
-      # explicitly rather than leaned on through `&&`: a drill that asserts
-      # only "did not exit 0" would be satisfied by the harness crashing, which
-      # is the opposite of what it is trying to prove.
+      # explicitly inside the target rather than leaned on through `&&`: a
+      # drill that asserts only "did not exit 0" would be satisfied by the
+      # harness crashing, which is the opposite of what it is trying to prove.
+      # It runs against a copy, so nothing here has to `git checkout --` after.
       - name: Tamper drill — integrity refusal, then a caught fabrication
-        run: |
-          set -u
-          run_gate() {
-            set +e
-            PYTHONPATH=src python3 -m plumbline gate \
-              --config examples/riverbend.toml --out /tmp/tamper
-            code=$?
-            set -e
-            echo "$code"
-          }
-          python3 - <<'PY'
-          import pathlib
-          p = pathlib.Path("datasets/riverbend-demo/responses.jsonl")
-          p.write_text(p.read_text().replace("850 dollars", "900 dollars"))
-          PY
-
-          code=$(run_gate | tail -1)
-          if [ "$code" != "3" ]; then
-            echo "expected exit 3 (integrity refusal), got $code" >&2
-            exit 1
-          fi
-
-          PYTHONPATH=src python3 -m plumbline seal datasets/riverbend-demo
-          code=$(run_gate | tail -1)
-          if [ "$code" != "1" ]; then
-            echo "expected exit 1 (the fabrication is caught and scored), got $code" >&2
-            exit 1
-          fi
-          git checkout -- datasets/riverbend-demo
+        run: make tamper-drill
 
   # The gates that need a tool rather than the interpreter: the linter and the
   # branch-coverage floor. They run once, on one version, because neither is

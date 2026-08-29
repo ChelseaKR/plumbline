@@ -13,3 +13,7 @@ recordings/
 htmlcov/
 .ruff_cache/
 .mypy_cache/
+
+# Scratch tree for `make reproduce` and `make tamper-drill`, which run against
+# a copy so the checkout is never dirtied by a gate.
+.make-work/

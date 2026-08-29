@@ -1,11 +1,11 @@
 """The published page is held to the same accessibility standard it holds a
 target's interface to.
 
-`tools/check_site_a11y.py` runs seven structural checks against
+`tools/check_site_a11y.py` runs eight structural checks against
 `site/index.html` itself — the same kind of check
 `src/plumbline/suites/accessibility.py` runs against a target's captured
 interface. This file checks that the committed page currently passes all
-seven, and — because a check that cannot fail is the vacuous pass this whole
+eight, and — because a check that cannot fail is the vacuous pass this whole
 project argues against — that each individual check can actually catch the
 defect it exists to catch.
 """
@@ -38,12 +38,68 @@ class TheCommittedPagePassesEveryCheck(unittest.TestCase):
         failed = [name for name, passed, _ in results if not passed]
         self.assertEqual(failed, [])
 
-    def test_it_actually_ran_all_seven_checks(self):
+    def test_it_actually_ran_all_eight_checks(self):
         # A check that silently stopped running would leave this file
         # asserting nothing about it, the same way a suite excluding a
         # response instead of scoring it can look identical to a pass.
-        self.assertEqual(len(site_a11y.run()), 7)
-        self.assertEqual(len({name for name, *_ in site_a11y.run()}), 7)
+        self.assertEqual(len(site_a11y.run()), 8)
+        self.assertEqual(len({name for name, *_ in site_a11y.run()}), 8)
+
+
+class PaletteCoverageCatchesAnUncheckedColour(unittest.TestCase):
+    """`CONTRAST_PAIRS` is written by hand, so it can only ever prove that the
+    pairs somebody remembered are sound. This is the check that the list was
+    asked about every colour the page actually declares -- the same reason
+    `plumbline validate` treats a file present but not listed as an integrity
+    refusal rather than a pass."""
+
+    STYLE = '<style>:root{{--fg:#111111;--bg:#ffffff;--muted:#595959;--card:#f2f2f2;--accent:#0b4f9c;--code-bg:#eeeeee;--ok:#155724;--stop:#8b0000;--rule:#cccccc;{extra_light}}}@media (prefers-color-scheme: dark){{:root{{--fg:#f5f5f5;--bg:#111111;--muted:#b0b0b0;--card:#1c1c1c;--accent:#8ab4f8;--code-bg:#000000;--ok:#7ee787;--stop:#ff9a9a;--rule:#333333;{extra_dark}}}}}</style>'
+
+    def _snapshot(self, extra_light="", extra_dark=""):
+        return _fake_snapshot(
+            "<body>"
+            + self.STYLE.format(extra_light=extra_light, extra_dark=extra_dark)
+            + "</body>")
+
+    def test_the_current_palette_is_fully_accounted_for(self):
+        ok, detail = site_a11y._check_palette_coverage(self._snapshot())
+        self.assertTrue(ok, detail)
+
+    def test_a_colour_added_and_never_listed_fails(self):
+        """The defect this check exists for: a new colour slips into the
+        palette, `contrast` goes on reporting its nine pairs clean, and
+        nothing says the new one was never held to any bar."""
+        ok, detail = site_a11y._check_palette_coverage(
+            self._snapshot(extra_light="--warn:#ffcc00;",
+                           extra_dark="--warn:#ffcc00;"))
+        self.assertFalse(ok)
+        self.assertIn("warn", detail)
+
+    def test_a_stale_exemption_fails(self):
+        """An exemption for a colour the page dropped is a reason nobody has
+        re-read, and it would silently cover a future colour of that name."""
+        original = dict(site_a11y.UNCHECKED_PALETTE_VARS)
+        site_a11y.UNCHECKED_PALETTE_VARS["gone"] = "no longer declared"
+        try:
+            ok, detail = site_a11y._check_palette_coverage(self._snapshot())
+            self.assertFalse(ok)
+            self.assertIn("gone", detail)
+        finally:
+            site_a11y.UNCHECKED_PALETTE_VARS.clear()
+            site_a11y.UNCHECKED_PALETTE_VARS.update(original)
+
+    def test_palettes_declaring_different_colours_fail(self):
+        """A colour in one theme and not the other means one theme silently
+        inherits the other's value, which no contrast pair would notice."""
+        ok, detail = site_a11y._check_palette_coverage(
+            self._snapshot(extra_light="--warn:#ffcc00;"))
+        self.assertFalse(ok)
+        self.assertIn("warn", detail)
+
+    def test_every_exemption_carries_a_reason(self):
+        for name, reason in site_a11y.UNCHECKED_PALETTE_VARS.items():
+            self.assertTrue(reason.strip(), name)
+            self.assertGreater(len(reason), 40, name)
 
 
 class EachCheckCanActuallyFail(unittest.TestCase):
