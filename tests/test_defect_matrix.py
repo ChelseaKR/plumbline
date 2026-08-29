@@ -66,6 +66,22 @@ class DefectMatrixTests(unittest.TestCase):
             rendered, committed,
             "proof/matrix.md is stale; run `python3 tools/defect_matrix.py`")
 
+    def test_the_committed_json_proof_is_current(self):
+        # The tool writes both files and its `--check` compares both, but
+        # `--check` is on no path `make verify` reaches, and this file compared
+        # only the Markdown. So `proof/matrix.json` -- the machine-readable
+        # half, read by `tools/build_site.py`, `tools/check_claims.py`,
+        # `tests/test_couplings.py` and `tests/test_self_application.py` -- was
+        # a committed artifact standing in for a computation with nothing
+        # regenerating it and comparing. Only the handful of fields those
+        # readers happen to touch were held to anything, and a byte outside
+        # them could have moved without a word said.
+        rendered = self.tool.render_json(self.matrix)
+        committed = (PROOF / "matrix.json").read_text(encoding="utf-8")
+        self.assertEqual(
+            rendered, committed,
+            "proof/matrix.json is stale; run `python3 tools/defect_matrix.py`")
+
     # Determinism across processes is covered by
     # test_the_committed_proof_is_current: the committed file was written by a
     # previous run, so matching it byte for byte is the stronger check, and it

@@ -949,6 +949,17 @@ def render_markdown(matrix: dict) -> str:
     return "\n".join(lines)
 
 
+def render_json(matrix: dict) -> str:
+    """The exact bytes `proof/matrix.json` holds.
+
+    A function rather than an expression inside `main`, so the drift check in
+    `tests/test_defect_matrix.py` compares against what this tool writes
+    rather than against a second, independently-typed `json.dumps` call that
+    could agree with the committed file while disagreeing with the writer.
+    """
+    return json.dumps(matrix, indent=2, ensure_ascii=False) + "\n"
+
+
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(
         description="Plant a defect per suite and check that the suite catches "
@@ -962,7 +973,7 @@ def main(argv: list[str]) -> int:
 
     matrix = build_matrix()
     markdown = render_markdown(matrix)
-    payload = json.dumps(matrix, indent=2, ensure_ascii=False) + "\n"
+    payload = render_json(matrix)
 
     out = Path(args.out)
     if args.check:
