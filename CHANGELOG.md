@@ -9,6 +9,44 @@ may break the interface.
 
 ### Fixed
 
+- **The published page had no canonical URL, on an origin it shares with five
+  other sites.** `site/index.html` carried a title and a description and
+  nothing else: no `<link rel="canonical">`, no Open Graph, no Twitter card, so
+  a link to it previewed as a bare URL. That is not only cosmetic here. The
+  page is served under a project *path* on `chelseakr.github.io`, so the
+  canonical a single-domain habit produces (`/`) is not this site's root but a
+  different address that 404s, and all six sites sharing the origin would claim
+  it. `tools/build_site.py` now renders a canonical, `og:*` and `twitter:card`
+  from one `PAGE_TITLE` and one `PAGE_DESCRIPTION`, so `<title>`/`og:title` and
+  `description`/`og:description` cannot drift apart. There is no `og:image`:
+  this repository ships no image and `test_it_is_self_contained` exists to keep
+  it that way, so the card is `summary`, which promises none.
+  The description also stopped carrying a literal newline: it wrapped across
+  two source lines inside the `content` attribute, which is legal HTML and
+  reads fine, and is still a stray control character in the one string a search
+  result quotes verbatim.
+  `test_the_head_names_this_page_and_not_the_shared_origin` extends the
+  existing published-page checks rather than starting a parallel suite, and
+  asserts the project path is *present* rather than that a canonical merely
+  exists, because an origin-rooted canonical passes the weaker check and is the
+  bug. Observed failing four ways: canonical line deleted; `PAGE_URL` set to
+  the bare origin; a newline reintroduced into the description;
+  `twitter:card` raised to `summary_large_image` with no image to show.
+
+  The canonical carries a line-level `nosemgrep` for
+  `html.security.audit.missing-integrity`, which fires on any `<link>` whose
+  href has a scheme and no `integrity` attribute. The rule has no condition on
+  `rel` at all and already carves out `rel="preconnect"`, which is the identical
+  case: a canonical URL is a metadata hint the browser never fetches, so there
+  is no delivered file to hash and `integrity` would be meaningless markup. CI
+  runs `semgrep ci --config auto`, which pulls the registry HTML rules, and the
+  finding is blocking, so without this the SAST job would have failed on a false
+  positive. It is a one-rule, one-line suppression rather than a
+  `.semgrepignore` entry, because that file's own comment reserves itself for a
+  file that *cannot* carry an inline comment, and ignoring `site/index.html`
+  wholesale would blind semgrep to the entire published page.
+  Measured: 1 finding before, 0 after.
+
 - **The published page's contrast check could not see a colour nobody had
   listed.** `tools/check_site_a11y.py` proves that nine hand-written
   `CONTRAST_PAIRS` meet WCAG AA in both palettes. It said nothing about a
