@@ -112,6 +112,38 @@ class TheCommittedBaselineIsCurrent(unittest.TestCase):
     def setUp(self):
         self.baseline = json.loads(BASELINE.read_text(encoding="utf-8"))
 
+    def test_it_is_a_regeneration_of_the_committed_report(self):
+        """The whole file, not the three hashes the tests below name.
+
+        Every other committed artifact here is held to "regenerate it and
+        compare the bytes". The baseline was not: three of its fields were
+        checked against the tree and the rest — the verdict, the target, and
+        one line per suite with its score, floor, verdict and n — were
+        whatever was last written there. A committed floor could have drifted
+        from the report it was distilled from and nothing would have said so.
+
+        One field is excluded, and only one: `source_run_id`. The regeneration
+        loop in `docs/operations-runbook.md` makes it *necessarily* name a
+        different run from the committed one — the baseline is built from a
+        first gate run, and its own hash then feeds the run id of the second,
+        which is the run that gets committed, so the run this baseline was
+        distilled from is by construction the previous one. It is excluded by
+        substituting the committed value rather than by dropping the key, so
+        the comparison stays byte-for-byte over everything else, key order and
+        formatting included.
+        """
+        from plumbline.baseline import build_baseline
+
+        fresh = build_baseline(committed_report())
+        self.assertIn("source_run_id", fresh)
+        fresh["source_run_id"] = self.baseline.get("source_run_id")
+        rendered = json.dumps(fresh, indent=2, ensure_ascii=False) + "\n"
+        self.assertEqual(
+            BASELINE.read_text(encoding="utf-8"), rendered,
+            "baselines/riverbend-demo.json is not what the committed report "
+            "distils to; regenerate it per docs/operations-runbook.md rather "
+            "than editing it")
+
     def test_it_describes_the_evidence_that_is_actually_committed(self):
         bundle = load_bundle(load_config(CONFIG).dataset_path)
         self.assertEqual(self.baseline["dataset_sha256"], bundle.dataset_sha256)
