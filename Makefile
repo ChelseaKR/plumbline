@@ -16,9 +16,9 @@
 # `tests/test_ci_parity.py` holds that open: every `run:` step in tests.yml
 # must be a make target, and `verify` must reach it.
 
-.PHONY: verify lint test test-bare coverage site-check clean reproduce tamper-drill sast
+.PHONY: verify lint test test-bare coverage site-check claims-check clean reproduce tamper-drill sast
 
-verify: lint test site-check reproduce tamper-drill
+verify: lint test site-check claims-check reproduce tamper-drill
 	@echo "make verify: all local gates passed."
 
 # Ruff's default rules. The narrow select set is a recorded gap, not an
@@ -57,6 +57,16 @@ test-bare:
 site-check:
 	PYTHONPATH=src uv run python3 tools/build_site.py --check
 	PYTHONPATH=src uv run python3 tools/check_site_a11y.py
+
+# The same standard, applied to the prose. `site-check` above regenerates the
+# published page and compares it byte for byte, so the page cannot drift; the
+# README and DESIGN.md had nothing holding them to the same artifacts, and
+# they drifted -- four figures describing a 174-item demo bundle that has held
+# 178 since the multi-turn items landed. This checks the numbers rather than
+# regenerating the documents: a tool that owned every byte of the README would
+# own the argument in it too.
+claims-check:
+	PYTHONPATH=src uv run python3 tools/check_claims.py
 
 clean:
 	rm -rf .coverage htmlcov .ruff_cache

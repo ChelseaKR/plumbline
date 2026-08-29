@@ -92,23 +92,38 @@ coupling-disclosure findings, is in
 
 Two public repositories of my own pin this harness by exact commit and run it
 on every pull request, resolving it at run time rather than depending on it.
-Neither makes it a required status check, so today it reports rather than
-blocks:
+One of them blocks a merge on the result and one does not, and the difference
+is the more useful half of the description:
 
 - [`ChelseaKR/cairn`](https://github.com/ChelseaKR/cairn) — pinned at
-  `f4b285ea13beb0c43bb1f26ac0b99fb39d761822`, with a committed baseline and a
-  guard that fails on a regression the harness only reports. This line used to
-  say `main` there had no ruleset applied. That stopped being true on
-  2026-08-26: measured 2026-08-29, cairn carries an active ruleset (id
-  `21223426`, "main: the audit gate is required") requiring ten contexts. None
-  of the ten is this harness, so the sentence above still holds for the reason
-  that matters here.
+  `a258b2e2e3cd859b1f80caaeb417ad579ade9ac2`, with a committed baseline and a
+  guard that fails on a regression the harness only reports. `main` there is
+  covered by an active ruleset (id `21223426`, "main: the audit gate is
+  required") whose ten required contexts include `audit (merge gate — must be
+  required in branch protection)`, and that job is the one that runs
+  `./plumbline-gate.sh`. A failing audit blocks the merge there. A repository
+  administrator can still bypass the ruleset, which is a real limit on what
+  the arrangement proves.
 - [`ChelseaKR/fare-policy-assistant`](https://github.com/ChelseaKR/fare-policy-assistant)
   — pinned at `df95fce6eb8637bdaf46d0a4f03709b7ccce231f`, exporting its own
   recording into a sealed bundle. `plumbline gate` is allowed to report FAIL
   there because several floors sit above current performance; a separate guard
   fails the build on any finding not in its acknowledged-findings file. That
-  job is not among the repository's nine required checks.
+  job is not among the repository's nine required checks, so there it reports
+  rather than blocks.
+
+Both bullets are the state of a *different* repository, which nothing in this
+one can check. `make verify` is offline by construction, and a gate that
+reached GitHub to keep this paragraph fresh would spend the property the
+paragraph sits next to, so these carry a review date instead of an implied
+freshness. **Read from the GitHub API on 2026-08-29**, with `gh api
+repos/ChelseaKR/cairn/contents/plumbline.pin`, `gh api
+repos/ChelseaKR/cairn/rulesets`, and the same two against
+`fare-policy-assistant`, plus `ChelseaKR/cairn`'s own `ci.yml` to see which
+job each required context names. What that reading corrected is the argument
+for dating it: this section named a pin cairn moved off on 2026-08-23, and
+then, once the ruleset was noticed, concluded that none of its ten required
+contexts was this harness. One of them is.
 
 Neither is a dependency relationship: `gate/plumbline-gate.sh` resolves the
 pinned commit into a cache directory at run time, so nothing in a consuming
@@ -127,7 +142,7 @@ minimum detectable effect, baseline regression comparison, a pinned
 fail-closed CI gate, live-target recording over HTTP or against a local
 program, and an optional model judge — none of which the gate can reach. Every
 suite has been **observed failing** on a defect it exists to catch; see
-[`proof/matrix.md`](proof/matrix.md). 633 tests, standard library only,
+[`proof/matrix.md`](proof/matrix.md). 651 tests, standard library only,
 offline.
 
 The fourteenth and fifteenth suites are beyond the specification. The
@@ -279,8 +294,8 @@ Three things it deliberately reports rather than hides:
   item's `forbidden` list. That is a fact about the design; the matrix names
   it instead of tuning it away, and since it is a fact a *reader* needs, every
   report now names it too — see "Two red rows are not two problems" below.
-- **What the floors tolerate.** One under-refusal out of 174 items scores
-  0.9943 and passes. That case is in the matrix as a declared non-failure, so
+- **What the floors tolerate.** One under-refusal out of 178 items scores
+  0.9944 and passes. That case is in the matrix as a declared non-failure, so
   a reader can see the size of the smallest defect the configuration catches.
 - **Score movement without verdict movement.** Every case lists the suites
   whose score moved but whose floor forgave it — the near-misses, and the
@@ -326,7 +341,7 @@ floors when they do:
 | `cross_language` | 0.9286 | 1.00 | **FAIL** | English now says 900, Spanish still says 850 |
 
 That is the whole argument for the design, and the larger the evidence set
-the sharper it gets. Across 174 items the planted fabrication moves `accuracy`
+the sharper it gets. Across 178 items the planted fabrication moves `accuracy`
 by 0.0016 and `groundedness` by 0.0204 — both stay comfortably above their
 floors, and both fail on **severity**, not on score. A harness that only
 looked at pooled averages would have reported a green build. And the same fact
@@ -610,11 +625,18 @@ about, because the sample is too small.
 
 The bundled demo shows both sides of that. At 26 items an earlier version of
 this bundle reported MDEs from 0.115 to **0.750**: its worst-powered suite
-could not have ruled out a three-in-four failure rate. At 174 items the same
+could not have ruled out a three-in-four failure rate. At 178 items the same
 suites report **0.017 to 0.064**, which is small enough that a reader can act
 on a passing verdict. Growing the evidence is the only thing that moves that
 number, and printing it is what makes the difference visible instead of
 leaving a wall of `1.0000` to imply certainty nobody measured.
+
+The caveat did not retire with the old bundle; it moved to the newest suite.
+`conversational_integrity` scores only **4** multi-turn items and reports an
+MDE of **0.750** in the committed report — a perfect `1.0000` on a sample that
+could not have ruled out a three-in-four failure rate, printed next to the
+score rather than pooled away with it. That is the same lesson the bundle was
+grown to teach, still being taught, and it is what the number is for.
 
 Suites whose score is not a sample statistic say so and print `n/a` with the
 reason, rather than an interval that looks like evidence. See `DESIGN.md` for
@@ -763,7 +785,7 @@ were taken on 2026-08-17, except where noted.
 | Standard | State |
 |---|---|
 | Responsible-Tech Framework | Applies: the whole argument of the harness is that a check which cannot go red is a badge, and the fail-open defects it found in itself are in `CHANGELOG.md`, each reproduced before it was fixed. The bundled dataset is labelled synthetic in the first line of this README and measures no real system. [`docs/responsible-tech.md`](docs/responsible-tech.md), dated 2026-08-22, is the residual-risk and misuse statement, written from the point of view of the people a graded system serves rather than the people running the harness. Not met: the statement itself is not reviewed by anyone outside this repository, and names that as part of its own gap |
-| Code Quality | Applies (not met). `make lint` runs ruff's default rule set and `mypy --strict` against `src/plumbline`, and both are green; ruff's floor is pinned at `ruff>=0.15.0`, mypy's at `mypy>=1.13.0`. F541 is the one ruff rule ignored, with the reason in `pyproject.toml`: editing a source file moves `harness_source_sha256` and invalidates every committed audit, which is too high a price for a redundant `f` prefix. Branch coverage over `src/` is 94% against a 90% floor, enforced by `make test`. mypy's default-mode gap closed 2026-08-22 (#20) and its `--strict` gap closed 2026-08-23: 174 findings fixed rather than suppressed — no `# type: ignore`, no narrowed scope — across 28 files, mostly a bare `dict` given a real type argument; see `docs/metrics-ledger.md` for the measured trail. Measured 2026-08-23: two real gaps remain — the wider portfolio ruff rule set has 326 findings (241 of them line length, the same whole-tree reformat question `ruff format --check` above already names), and 17 functions exceed a McCabe complexity of 10. Python floor is 3.11, below the portfolio's 3.12 |
+| Code Quality | Applies (not met). `make lint` runs ruff's default rule set and `mypy --strict` against `src/plumbline`, and both are green; ruff's floor is pinned at `ruff>=0.15.0`, mypy's at `mypy>=1.13.0`. F541 is the one ruff rule ignored, with the reason in `pyproject.toml`: editing a source file moves `harness_source_sha256` and invalidates every committed audit, which is too high a price for a redundant `f` prefix. Branch coverage over `src/` is 94% against a 90% floor, enforced by `make test`. mypy's default-mode gap closed 2026-08-22 (#20) and its `--strict` gap closed 2026-08-23: 174 findings fixed rather than suppressed — no `# type: ignore`, no narrowed scope — across 28 files, mostly a bare `dict` given a real type argument; see `docs/metrics-ledger.md` for the measured trail. Measured 2026-08-29 on `ruff 0.16.3`: two real gaps remain — the wider portfolio ruff rule set has 352 findings (264 of them line length, the same whole-tree reformat question `ruff format --check` above already names), and 18 functions exceed a McCabe complexity of 10. This sentence previously read 326 (241) and 17, dated 2026-08-23, a date the ledger it points at had no row for; the ledger now carries this measurement and the tool version with it, because a ruff upgrade moves these counts on code that did not change and a bare number cannot say which of the two happened. Python floor is 3.11, below the portfolio's 3.12 |
 | Security & Supply-Chain | Applies: no third-party runtime dependency, so the largest supply-chain surface does not exist here. Semgrep and full-history TruffleHog run on every push and pull request, gitleaks runs diff-scoped in pre-commit, Dependabot watches the action pins, and every `uses:` is pinned to a 40-character SHA with `persist-credentials: false`. A CycloneDX SBOM (`sbom.cdx.json`) is generated from `pyproject.toml` and checked for staleness the same way the published page is; `.github/workflows/release.yml` verifies it and keyless-signs it with Sigstore cosign on a tag — observed passing against the real `v0.2.0` tag, which is why a [signed release](https://github.com/ChelseaKR/plumbline/releases/tag/v0.2.0) exists. `.github/workflows/scorecard.yml` (split out of `release.yml`, which cannot run it — the action refuses anything but the default branch) runs OpenSSF Scorecard on push to `main` and weekly; first observed run scored **6.1/10** (2026-08-23) — 10/10 on Security-Policy, Dangerous-Workflow, Binary-Artifacts, Token-Permissions, Dependency-Update-Tool, License and Vulnerabilities, 8/10 on Pinned-Dependencies and Signed-Releases. Not met: Scorecard's SAST check does not credit the Semgrep/TruffleHog setup above (0/10, "SAST tool is not run on all commits"), Branch-Protection and Code-Review both score 0 for the reason the CI/CD row names, and Maintained scores 0 because the repository is under 90 days old |
 | CI/CD | Applies: `tests.yml` runs the suite on CPython 3.11 through 3.14, re-runs the committed demo audit and fails on a single moved byte, and runs the tamper drill checking exit codes rather than only checking they were non-zero. Every step in `tests.yml` is a `make` target that `make verify` reaches, so the local gate and this workflow are one gate; `tests/test_ci_parity.py` fails on a step that stops being one. Until 2026-08-28 those last two steps existed only in the workflow, and `make verify` was green on trees it rejects. `security.yml` is deliberately outside that rule: its scanners are a pinned container and a pinned marketplace action, not shell a Makefile could run identically. `release.yml` runs on a `v*` tag (SBOM check, keyless signing, a published Release) or by hand via `workflow_dispatch` — observed passing against `v0.2.0`, after the first real tag push exercised it and found two defects: a 39-character `actions/upload-artifact` pin that could not resolve, and an OpenSSF Scorecard job that could never pass in a tag-triggered workflow (now `scorecard.yml`, on push to `main` and weekly — see CHANGELOG). Every workflow scopes `permissions:` at the top. This row used to end "`main` has no ruleset applied, so the gates report without blocking". Half of that was right and the conclusion was wrong, and the wrong half is the half a reader acts on. Measured 2026-08-29: `gh api repos/ChelseaKR/plumbline/rulesets` does return `[]`, and there is no ruleset. But `gh api repos/ChelseaKR/plumbline/branches/main` reads `"protected": true`, and `.../branches/main/protection` returns **classic branch protection** requiring all seven of `tests (3.11)`, `tests (3.12)`, `tests (3.13)`, `tests (3.14)`, `quality`, `SAST (semgrep)` and `full-history secret scan (verified only)`, with `enforce_admins: true`. So the gates do block, and they block the sole maintainer too: `enforce_admins: true` is the classic-protection equivalent of an empty `bypass_actors`, and there is no break-glass path if a required check ever stops reporting. `strict` is `false`, so a stale base branch is not caught, which is the one gap CICD-13 names that is real here. Not met: no ruleset file is committed, so the seven required contexts live only in a settings page nobody can diff, and a renamed job would silently stop being required with nothing in the tree to notice. The 0/10 Branch-Protection and Code-Review scores quoted in the row above are from the 2026-08-23 run and have not been re-measured against this reading; whether they move is a question for the next Scorecard run, not something this row should assert |
 | Release & Versioning | Applies. `v0.1.0` and `v0.2.0` are tagged and dated in `CHANGELOG.md`, which is kept current. `.github/workflows/release.yml` — SBOM verification, a keyless-signed SBOM, a published GitHub Release — triggered on a `v*` tag or by hand, now exercised: [`v0.2.0`](https://github.com/ChelseaKR/plumbline/releases/tag/v0.2.0) is a real, published release with a signed SBOM attached, and OpenSSF Scorecard's own Signed-Releases check confirms it independently (8/10). Not met: `v0.1.0` predates the workflow and was not released through it; the git tag itself is annotated, not cryptographically signed (`git tag -a`, not `-s`) |

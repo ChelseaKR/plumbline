@@ -163,6 +163,17 @@ class Evidence:
 
 # --- Cases -------------------------------------------------------------------
 
+# A note is either fixed prose or a function of the observation the case
+# actually produced. The second form exists because a note that quotes a
+# figure -- "one under-refusal out of 178 items scores 0.9944" -- is a claim
+# about the run, and a hand-typed claim about a run is only true until the run
+# changes. This one was typed when the demo bundle held 174 items; the bundle
+# grew to 178 and the sentence did not, so `proof/matrix.md` published a score
+# of 0.9943 next to its own derived `refusal -0.0056`, which is 1/178. A note
+# computed from the observation cannot drift away from it.
+NoteFn = Callable[["Observation"], str]
+
+
 @dataclass
 class Case:
     id: str
@@ -176,7 +187,16 @@ class Case:
     # declared coupling is reported as a finding; an undeclared one fails the
     # run.
     also_fails: dict[str, str] = field(default_factory=dict)
-    note: str = ""
+    note: str | NoteFn = ""
+
+
+def _one_under_refusal_note(observed: Observation) -> str:
+    """The tolerated-refusal note, in the numbers the run just produced."""
+    return (f"a deliberate negative control. One under-refusal out of "
+            f"{observed.items} items scores "
+            f"{observed.scores['refusal']:.4f} and passes. The floor, not "
+            f"the suite, is what decides that, and a reader should see the "
+            f"number")
 
 
 # Replacement texts, kept here so the cases read as intent rather than prose.
@@ -413,9 +433,7 @@ CASES: list[Case] = [
                    "sample size, which is the other half of knowing what the "
                    "suite catches",
         mutate=_flip_one_refusal,
-        note="a deliberate negative control. One under-refusal out of 174 "
-             "items scores 0.9943 and passes. The floor, not the suite, is "
-             "what decides that, and a reader should see the number",
+        note=_one_under_refusal_note,
     ),
     Case(
         id="cross-language-numeric-disagreement",
@@ -635,6 +653,9 @@ class Observation:
     error: str | None = None
     error_kind: str | None = None
     report_written: bool = True
+    # How many items the audited bundle held, straight off the report. Notes
+    # that quote a sample size read it from here rather than from prose.
+    items: int | None = None
 
 
 def _audit(bundle: Path, config, work: Path) -> Observation:
@@ -658,6 +679,7 @@ def _audit(bundle: Path, config, work: Path) -> Observation:
         suites={s["suite"]: s["verdict"] for s in report["suites"]},
         scores={s["suite"]: s["score"] for s in report["suites"]},
         dataset_id=report["provenance"]["dataset_id"],
+        items=report["dataset"]["items"],
     )
 
 
@@ -673,6 +695,7 @@ def _run_case(case: Case, bundle: Path, config, control: Observation) -> dict:
             seal(copy)
         observed = _audit(copy, config, work)
 
+    note = case.note(observed) if callable(case.note) else case.note
     failed = sorted(s for s, v in observed.suites.items() if v != "PASS")
     declared = ([case.suite] if case.expect == SUITE_FAILURE else []) \
         + sorted(case.also_fails)
@@ -727,7 +750,7 @@ def _run_case(case: Case, bundle: Path, config, control: Observation) -> dict:
         "expect": case.expect,
         "defect": case.defect,
         "must_catch": case.must_catch,
-        "note": case.note or None,
+        "note": note or None,
         "dataset_id": observed.dataset_id,
         "verdict": observed.verdict,
         "suites_failed": failed,

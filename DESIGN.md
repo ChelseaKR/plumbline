@@ -966,10 +966,10 @@ tests/                  # stdlib unittest
 
 `riverbend-demo`: a fully synthetic bundle about the fictional "Riverbend
 County Benefits Navigator" — invented jurisdiction, invented programs,
-invented amounts, `.example.gov` domains only. **174 items (87 en, 87 es)**, a
-bilingual corpus of 48 source passages over 24 facts, and a captured interface
+invented amounts, `.example.gov` domains only. **178 items (89 en, 89 es)**, a
+bilingual corpus of 74 source passages over 24 facts, and a captured interface
 snapshot. It exercises every suite: paired facts across languages, two
-phrasing registers for the fairness axis, load-bearing numeric facts, 48
+phrasing registers for the fairness axis, load-bearing numeric facts, 52
 adversarial probes, expected refusals, and two deliberately unreviewed
 translations so the warning path runs on every demo audit. See
 `datasets/riverbend-demo/DATASET.md`.
