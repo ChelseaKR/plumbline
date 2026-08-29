@@ -80,6 +80,63 @@ class ThePublishedPageIsCurrent(unittest.TestCase):
                 self.assertNotIn(external, self.page.replace(
                     'href="https://github.com', ""))
 
+    def test_the_head_names_this_page_and_not_the_shared_origin(self):
+        # This page is served under a project PATH on `chelseakr.github.io`, an
+        # origin it shares with five other unrelated project sites. So a
+        # canonical of "/" is not shorthand for this site's root; it is a
+        # different address that 404s, and all six sites would claim it. A
+        # crawler that believes them folds six projects into one document.
+        #
+        # The assertion is therefore not "a canonical exists" — an empty or
+        # origin-rooted one passes that and is the bug — but that the canonical
+        # is this page's full published URL, that og:url agrees with it, and
+        # that the card repeats the page instead of describing it a second time.
+        import re
+
+        canonical = re.search(
+            r'<link rel="canonical" href="([^"]*)">', self.page)
+        self.assertIsNotNone(canonical, "the page has no canonical URL")
+        self.assertEqual(canonical.group(1), build_site.PAGE_URL)
+
+        def meta(attribute, name):
+            found = re.search(
+                rf'<meta {attribute}="{name}" content="([^"]*)">', self.page)
+            self.assertIsNotNone(found, f"the page has no {name}")
+            return found.group(1)
+
+        self.assertEqual(meta("property", "og:url"), build_site.PAGE_URL)
+        for url in (canonical.group(1), meta("property", "og:url")):
+            self.assertNotEqual(
+                url.rstrip("/"), "https://chelseakr.github.io",
+                "that is the shared origin, which is a different site")
+            self.assertIn("/plumbline/", url)
+
+        title = re.search(r"<title>([^<]*)</title>", self.page)
+        self.assertIsNotNone(title)
+        self.assertEqual(meta("property", "og:title"), title.group(1))
+        self.assertEqual(
+            meta("name", "description"), meta("property", "og:description"))
+        self.assertEqual(meta("property", "og:type"), "website")
+
+        # No image is published here, so the card must not promise one:
+        # `summary_large_image` with nothing to show renders worse than
+        # `summary`. If an image is ever committed, this fails until og:image
+        # arrives with it.
+        card = meta("name", "twitter:card")
+        self.assertIn(card, ("summary", "summary_large_image"))
+        if card == "summary_large_image":
+            self.assertTrue(meta("property", "og:image"))
+
+        # A description that wrapped across a source line put a literal newline
+        # inside the content attribute of the published page. It reads fine and
+        # is legal HTML, which is why it survived; it is still a stray control
+        # character in the one string a search result quotes verbatim.
+        for name in ("description", "og:description", "og:title"):
+            attribute = "name" if name == "description" else "property"
+            value = meta(attribute, name)
+            self.assertNotIn("\n", value, f"{name} carries a newline")
+            self.assertEqual(value, value.strip())
+
     def test_it_says_the_dataset_is_not_a_benchmark(self):
         self.assertIn("not a benchmark", self.page)
 

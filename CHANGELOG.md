@@ -9,6 +9,30 @@ may break the interface.
 
 ### Fixed
 
+- **The published page had no canonical URL, on an origin it shares with five
+  other sites.** `site/index.html` carried a title and a description and
+  nothing else: no `<link rel="canonical">`, no Open Graph, no Twitter card, so
+  a link to it previewed as a bare URL. That is not only cosmetic here. The
+  page is served under a project *path* on `chelseakr.github.io`, so the
+  canonical a single-domain habit produces (`/`) is not this site's root but a
+  different address that 404s, and all six sites sharing the origin would claim
+  it. `tools/build_site.py` now renders a canonical, `og:*` and `twitter:card`
+  from one `PAGE_TITLE` and one `PAGE_DESCRIPTION`, so `<title>`/`og:title` and
+  `description`/`og:description` cannot drift apart. There is no `og:image`:
+  this repository ships no image and `test_it_is_self_contained` exists to keep
+  it that way, so the card is `summary`, which promises none.
+  The description also stopped carrying a literal newline: it wrapped across
+  two source lines inside the `content` attribute, which is legal HTML and
+  reads fine, and is still a stray control character in the one string a search
+  result quotes verbatim.
+  `test_the_head_names_this_page_and_not_the_shared_origin` extends the
+  existing published-page checks rather than starting a parallel suite, and
+  asserts the project path is *present* rather than that a canonical merely
+  exists, because an origin-rooted canonical passes the weaker check and is the
+  bug. Observed failing four ways: canonical line deleted; `PAGE_URL` set to
+  the bare origin; a newline reintroduced into the description;
+  `twitter:card` raised to `summary_large_image` with no image to show.
+
 - **The published page's contrast check could not see a colour nobody had
   listed.** `tools/check_site_a11y.py` proves that nine hand-written
   `CONTRAST_PAIRS` meet WCAG AA in both palettes. It said nothing about a
