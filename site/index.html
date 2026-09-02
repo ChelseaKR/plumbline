@@ -94,8 +94,8 @@ evidence when this page was built.</p>
 <p>One score improved by hand — <code>accuracy</code>
 0.8638 → 0.9638 — and nothing else touched:</p>
 
-<pre><code>$ plumbline verify audits/a513584ab2953e27/report.json
-INTEGRITY REFUSAL: audits/a513584ab2953e27/report.json does not match its own seal: it records 4250f120a94f but its contents hash to bdc801fe1eb7. The report was edited after it was written. Re-run the audit; a verdict is a record, not a draft.</code></pre>
+<pre><code>$ plumbline verify audits/c3935444f4e3b779/report.json
+INTEGRITY REFUSAL: audits/c3935444f4e3b779/report.json does not match its own seal: it records cfb44ec9de35 but its contents hash to 7e4bcd53882f. The report was edited after it was written. Re-run the audit; a verdict is a record, not a draft.</code></pre>
 
 <p>Exit <span class="exit">3</span>: integrity refusal.</p>
 
@@ -105,8 +105,8 @@ INTEGRITY REFUSAL: audits/a513584ab2953e27/report.json does not match its own se
 recompute it. Here the target name is changed and the seal is recomputed over
 the change — the seal now matches the contents perfectly:</p>
 
-<pre><code>$ plumbline verify audits/a513584ab2953e27/report.json
-INTEGRITY REFUSAL: audits/a513584ab2953e27/report.json records run id &#x27;a513584ab2953e27&#x27;, but its own contents generate &#x27;63fad387e47a0b4b&#x27;. The run id is a hash of the target, the harness version, the seed, the dataset hash, the judge configuration hash, the enabled floors and the baseline — so one of those was edited after the run, or this provenance block came from a different run. Re-run the audit.</code></pre>
+<pre><code>$ plumbline verify audits/c3935444f4e3b779/report.json
+INTEGRITY REFUSAL: audits/c3935444f4e3b779/report.json records run id &#x27;c3935444f4e3b779&#x27;, but its own contents generate &#x27;93c5246dd4fd90b9&#x27;. The run id is a hash of the target, the harness version, the seed, the dataset hash, the judge configuration hash, the enabled floors and the baseline — so one of those was edited after the run, or this provenance block came from a different run. Re-run the audit.</code></pre>
 
 <p>Exit <span class="exit">3</span>. The run id is a hash of the
 run's inputs, and every one of them is written in the report, so the report
@@ -161,20 +161,20 @@ wrong.</p>
 <h2>The committed verdict</h2>
 
 <p>Reproduced from a clean copy while this page was built: the documented
-command wrote run <code>a513584ab2953e27</code>, byte for byte the report committed at
-<a href="https://github.com/ChelseaKR/plumbline/blob/main/audits/a513584ab2953e27/report.json"><code>audits/a513584ab2953e27/report.json</code></a>.</p>
+command wrote run <code>c3935444f4e3b779</code>, byte for byte the report committed at
+<a href="https://github.com/ChelseaKR/plumbline/blob/main/audits/c3935444f4e3b779/report.json"><code>audits/c3935444f4e3b779/report.json</code></a>.</p>
 
 <div class="card">
 <dl class="kv">
 <dt>Verdict</dt><dd class="pass">PASS</dd>
 <dt>Target</dt><dd><code>riverbend-demo</code></dd>
-<dt>Run id</dt><dd><code>a513584ab2953e27</code></dd>
+<dt>Run id</dt><dd><code>c3935444f4e3b779</code></dd>
 <dt>Harness</dt><dd><code>0.2.0</code>, source
-  <code>68db6733331b</code></dd>
+  <code>40b6eabc4037</code></dd>
 <dt>Dataset</dt><dd><code>949197da4dd6</code> (178 items)</dd>
 <dt>Judge</dt><dd><code>lexical</code>, config
   <code>f59f35442715</code></dd>
-<dt>Report seal</dt><dd><code>4250f120a94f</code></dd>
+<dt>Report seal</dt><dd><code>cfb44ec9de35</code></dd>
 <dt>Seed</dt><dd><code>1729</code></dd>
 </dl>
 </div>
