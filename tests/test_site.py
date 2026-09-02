@@ -118,14 +118,39 @@ class ThePublishedPageIsCurrent(unittest.TestCase):
             meta("name", "description"), meta("property", "og:description"))
         self.assertEqual(meta("property", "og:type"), "website")
 
-        # No image is published here, so the card must not promise one:
+        # A card tag that exists but carries an empty string is the absence
+        # rendered as a value: it passes "the page has a title" and unfurls as
+        # a blank box, which is the reading this repository refuses everywhere
+        # else. So the assertion is on the content, not on the tag.
+        for attribute, name in (("property", "og:title"),
+                                ("property", "og:description"),
+                                ("property", "og:image")):
+            with self.subTest(card=name):
+                self.assertTrue(
+                    meta(attribute, name).strip(),
+                    f"{name} is present but empty, which unfurls as nothing")
+
+        # The card promises a large image, so a large image has to be there.
         # `summary_large_image` with nothing to show renders worse than
-        # `summary`. If an image is ever committed, this fails until og:image
-        # arrives with it.
-        card = meta("name", "twitter:card")
-        self.assertIn(card, ("summary", "summary_large_image"))
-        if card == "summary_large_image":
-            self.assertTrue(meta("property", "og:image"))
+        # `summary`, and an og:image naming a file the deploy does not upload
+        # is the same failure one step further away from where it is visible:
+        # every gate stays green and the shared link renders blank. So the URL
+        # is checked against the published tree, not just against itself.
+        self.assertEqual(meta("name", "twitter:card"), "summary_large_image")
+        image = meta("property", "og:image")
+        self.assertEqual(image, build_site.PAGE_IMAGE_URL)
+        self.assertEqual(meta("name", "twitter:image"), image)
+        self.assertTrue(
+            image.startswith("https://"),
+            "a crawler resolving a share card has no base for a relative URL")
+        self.assertIn("/plumbline/", image)
+        published = build_site.SITE_DIR / build_site.PAGE_IMAGE
+        self.assertTrue(
+            published.is_file(),
+            f"og:image names {build_site.PAGE_IMAGE}, which is not in site/")
+        self.assertTrue(published.stat().st_size,
+                        f"{published} is empty; that unfurls as nothing")
+        self.assertTrue(meta("property", "og:image:alt").strip())
 
         # A description that wrapped across a source line put a literal newline
         # inside the content attribute of the published page. It reads fine and
