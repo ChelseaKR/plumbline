@@ -92,6 +92,23 @@ PAGE_URL = "https://chelseakr.github.io/plumbline/"
 # it is content-hashed. This page is generated, so the comment belongs in the generator and
 # the regenerated page still matches its build-parity check. Ignoring `site/index.html`
 # wholesale would blind semgrep to the entire published page to silence one false positive.
+# The card a link to this page unfurls into. It is a static file under `site/`, so the
+# deploy uploads it and `tools/verify_live_site.py` compares its bytes like any other
+# published artifact. The URL has to be absolute: a crawler resolving a share card has no
+# document base to resolve a relative one against, and the same project-path reasoning as
+# above applies -- the origin is shared, so only the full URL names this image.
+#
+# The card carries the project name and the one-line description and no figures. Nothing
+# on it is regenerated, so anything measured that appeared on it would be a number outside
+# the reach of every freshness check in this repository -- which is the exact failure this
+# harness exists to refuse.
+PAGE_IMAGE = "social-card.png"
+PAGE_IMAGE_URL = PAGE_URL + PAGE_IMAGE
+PAGE_IMAGE_ALT = (
+    "Plumbline, and the line: a fail-closed evaluation harness for "
+    "government-facing chat systems."
+)
+
 PAGE_TITLE = "Plumbline — audit evidence"
 PAGE_DESCRIPTION = (
     "The committed audit report of the Plumbline evaluation harness, "
@@ -420,7 +437,12 @@ def render(data: dict) -> str:
 <meta property="og:description" content="{PAGE_DESCRIPTION}">
 <meta property="og:url" content="{PAGE_URL}">
 <meta property="og:locale" content="en_US">
-<meta name="twitter:card" content="summary">
+<meta property="og:image" content="{PAGE_IMAGE_URL}">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="{PAGE_IMAGE_ALT}">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="{PAGE_IMAGE_URL}">
 <style>{CSS}</style>
 </head>
 <body>
