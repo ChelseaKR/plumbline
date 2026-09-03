@@ -150,7 +150,7 @@ minimum detectable effect, baseline regression comparison, a pinned
 fail-closed CI gate, live-target recording over HTTP or against a local
 program, and an optional model judge — none of which the gate can reach. Every
 suite has been **observed failing** on a defect it exists to catch; see
-[`proof/matrix.md`](proof/matrix.md). 656 tests, standard library only,
+[`proof/matrix.md`](proof/matrix.md). 663 tests, standard library only,
 offline.
 
 The fourteenth and fifteenth suites are beyond the specification. The

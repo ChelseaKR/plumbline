@@ -7,7 +7,41 @@ follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 This is a pre-1.0 project: while the version stays below `1.0.0`, a MINOR bump
 may break the interface.
 
+## [Unreleased]
+
 ### Fixed
+
+- **Three hundred lines of this file belonged to no release.** Between
+  2026-08-27 and 2026-09-01 five merged pull requests (#40, #41, #42, #44,
+  #48) prepended their entries above the `## [Unreleased]` heading instead of
+  below it, so the file opened with nine `Fixed`, one `Added` and one
+  `Changed` entry under type headings with no release heading over them, and
+  `## [Unreleased]` sat at line 318 holding four older entries under three more
+  type headings, two of them a second `Fixed`. `plumbline-eval` is reserved on
+  PyPI and unpublished, so this file is what a first published release would be
+  cut from, and a release cut by moving the `[Unreleased]` heading would have
+  carried those eleven entries nowhere.
+
+  Restored by moving, not rewriting. The heading is back at the top; the
+  eleven orphaned entries and the four below them sit under one `Fixed`, one
+  `Added` and one `Changed`, newest first; every line of every entry is
+  byte-identical, and the only lines gone are the three duplicate type
+  headings and the blank line under each (832 lines to 826). `[0.2.0]` still
+  carries `Added` three times and `Fixed` twice: that is how it was tagged, one
+  of those `Fixed` was added after the tag on purpose, and a released section
+  is the record rather than something to re-group to satisfy a check.
+
+  Nothing had been checking the shape. `tests/test_changelog.py` now does:
+  `[Unreleased]` first with nothing above it, releases versioned, dated and
+  descending, a link reference per section and a section per reference, every
+  entry under a type heading Keep a Changelog names, each type once in
+  `[Unreleased]`, and a section for the version `pyproject.toml` declares.
+  Read as text with fenced code skipped, the way `test_ci_parity.py` reads the
+  workflow. Observed failing on the previous file, 2 of 7: the first check
+  names all fourteen heading and entry lines above `[Unreleased]`, starting at
+  line 10; the once-per-type check names the second `### Fixed` at line 407.
+  The suite is seven tests larger, and `claims-check` counts it by discovery,
+  so the README's figure moves from 656 to 663 with it.
 
 - **Two refusal rates were reported as `0.0` when nothing had been measured,
   and `0.0` is this field's best possible reading.** `refusal` reports an
@@ -237,6 +271,90 @@ may break the interface.
   comment now carries the measurement and a warning that adding a broad path
   there takes the coverage back silently.
 
+- **The GitHub action's outputs could describe a different run than the
+  one that had just executed.** `action.yml` found the report by taking
+  the last directory in `--out` by name: `find "$INPUT_OUT" -type d |
+  sort | tail -n1`. A run id is a truncated sha256 of the run's inputs
+  (`audit.compute_run_id`), not a timestamp, and `report.write_reports`
+  never removes an earlier run from the output directory — so the two
+  assumptions holding that line up are both false as soon as a second
+  run lands in the same `--out`. Observed with three runs into one
+  directory: the action named the run that sorted highest, and with a
+  stale passing run left beside a failing one it published
+  `verdict=PASS` for a run whose real verdict was `FAIL`, with
+  `report-json`, `report-md` and `sarif-json` all pointing at the wrong
+  report. The paths are now read back from what the run itself printed
+  (`reports:` and `sarif:` on the gate's own stdout, teed so the build
+  log is unchanged, with `${PIPESTATUS[0]}` preserving the gate's exit
+  code). Exit 0 and exit 1 mean a report was written, so if no verdict
+  can be read back from one the step now fails with the internal-error
+  code instead of exiting 0 having published nothing. A verdict that is
+  not `PASS` or `FAIL` is refused rather than passed through to a
+  workflow that branches on it. The step is now executed by the test
+  suite rather than grepped: six tests run the real shell out of
+  `action.yml` against a stubbed gate, and all six fail on the previous
+  version.
+
+- **An unlabelled `<button>` was invisible to the `accessibility` suite.**
+  `CONTROL_TAGS` held `{"input", "select", "textarea"}`, so `<button>`
+  never reached `snapshot.controls` and never reached the
+  `control_labels` check. An interface whose only send control was an
+  icon-only `<button id="send"></button>` scored `control_labels` 1.00
+  and the whole suite 1.00 against its floor of 1.00 — a green row for
+  the one WCAG 4.1.2 defect a chat interface is most likely to have.
+  `<button>` is now a control, and its accessible name is read the way
+  a browser's accessible name computation reads it, which closes two
+  adjacent ways of passing that adding the tag alone leaves open: a
+  `<button>` with no end tag collected every word after it and reported
+  itself named on the rest of the page, and text inside an
+  `aria-hidden="true"` subtree — announced to nobody — counted as a
+  name. An `<img alt>` inside a button does count, because it is a name
+  a screen reader reads, and a check that fails correct markup is a
+  check people switch off. A whitespace-only `aria-label`, `title` or
+  `aria-labelledby` is no longer a name either, for any control. The
+  failure now says which of these it was rather than only that the
+  control is unnamed. Eleven tests pin it, each observed failing on the
+  previous code. No demo score moved: the demonstration interface
+  snapshot has no `<button>` in it, which is how this survived. The
+  committed audit, baseline, proof matrix and site are regenerated for
+  the source hash.
+
+- **`$125.00` and `$125` were different numbers to the judge.**
+  `judges.extract_numbers` stripped commas and a trailing dot and
+  stopped there, so a response that correctly said "$125" against a
+  source that said "$125.00" failed the number-support check in
+  `groundedness` as an unsupported number, and two languages stating the
+  same fee with different formatting were a `cross_language` hard
+  failure. Found while building the first question set from a real
+  service's published guidance, which writes fees both ways on one site.
+  Trailing zeros after a decimal point are now dropped (`10.50` becomes
+  `10.5`, `1,000.00` becomes `1000`); a token with more than one dot is
+  left as found, since a version string is not a decimal. This is a
+  scoring-rule change, so the lexical judge's config version moves 3 to
+  4 and the judge configuration hash moves with it: a comparison against
+  a baseline produced before this is refused as incomparable, which is
+  the harness declining to subtract scores produced under different
+  rules. The committed demo audit, baseline, proof matrix and site are
+  regenerated; no demo score moved. Three tests pin it, each shown
+  failing on the previous code.
+
+- **6 Semgrep findings that only surfaced on push to `main`, not on PR
+  checks.** `semgrep ci` diffs against the PR base on a `pull_request`
+  event — only new findings block — but scans the whole tree on a plain
+  push, with nothing to diff against. 3 pre-existing finding types
+  (6 occurrences) had been invisible in every PR check this session ran
+  and were only found while auditing which jobs are safe to require for
+  branch protection: a real `run-shell-injection` primitive in
+  `publish-pypi.yml` (`${{ github.event.inputs.confirm }}` interpolated
+  directly into a `run:` script rather than passed through `env:`),
+  four floating `@v4`/`@v5` action tags in `gate/github-actions.example.yml`
+  now pinned to 40-character SHAs, and one real false positive —
+  `python.django-no-csrf-token` firing on a static HTML fixture's
+  `<form method="post">` with no Django anywhere in the stack — fixed
+  with a documented `.semgrepignore` entry rather than editing the
+  fixture, which is content-hashed into `checksums.json`. Verified with
+  `semgrep scan --config auto` locally: 0 findings, 0 blocking.
+
 ### Added
 
 - **Every report now says which suites did *not* run.** A report has always
@@ -315,79 +433,6 @@ may break the interface.
   tests in `tests/test_fail_closed.py`, all observed failing on the
   previous code.
 
-## [Unreleased]
-
-### Fixed
-
-- **The GitHub action's outputs could describe a different run than the
-  one that had just executed.** `action.yml` found the report by taking
-  the last directory in `--out` by name: `find "$INPUT_OUT" -type d |
-  sort | tail -n1`. A run id is a truncated sha256 of the run's inputs
-  (`audit.compute_run_id`), not a timestamp, and `report.write_reports`
-  never removes an earlier run from the output directory — so the two
-  assumptions holding that line up are both false as soon as a second
-  run lands in the same `--out`. Observed with three runs into one
-  directory: the action named the run that sorted highest, and with a
-  stale passing run left beside a failing one it published
-  `verdict=PASS` for a run whose real verdict was `FAIL`, with
-  `report-json`, `report-md` and `sarif-json` all pointing at the wrong
-  report. The paths are now read back from what the run itself printed
-  (`reports:` and `sarif:` on the gate's own stdout, teed so the build
-  log is unchanged, with `${PIPESTATUS[0]}` preserving the gate's exit
-  code). Exit 0 and exit 1 mean a report was written, so if no verdict
-  can be read back from one the step now fails with the internal-error
-  code instead of exiting 0 having published nothing. A verdict that is
-  not `PASS` or `FAIL` is refused rather than passed through to a
-  workflow that branches on it. The step is now executed by the test
-  suite rather than grepped: six tests run the real shell out of
-  `action.yml` against a stubbed gate, and all six fail on the previous
-  version.
-
-- **An unlabelled `<button>` was invisible to the `accessibility` suite.**
-  `CONTROL_TAGS` held `{"input", "select", "textarea"}`, so `<button>`
-  never reached `snapshot.controls` and never reached the
-  `control_labels` check. An interface whose only send control was an
-  icon-only `<button id="send"></button>` scored `control_labels` 1.00
-  and the whole suite 1.00 against its floor of 1.00 — a green row for
-  the one WCAG 4.1.2 defect a chat interface is most likely to have.
-  `<button>` is now a control, and its accessible name is read the way
-  a browser's accessible name computation reads it, which closes two
-  adjacent ways of passing that adding the tag alone leaves open: a
-  `<button>` with no end tag collected every word after it and reported
-  itself named on the rest of the page, and text inside an
-  `aria-hidden="true"` subtree — announced to nobody — counted as a
-  name. An `<img alt>` inside a button does count, because it is a name
-  a screen reader reads, and a check that fails correct markup is a
-  check people switch off. A whitespace-only `aria-label`, `title` or
-  `aria-labelledby` is no longer a name either, for any control. The
-  failure now says which of these it was rather than only that the
-  control is unnamed. Eleven tests pin it, each observed failing on the
-  previous code. No demo score moved: the demonstration interface
-  snapshot has no `<button>` in it, which is how this survived. The
-  committed audit, baseline, proof matrix and site are regenerated for
-  the source hash.
-
-- **`$125.00` and `$125` were different numbers to the judge.**
-  `judges.extract_numbers` stripped commas and a trailing dot and
-  stopped there, so a response that correctly said "$125" against a
-  source that said "$125.00" failed the number-support check in
-  `groundedness` as an unsupported number, and two languages stating the
-  same fee with different formatting were a `cross_language` hard
-  failure. Found while building the first question set from a real
-  service's published guidance, which writes fees both ways on one site.
-  Trailing zeros after a decimal point are now dropped (`10.50` becomes
-  `10.5`, `1,000.00` becomes `1000`); a token with more than one dot is
-  left as found, since a version string is not a decimal. This is a
-  scoring-rule change, so the lexical judge's config version moves 3 to
-  4 and the judge configuration hash moves with it: a comparison against
-  a baseline produced before this is refused as incomparable, which is
-  the harness declining to subtract scores produced under different
-  rules. The committed demo audit, baseline, proof matrix and site are
-  regenerated; no demo score moved. Three tests pin it, each shown
-  failing on the previous code.
-
-### Changed
-
 - **OpenSSF Scorecard moved out of `release.yml` into its own `scorecard.yml`.**
   The action refuses to analyze anything but the repository's default
   branch, and `release.yml` only ever triggers on a `v*` tag — a combination
@@ -403,25 +448,6 @@ may break the interface.
   *credits*, not in what runs: Semgrep and TruffleHog already run on every
   push and pull request (see the Security & Supply-Chain conformance row);
   Scorecard's check does not recognize that configuration.
-
-### Fixed
-
-- **6 Semgrep findings that only surfaced on push to `main`, not on PR
-  checks.** `semgrep ci` diffs against the PR base on a `pull_request`
-  event — only new findings block — but scans the whole tree on a plain
-  push, with nothing to diff against. 3 pre-existing finding types
-  (6 occurrences) had been invisible in every PR check this session ran
-  and were only found while auditing which jobs are safe to require for
-  branch protection: a real `run-shell-injection` primitive in
-  `publish-pypi.yml` (`${{ github.event.inputs.confirm }}` interpolated
-  directly into a `run:` script rather than passed through `env:`),
-  four floating `@v4`/`@v5` action tags in `gate/github-actions.example.yml`
-  now pinned to 40-character SHAs, and one real false positive —
-  `python.django-no-csrf-token` firing on a static HTML fixture's
-  `<form method="post">` with no Django anywhere in the stack — fixed
-  with a documented `.semgrepignore` entry rather than editing the
-  fixture, which is content-hashed into `checksums.json`. Verified with
-  `semgrep scan --config auto` locally: 0 findings, 0 blocking.
 
 ## [0.2.0] - 2026-08-22
 
