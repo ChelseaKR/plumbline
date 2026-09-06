@@ -47,6 +47,7 @@ from .bundle import (
     seal as seal_bundle,
 )
 from .config import ConfigError, load_config
+from .diff import diff_bundles, summarize_for_terminal as summarize_diff
 from . import history as history_mod
 from .couplings import summarize_for_terminal as summarize_couplings
 from .scope import summarize_for_terminal as summarize_scope
@@ -120,6 +121,27 @@ def cmd_seal(args: argparse.Namespace) -> int:
     print(f"sealed:  {args.bundle}")
     print(f"dataset: {checksums['bundle_sha256'][:12]} (sha256 {checksums['bundle_sha256']})")
     print("note:    the bundle hash changed if any evidence changed; that trace is the point")
+    return EXIT_PASS
+
+
+def cmd_diff(args: argparse.Namespace) -> int:
+    """Say what changed between two bundles.
+
+    Both are verified before anything is compared, so an unreadable or
+    unsealed bundle is an integrity refusal rather than a diff with a hole in
+    it. `--fail-on-change` is for the CI job that wants "the evidence moved" to
+    be a failure; without it, a diff is a report and exits 0 whatever it found,
+    because describing a change is not the same as objecting to one.
+    """
+    diff = diff_bundles(Path(args.left), Path(args.right))
+    if args.json:
+        json.dump(diff, sys.stdout, indent=2, ensure_ascii=False, sort_keys=True)
+        sys.stdout.write("\n")
+    else:
+        for line in summarize_diff(diff):
+            print(line)
+    if args.fail_on_change and diff["changed"]:
+        return EXIT_SUITE_FAILURE
     return EXIT_PASS
 
 
@@ -528,6 +550,21 @@ def build_parser() -> argparse.ArgumentParser:
                         help="path to a shared-secret key file "
                              "(at least 16 bytes)")
     p_sign.set_defaults(func=cmd_sign)
+
+    p_diff = sub.add_parser(
+        "diff",
+        help="say what changed between two evidence bundles: the question "
+             "the baseline's dataset-hash refusal leaves open")
+    p_diff.add_argument("left", help="path to the earlier evidence bundle")
+    p_diff.add_argument("right", help="path to the later evidence bundle")
+    p_diff.add_argument("--json", action="store_true",
+                        help="write the structured diff instead of the "
+                             "readable summary")
+    p_diff.add_argument(
+        "--fail-on-change", action="store_true",
+        help="exit 1 if the bundles differ at all, for a CI job that treats "
+             "a moved dataset as a failure rather than a finding")
+    p_diff.set_defaults(func=cmd_diff)
 
     p_audit = sub.add_parser("audit", help="run the full audit and write provenance-stamped reports")
     p_audit.add_argument("--config", required=True, help="target configuration (TOML)")
