@@ -247,6 +247,63 @@ class ComparisonTests(unittest.TestCase):
         self.assertIn("NOT RUN: accuracy", blob)
         self.assertIn("added:   privacy", blob)
 
+    def test_an_unqualifiable_move_is_not_called_noise_in_the_build_log(self):
+        """`detectable` is three-state and both falsy states are not the same.
+
+        `False` means measured and too small to matter. `None` means the
+        harness declined to qualify the move at all --- which every census
+        suite, and any mean suite with n < 2, produces on every run. The
+        markdown and the JSON already distinguish them; the terminal line is
+        the one a build log shows, and it used to print the noise-floor
+        sentence for both. A 40-point regression in a census suite was
+        therefore described to CI as statistical noise.
+        """
+        baseline = build_baseline(report_fixture(suites=[
+            {"suite": "accessibility", "score": 1.0, "floor": 0.5,
+             "verdict": "PASS", "n": 5, "mde": None},
+        ]))
+        current = report_fixture(suites=[
+            {"suite": "accessibility", "score": 0.6, "floor": 0.5,
+             "verdict": "PASS", "n": 5, "mde": None},
+        ])
+        comparison = compare(current, baseline)
+        moved = comparison["moved_suites"]
+        self.assertEqual(len(moved), 1)
+        self.assertIsNone(moved[0]["detectable"])
+
+        blob = "\n".join(summarize_for_terminal(comparison))
+        self.assertIn("moved:   accessibility -0.4000", blob)
+        self.assertNotIn(
+            "inside the noise floor", blob,
+            "an unqualifiable move was described to the build log as noise",
+        )
+        self.assertIn("no minimum detectable effect", blob)
+
+    def test_a_genuinely_negligible_move_is_still_called_noise(self):
+        """The fix must not blunt the real noise-floor message."""
+        baseline = build_baseline(report_fixture())
+        current = report_fixture(suites=[
+            {"suite": "accuracy", "score": 0.86, "floor": 0.75,
+             "verdict": "PASS", "n": 18, "mde": 0.06},
+            {"suite": "smoke", "score": 1.0, "floor": 1.0,
+             "verdict": "PASS", "n": 26, "mde": 0.115},
+        ])
+        blob = "\n".join(summarize_for_terminal(compare(current, baseline)))
+        self.assertIn("inside the noise floor", blob)
+
+    def test_a_detectable_move_carries_no_qualifier_at_all(self):
+        baseline = build_baseline(report_fixture())
+        current = report_fixture(suites=[
+            {"suite": "accuracy", "score": 0.60, "floor": 0.75,
+             "verdict": "FAIL", "n": 18, "mde": 0.06},
+            {"suite": "smoke", "score": 1.0, "floor": 1.0,
+             "verdict": "PASS", "n": 26, "mde": 0.115},
+        ])
+        blob = "\n".join(summarize_for_terminal(compare(current, baseline)))
+        self.assertIn("moved:   accuracy", blob)
+        self.assertNotIn("inside the noise floor", blob)
+        self.assertNotIn("no minimum detectable effect", blob)
+
     def test_identical_suite_sets_print_no_coverage_lines(self):
         report = report_fixture()
         lines = summarize_for_terminal(compare(report, build_baseline(report)))
