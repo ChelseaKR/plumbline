@@ -46,16 +46,36 @@ jobs:
           persist-credentials: false
       - run: semgrep ci --config auto
 
-  # Full-history verified-secret scan, with live verification. This is the tier
-  # that can say "this credential works right now"; the `gitleaks` job below is
-  # the one that can fail on a credential that no longer does. Both are needed,
-  # for the reason written out over that job.
+  # Full-history secret scan, in two lanes, over the whole commit history.
   #
-  # The job NAME is load-bearing and is deliberately left alone: branch
+  # LANE 1 reports every tier TruffleHog has: verified, unknown AND unverified.
+  # `unverified` means TruffleHog asked the provider and the provider said no --
+  # which is what a REVOKED credential looks like, and revocation is the normal
+  # end state of a real leak. A history sweep exists precisely to find a secret
+  # that was committed and later taken back out, so a tier selection omitting
+  # `unverified` cannot fail on the case it was written for. This job ran
+  # `--only-verified` until 2026-09-06 and was in exactly that state.
+  #
+  # LANE 2 is the gate as it stood before, unchanged: verified results only,
+  # every detector but Lob. It exists so that lane 1's extra URI exclusion buys
+  # no loss of coverage -- the two lanes together are a strict superset of what
+  # this job checked before. It runs under `if: ${{ !cancelled() }}` so a
+  # failure in lane 1 does not hide lane 2's verdict.
+  #
+  # The `gitleaks` job below is a third engine on the same history, matching on
+  # pattern rather than verification. It stays: it catches shapes TruffleHog has
+  # no detector for, and it is the one that found the planted key first.
+  #
+  # The job NAME is load-bearing and is deliberately left alone -- it now
+  # UNDERSTATES what the job does, and that is the lesser of two evils. Branch
   # protection on `main` lists "full-history secret scan (verified only)" as a
-  # required status check, so renaming it would leave that check permanently
-  # unreported and block every pull request. Checked on 2026-09-06 against
-  # `repos/ChelseaKR/plumbline/branches/main/protection`.
+  # required status check, so renaming it would retire the context the
+  # protection requires and leave every future pull request waiting on a check
+  # that can never report. `enforce_admins` is true here, so there is no
+  # break-glass path either. Checked on 2026-09-06 against
+  # `repos/ChelseaKR/plumbline/branches/main/protection`. Renaming this job
+  # means editing that settings page in the same change; until then the name
+  # stays wrong on purpose and README's CI/CD row records why.
   secrets:
     name: full-history secret scan (verified only)
     runs-on: ubuntu-latest
@@ -65,51 +85,91 @@ jobs:
         with:
           fetch-depth: 0 # whole history, not a diff
           persist-credentials: false
-      - name: TruffleHog (verified secrets only)
+      # LANE 1 -- every result tier, with the two fixture-matching detectors off.
+      - name: TruffleHog (full history, all result tiers)
         uses: trufflesecurity/trufflehog@20652fbbdefffcdaa493a5bf57ab2ac6b1db715b # v3.97.1
         with:
           path: ./
+          # Pinned, and it must equal the version comment on the pinned ref
+          # above. The action's `version:` input defaults to "latest" and it
+          # runs `ghcr.io/trufflesecurity/trufflehog:${VERSION}`, so the SHA
+          # pin above pins only the wrapper, not the binary that scans. Without
+          # this input the sweep silently tracked whatever upstream published
+          # last, and every Dependabot bump of the ref was a no-op because
+          # Dependabot never edits a `with:` input.
+          version: "3.97.1"
           # The action's baked-in command already passes --fail; repeating it
           # is a CLI error.
+          #
+          # `--results=verified,unknown,unverified` is load-bearing. Measured
+          # 2026-09-06 on a throwaway clone of this repository with a
+          # real-shaped AWS key planted in one commit and deleted in the next,
+          # confirmed present in history and absent at HEAD before the result
+          # was trusted (a key that is a vendor's DOCUMENTED EXAMPLE is filtered
+          # under every tier and would have no-opped the whole test):
+          #
+          #   --only-verified                        exit 0,   0 reported
+          #   --results=verified                     exit 0,   0 reported
+          #   --results=verified,unknown             exit 0,   0 reported
+          #   --results=verified,unknown,unverified  exit 183, unverified_secrets: 1
           #
           # Lob is excluded because its detector matches pytest-style function
           # names: a Lob key is `test_` or `live_` followed by alphanumerics,
           # which is also the shape of most names under tests/, and its
           # verifier confirms them because a malformed key and an unauthorized
           # key are indistinguishable in its response. There is no Lob
-          # integration here and no dependency that could introduce one, so the
-          # detector can only produce noise. Scoped to the one detector on
-          # purpose: excluding tests/ by path would blind the scan to real
-          # secrets in fixtures, which is where they most often hide.
-          extra_args: --only-verified --exclude-detectors=Lob
+          # integration here and no dependency that could introduce one.
+          #
+          # URI is excluded from THIS LANE ONLY. Re-scanning the real history
+          # under the widened tier reported exactly two findings, both the same
+          # synthetic DSN on two lines of tests/test_network.py:
+          # `https://user:secret@example.test/chat`, the argument to
+          # `test_credentials_in_the_url_are_refused`, whose entire point is
+          # that credentials in a URL are rejected. `example.test` is a reserved
+          # TLD and cannot resolve. Nothing else fired. Lane 2 below keeps URI
+          # armed for verified results, so a real DSN is still caught.
+          #
+          # Neither exclusion is a path exclusion, on purpose: excluding tests/
+          # would blind the scan to real secrets in fixtures, which is where
+          # they most often hide. If another placeholder ever fires, exclude
+          # that DETECTOR by name and never narrow the tier back.
+          extra_args: --results=verified,unknown,unverified --exclude-detectors=Lob,URI
 
-  # The scan that can fail on a leak that has already been revoked.
-  #
-  # TruffleHog's `--only-verified` reports a finding only when it asks the
-  # service and the service says the credential is live. A leaked credential
-  # that has since been revoked answers "no", so it is reported under
-  # `unverified` and never under `verified` -- and revoked is the normal end
-  # state of a real incident. A history scan whose whole purpose is to find
-  # what was committed and taken back out therefore could not fail on the very
-  # thing it exists for.
+      # LANE 2 -- the gate exactly as it stood before lane 1 was added: verified
+      # results only, every detector but Lob, over every path. `--results=verified`
+      # and the `--only-verified` it replaces are the same selection; the flag is
+      # spelled this way so that no lane of this job can be read as the setting
+      # that could not fail. `!cancelled()` so lane 1 failing does not hide this
+      # verdict, while a cancelled run still stops both.
+      - name: TruffleHog (full history, verified results, URI still armed)
+        if: ${{ !cancelled() }}
+        uses: trufflesecurity/trufflehog@20652fbbdefffcdaa493a5bf57ab2ac6b1db715b # v3.97.1
+        with:
+          path: ./
+          version: "3.97.1"
+          extra_args: --results=verified --exclude-detectors=Lob
+
+  # A second engine on the same history, matching on pattern rather than on
+  # verification.
   #
   # Measured on 2026-09-06 against a throwaway clone of this repository with a
   # real-shaped AWS key planted in one commit and deleted in the next (present
   # in history, absent at HEAD, both confirmed before trusting the result):
   #
-  #   trufflehog --only-verified                      exit 0,   nothing reported
+  #   trufflehog --only-verified                       exit 0,   nothing reported
   #   trufflehog --results=verified,unknown,unverified exit 183, 1 unverified
   #   gitleaks git .                                   exit 1,   2 leaks found
   #
-  # Adding the unverified tier to the job above would catch it, but it also
-  # reports two synthetic fixtures in `tests/test_network.py` -- the URL in
-  # `test_credentials_in_the_url_are_refused`, whose entire point is that
-  # credentials in a URL are rejected -- so that job would be red on this
-  # repository today for no real finding. gitleaks matches on pattern rather
-  # than on verification, so it catches the planted key and reports nothing on
-  # this history as it stands. It is added beside TruffleHog rather than in
-  # place of it: the two answer different questions, and this repository's
-  # sibling projects already run exactly this job.
+  # This job was added first, when the TruffleHog job above still ran
+  # `--only-verified`. The argument then was that widening the tier would report
+  # two synthetic fixtures in `tests/test_network.py` and go red for no real
+  # finding, so gitleaks was added beside it instead. Half of that was right:
+  # the two fixtures are real and are the whole of what the widened tier reports
+  # here. The conclusion was not -- the answer to a noisy DETECTOR is to exclude
+  # that detector by name in one lane and keep it armed in another, which is
+  # what the job above now does, and not to leave the tier narrowed. Both are
+  # kept. gitleaks catches shapes TruffleHog has no detector for, and TruffleHog
+  # verifies, which gitleaks cannot.
   gitleaks:
     name: full-history secret scan (gitleaks, any state)
     runs-on: ubuntu-latest
