@@ -276,6 +276,57 @@ class GateRunnerTests(GateFixture):
         self.assertEqual(result.returncode, EXIT_CONFIG_ERROR)
         self.assertIn("unknown key 'skip_if_broken'", result.stderr)
 
+    def test_a_non_boolean_require_comparable_value_is_refused(self):
+        """Every spelling but `true` used to mean off, with nothing said.
+
+        The consuming repo hand-edits this file, so `True` or `yes` in it read
+        to a reviewer as a strict gate while the runner dropped the flag and
+        exited 0. Refusing is the same contract the TOML config already
+        enforces for booleans; coercing would make the reviewable file mean
+        something other than what it says.
+        """
+        for value in ("True", "TRUE", "yes", "1", "on", "off", ""):
+            with self.subTest(value=value):
+                pin = self.write_pin(
+                    body=f"repo = x\nref = {FAKE_SHA}\n"
+                         f"config = {self.config_path}\n"
+                         f"require_comparable_baseline = {value}\n")
+                result = self.run_runner(pin=pin)
+                self.assertEqual(result.returncode, EXIT_CONFIG_ERROR)
+                self.assertIn("require_comparable_baseline", result.stderr)
+                self.assertIn("only accepted values", result.stderr)
+                self.assertIn("FAILED before scoring", result.stderr)
+
+    def test_true_is_not_silently_equivalent_to_false(self):
+        """The specific silent-off this fixes: `True` must not behave as off."""
+        def run(value):
+            pin = self.write_pin(
+                body=f"repo = x\nref = {FAKE_SHA}\n"
+                     f"config = {self.config_path}\n"
+                     f"require_comparable_baseline = {value}\n")
+            return self.run_runner(pin=pin)
+
+        capital = run("True")
+        explicit_off = run("false")
+        self.assertNotEqual(
+            (capital.returncode, capital.stderr),
+            (explicit_off.returncode, explicit_off.stderr),
+            "`require_comparable_baseline = True` is byte-identical to an "
+            "explicit `false`, which is the silent-off this test exists to "
+            "prevent.",
+        )
+
+    def test_both_boolean_spellings_are_accepted(self):
+        """The fix must not reject the two values that are actually valid."""
+        for value in ("true", "false"):
+            with self.subTest(value=value):
+                pin = self.write_pin(
+                    body=f"repo = x\nref = {FAKE_SHA}\n"
+                         f"config = {self.config_path}\n"
+                         f"require_comparable_baseline = {value}\n")
+                result = self.run_runner(pin=pin)
+                self.assertNotIn("only accepted values", result.stderr)
+
     def test_shipped_pin_example_parses(self):
         example = (REPO_ROOT / "gate" / "plumbline.pin.example").read_text(
             encoding="utf-8")

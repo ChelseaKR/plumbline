@@ -74,7 +74,22 @@ while IFS= read -r line || [ -n "$line" ]; do
         config) pin_config=$value ;;
         baseline) pin_baseline=$value ;;
         out) pin_out=$value ;;
-        require_comparable_baseline) pin_require_comparable=$value ;;
+        require_comparable_baseline)
+            # Validate the VALUE, not just the key. Every spelling except
+            # exactly `true` used to mean off, silently -- so a consuming repo
+            # could write `True` or `yes`, review the pin file, and believe the
+            # gate was strict while it ran non-strict and exited 0. That is the
+            # failure src/plumbline/config.py refuses by name for TOML
+            # ("`enabled = 0` reads as 'off' to a person and switches the suite
+            # off with no word said"), and the runner has to apply its own
+            # principle to its own boolean. Rejecting is right; coercing
+            # `True`/`yes`/`1` to true would make the reviewable file mean
+            # something other than what it says.
+            case "$value" in
+                true|false) pin_require_comparable=$value ;;
+                *) fail "require_comparable_baseline in $PIN_FILE is '$value'; the only accepted values are 'true' and 'false' (lowercase). Anything else used to mean off with no word said, so it is refused rather than guessed." ;;
+            esac
+            ;;
         '') ;;
         *) fail "unknown key '$key' in $PIN_FILE (known keys: repo, ref, config, baseline, out, require_comparable_baseline)" ;;
     esac

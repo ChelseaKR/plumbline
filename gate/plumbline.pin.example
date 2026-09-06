@@ -26,3 +26,7 @@ config = plumbline/target.toml
 # baseline = plumbline/baseline.json
 # out = plumbline-audits
 # require_comparable_baseline = false
+#   Accepted values are exactly `true` and `false`, lowercase. Any other
+#   spelling is refused rather than read as off, so a pin file cannot say one
+#   thing to a reviewer and another to the gate.
+#   require_comparable_baseline = true

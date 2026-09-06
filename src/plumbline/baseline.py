@@ -379,6 +379,21 @@ def summarize_for_terminal(comparison: dict[str, Any]) -> list[str]:
     for flip in comparison["flipped_suites"]:
         lines.append(f"  flipped: {flip['suite']} {flip['was']} -> {flip['now']}")
     for entry in comparison["moved_suites"] or []:
-        tail = "" if entry["detectable"] else "  (inside the noise floor)"
+        # `detectable` is three-state, and the two falsy states mean opposite
+        # things. False is "measured, and too small to matter". None is "the
+        # harness declined to qualify this at all", which census suites and
+        # any mean suite with n < 2 produce on every single run. Collapsing
+        # None into the noise-floor sentence tells a build log that an
+        # unqualifiable move was measured and found negligible -- the one
+        # claim the comparison explicitly refused to make. The markdown and
+        # the JSON already distinguish all three; this line is the one a build
+        # log shows.
+        detectable = entry["detectable"]
+        if detectable is None:
+            tail = "  (not qualified: this suite reports no minimum detectable effect)"
+        elif detectable:
+            tail = ""
+        else:
+            tail = "  (inside the noise floor)"
         lines.append(f"  moved:   {entry['suite']} {entry['delta']:+.4f}{tail}")
     return lines
