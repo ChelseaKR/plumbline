@@ -357,6 +357,42 @@ may break the interface.
 
 ### Added
 
+- **Nothing publishes from a tag the maintainer did not sign.** Both publishing
+  paths took whatever ref they were handed. `release.yml` created a GitHub
+  Release on any pushed `v*` tag; `publish-pypi.yml` checked that a human had
+  typed the word "publish" into a box and then built and uploaded whatever the
+  dispatched ref held. Typing "publish" says a person meant to publish. It does
+  not say what.
+
+  A `verify-tag` job now runs first in both. It resolves the tag from the
+  event, requires an annotated tag object whose SSH signature verifies against
+  the committed `.github/allowed_signers`, and requires that tag to name the
+  commit the run is building. That last condition is what makes the rest mean
+  anything: a signature check that does not bind to what gets built proves only
+  that some tag was signed somewhere. `publish-pypi.yml`'s build now checks out
+  the verified commit, and `release.yml` cuts the Release against the verified
+  tag rather than re-deriving a ref for itself. Both paths attest SLSA build
+  provenance for what they publish, alongside the cosign signature the SBOM
+  already carried.
+
+  `v0.2.0` is grandfathered by name, in both workflows, with the reason: it was
+  cut with `git tag -a` rather than `-s`, which the README's Release &
+  Versioning row has recorded as a gap since it was tagged, and rewriting a
+  published tag is worse than the gap it would close. `v0.1.0` is signed and
+  verifies against the committed key today, so it is not exempted. The list may
+  hold only literal `vX.Y.Z` names: `v*` fails the gate rather than exempting
+  every release that has not happened yet.
+
+  `tests/test_release_tag_gate.py` follows CONTRIBUTING.md's rule for a new
+  gate the way `tests/test_signing.py` does for report signatures. It builds a
+  throwaway repository with throwaway keys and runs the committed script
+  against tags that are unsigned, lightweight, signed by a key nobody trusts,
+  absent, and correct but naming a different commit. Replacing the script with
+  `exit 0` fails twelve of its cases. The fixture asserts each malformed tag is
+  really malformed first: written on a machine carrying `tag.gpgSign = true`,
+  git silently signed the tag that exists to be unsigned, and the rejection
+  case passed while testing nothing at all.
+
 - **Every report now says which suites did *not* run.** A report has always
   listed the suites that ran; nothing listed the suites that did not, so a
   `PASS` from a configuration that never enabled `privacy` was

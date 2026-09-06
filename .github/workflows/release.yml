@@ -27,6 +27,27 @@
 # Keyless signing (Sigstore/cosign, via GitHub's own OIDC token) rather than
 # a stored private key: consistent with never committing a secret to this
 # repository, and it is what `id-token: write` on the `sign` job is for.
+#
+# `verify-tag`, added 2026-09-06, is what stands between a tag and a
+# published Release. Before it, pushing any `v*` tag published a GitHub
+# Release under this repository's name; the README's own Release &
+# Versioning row recorded that the tag "is annotated, not cryptographically
+# signed", and nothing read a signature even when one was there. It now
+# requires an annotated tag object whose SSH signature verifies against
+# `.github/allowed_signers` — a public key committed here, read at the ref
+# being verified — and which names the commit the run is building.
+#
+# It runs only on a tag, which is the same condition `release` already
+# carries. A `workflow_dispatch` from a branch still exercises the
+# sbom/sign chain, as this file's trigger has always allowed, and still
+# publishes nothing: with `verify-tag` skipped, `release` is skipped too.
+# There is no path where a Release is created and `verify-tag` did not pass.
+#
+# Grandfathered: `v0.2.0`, which was cut with `git tag -a` rather than `-s`.
+# Rewriting a published tag is worse than the gap it would close. `v0.1.0`
+# is signed and verifies against the committed key today, so it is not on
+# the list. The list may hold only literal `vX.Y.Z` names; widening it to a
+# pattern fails the gate rather than exempting the future.
 
 name: release
 
@@ -39,6 +60,39 @@ permissions:
   contents: read
 
 jobs:
+  verify-tag:
+    name: the release tag is one the maintainer signed
+    # Only a tag can be verified, and only a tag can publish. A branch
+    # dispatch skips this and, through `needs`, skips the release too.
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    outputs:
+      tag: ${{ steps.verify.outputs.tag }}
+      commit: ${{ steps.verify.outputs.commit }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Full history and tags: the tag object being verified has to be
+          # present locally for `git verify-tag` to read its signature.
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: The tag is signed by a key this repository trusts
+        id: verify
+        env:
+          # Routed through `env:` rather than interpolated into the script,
+          # for the reason publish-pypi.yml's confirm check spells out.
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+          EXPECT_COMMIT: ${{ github.sha }}
+          ALLOWED_SIGNERS: .github/allowed_signers
+          # v0.2.0 was cut with `git tag -a`, not `-s`; see this file's header.
+          GRANDFATHERED_TAGS: "v0.2.0"
+        run: bash .github/verify-release-tag.sh
+
   sbom:
     name: verify and publish the SBOM
     runs-on: ubuntu-latest
@@ -76,6 +130,11 @@ jobs:
       # job exchanges for a Fulcio certificate. No private key is generated,
       # stored, or rotated by this repository.
       id-token: write
+      # The same token underwrites the SLSA build-provenance attestation
+      # below. Cosign proves this workflow signed the file; the attestation
+      # records which run produced it, and `gh attestation verify
+      # sbom.cdx.json --owner ChelseaKR` reads it back without cosign.
+      attestations: write
     steps:
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
@@ -85,6 +144,11 @@ jobs:
 
       - name: Sign the SBOM (keyless)
         run: cosign sign-blob --yes --bundle sbom.cdx.json.sigstore.json sbom.cdx.json
+
+      - name: Attest build provenance for the SBOM
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: sbom.cdx.json
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
@@ -96,7 +160,7 @@ jobs:
 
   release:
     name: publish the GitHub Release
-    needs: sign
+    needs: [verify-tag, sign]
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -111,12 +175,17 @@ jobs:
       # maintain for something the runner already ships, and this project
       # avoids adding a dependency where an existing tool already does the
       # job — the same instinct that keeps the runtime standard-library-only.
+      #
+      # The tag comes from `verify-tag` rather than from `GITHUB_REF_NAME`,
+      # so the Release is cut against the tag that was actually verified and
+      # not against a ref this job re-derives for itself.
       - name: Create the release and attach the signed SBOM
         env:
           GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.verify-tag.outputs.tag }}
         run: |
-          gh release create "${GITHUB_REF_NAME}" \
+          gh release create "${TAG}" \
             --repo "${GITHUB_REPOSITORY}" \
-            --title "${GITHUB_REF_NAME}" \
+            --title "${TAG}" \
             --generate-notes \
             sbom.cdx.json sbom.cdx.json.sigstore.json
