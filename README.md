@@ -150,7 +150,7 @@ minimum detectable effect, baseline regression comparison, a pinned
 fail-closed CI gate, live-target recording over HTTP or against a local
 program, and an optional model judge — none of which the gate can reach. Every
 suite has been **observed failing** on a defect it exists to catch; see
-[`proof/matrix.md`](proof/matrix.md). 705 tests, standard library only,
+[`proof/matrix.md`](proof/matrix.md). 724 tests, standard library only,
 offline.
 
 The fourteenth and fifteenth suites are beyond the specification. The
@@ -401,6 +401,42 @@ what flipped. Two things it will not do:
 
 A refused comparison does not fail the build on its own; the audit is still
 valid. Pass `--require-comparable-baseline` if you want it to.
+
+## What changed between two bundles
+
+"The dataset hash moved" is true and it is not an answer to "what changed".
+`plumbline diff` is the answer:
+
+```sh
+PYTHONPATH=src python3 -m plumbline diff datasets/riverbend-demo /path/to/rerun
+```
+
+```
+diff: riverbend-demo (949197da4dd6) -> riverbend-demo (1c40e7b91f2a)
+  dataset hash: 9491...  -> 1c40...
+  response changed: rent-relief-en: 850 became 900
+```
+
+Both bundles are verified before a single field is compared, for the same
+reason scoring is: a diff over unverified evidence would describe files nobody
+vouched for with the authority of files that were checked. A missing or
+mismatched `checksums.json` is an integrity refusal (exit 3), not a diff with a
+caveat.
+
+The comparison is structural, not textual. Two bundles that write the same item
+with different key order have not changed, and a line diff would say they had.
+Items and sources are compared field by field; responses — the one field that is
+prose — are reported through the harness's own normalisation and number
+canonicalisation, so `$125.00` becoming `$125` is a formatting change and `850`
+becoming `900` is a moved number. Manifest edits are separated from
+re-recording provenance, because "the bundle was re-recorded" and "the questions
+changed" are different findings.
+
+`--json` writes the structured diff; ordering is deterministic, so two diffs are
+themselves diffable. `--fail-on-change` exits 1 on any difference, for a CI job
+that treats a moved dataset as a failure rather than a finding. Without it a
+diff is a report and exits 0 whatever it found: describing a change is not the
+same as objecting to one.
 
 ## What is implemented
 

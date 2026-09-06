@@ -137,7 +137,8 @@ def compare(report: dict[str, Any], baseline: dict[str, Any]) -> dict[str, Any]:
             f"the dataset hash differs: this run scored "
             f"{provenance['dataset_id']}, the baseline scored "
             f"{baseline.get('dataset_id', baseline['dataset_sha256'][:12])}. "
-            f"The evidence changed, so the scores are not comparable numbers."
+            f"The evidence changed, so the scores are not comparable numbers. "
+            f"`plumbline diff` between the two bundles says what changed."
         )
     if provenance["judge_config_sha256"] != baseline["judge_config_sha256"]:
         refusals.append(
