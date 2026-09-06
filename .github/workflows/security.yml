@@ -46,10 +46,16 @@ jobs:
           persist-credentials: false
       - run: semgrep ci --config auto
 
-  # Full-history verified-secret scan. gitleaks runs diff-scoped in pre-commit
-  # (see .pre-commit-config.yaml); this sweeps the whole commit history with a
-  # different engine, which catches what a diff-scoped scan cannot by
-  # construction: a secret added and removed within the same branch.
+  # Full-history verified-secret scan, with live verification. This is the tier
+  # that can say "this credential works right now"; the `gitleaks` job below is
+  # the one that can fail on a credential that no longer does. Both are needed,
+  # for the reason written out over that job.
+  #
+  # The job NAME is load-bearing and is deliberately left alone: branch
+  # protection on `main` lists "full-history secret scan (verified only)" as a
+  # required status check, so renaming it would leave that check permanently
+  # unreported and block every pull request. Checked on 2026-09-06 against
+  # `repos/ChelseaKR/plumbline/branches/main/protection`.
   secrets:
     name: full-history secret scan (verified only)
     runs-on: ubuntu-latest
@@ -76,3 +82,57 @@ jobs:
           # purpose: excluding tests/ by path would blind the scan to real
           # secrets in fixtures, which is where they most often hide.
           extra_args: --only-verified --exclude-detectors=Lob
+
+  # The scan that can fail on a leak that has already been revoked.
+  #
+  # TruffleHog's `--only-verified` reports a finding only when it asks the
+  # service and the service says the credential is live. A leaked credential
+  # that has since been revoked answers "no", so it is reported under
+  # `unverified` and never under `verified` -- and revoked is the normal end
+  # state of a real incident. A history scan whose whole purpose is to find
+  # what was committed and taken back out therefore could not fail on the very
+  # thing it exists for.
+  #
+  # Measured on 2026-09-06 against a throwaway clone of this repository with a
+  # real-shaped AWS key planted in one commit and deleted in the next (present
+  # in history, absent at HEAD, both confirmed before trusting the result):
+  #
+  #   trufflehog --only-verified                      exit 0,   nothing reported
+  #   trufflehog --results=verified,unknown,unverified exit 183, 1 unverified
+  #   gitleaks git .                                   exit 1,   2 leaks found
+  #
+  # Adding the unverified tier to the job above would catch it, but it also
+  # reports two synthetic fixtures in `tests/test_network.py` -- the URL in
+  # `test_credentials_in_the_url_are_refused`, whose entire point is that
+  # credentials in a URL are rejected -- so that job would be red on this
+  # repository today for no real finding. gitleaks matches on pattern rather
+  # than on verification, so it catches the planted key and reports nothing on
+  # this history as it stands. It is added beside TruffleHog rather than in
+  # place of it: the two answer different questions, and this repository's
+  # sibling projects already run exactly this job.
+  gitleaks:
+    name: full-history secret scan (gitleaks, any state)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0 # whole history, not a diff
+          persist-credentials: false
+      - name: Secret scan (gitleaks, full history)
+        # A checksum-verified, version-pinned binary rather than a third-party
+        # action: a deterministic supply-chain pin. `gitleaks git` with a
+        # full-depth checkout walks the entire history.
+        shell: bash
+        run: |
+          # pipefail so the checksum pipeline below cannot pass on a grep that
+          # matched nothing. The default shell is `bash -e`, which does not set it.
+          set -euo pipefail
+          GL=8.30.1
+          BASE="https://github.com/gitleaks/gitleaks/releases/download/v${GL}"
+          ARCHIVE="gitleaks_${GL}_linux_x64.tar.gz"
+          curl -sSfL -o "/tmp/${ARCHIVE}" "${BASE}/${ARCHIVE}"
+          curl -sSfL -o /tmp/gitleaks_checksums.txt "${BASE}/gitleaks_${GL}_checksums.txt"
+          (cd /tmp && grep "  ${ARCHIVE}$" gitleaks_checksums.txt | sha256sum --check --strict)
+          tar -xzf "/tmp/${ARCHIVE}" -C /tmp gitleaks
+          /tmp/gitleaks git . --no-banner --redact --exit-code 1
