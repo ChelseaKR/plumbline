@@ -150,7 +150,7 @@ minimum detectable effect, baseline regression comparison, a pinned
 fail-closed CI gate, live-target recording over HTTP or against a local
 program, and an optional model judge — none of which the gate can reach. Every
 suite has been **observed failing** on a defect it exists to catch; see
-[`proof/matrix.md`](proof/matrix.md). 724 tests, standard library only,
+[`proof/matrix.md`](proof/matrix.md). 734 tests, standard library only,
 offline.
 
 The fourteenth and fifteenth suites are beyond the specification. The
@@ -612,6 +612,36 @@ breach the fairness floor necessarily moves the accuracy mean. When two
 coupled suites fail on *different* items the report says that too — those are
 separate findings that happen to read the same input. `plumbline gate` prints
 the same line into the build log.
+
+## Why one item is red
+
+A person who sees `rent-cap-en-formal` in three red rows still has to read
+JSON to learn why. `plumbline explain` assembles the answer out of the records
+the run already wrote:
+
+```sh
+PYTHONPATH=src python3 -m plumbline explain audits/<run-id>/report.json \
+  rent-cap-en-formal --bundle datasets/riverbend-demo
+```
+
+For every suite that read the item it prints that suite's score and floor, the
+item's own record, whether the item fails the suite on its own, and its share
+of the pooled score. The share is offered only when the suite's published
+score really is the mean of its per-item records; a suite scored some other
+way is described as having no per-item share rather than given a made-up one.
+Under the suite that is scored on the comparison against `expected`, it prints
+that comparison in words, tokenised exactly as the judge tokenises it. Coupling
+entries that name the item are quoted, so two red rows are not read as two
+findings.
+
+It re-scores nothing, and it exits `2` on an item the report does not know
+rather than printing an empty page, which would read as "nothing was wrong
+with it". `--bundle` is optional; without it the sections that need the item's
+text say they are not being shown. A bundle whose dataset digest is not the one
+the report was produced from is refused, because explaining an item against a
+different dataset would produce a fluent account of an answer this run never
+scored. `--json` writes the same content as a structure. Output is
+byte-identical across runs.
 
 ## Languages
 
