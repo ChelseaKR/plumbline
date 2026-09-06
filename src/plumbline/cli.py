@@ -40,9 +40,11 @@ from .baseline import (
     summarize_for_terminal,
     write_baseline,
 )
+from .explain import ExplainError, explain, render_json, render_markdown
 from .bundle import (
     BundleError,
     IntegrityError,
+    load as load_bundle,
     load_questions as load_bundle_questions,
     seal as seal_bundle,
 )
@@ -142,6 +144,30 @@ def cmd_diff(args: argparse.Namespace) -> int:
             print(line)
     if args.fail_on_change and diff["changed"]:
         return EXIT_SUITE_FAILURE
+    return EXIT_PASS
+
+
+def cmd_explain(args: argparse.Namespace) -> int:
+    """Drill into one item across every suite that read it.
+
+    Read-only over a written report. The report is checked against its own seal first, so an
+    edited report is an integrity refusal rather than an explanation of numbers nobody wrote.
+
+    An item id the report does not know exits 2 rather than printing an empty page: a blank
+    explanation reads as "nothing was wrong with it", which is a claim this command has no
+    basis for making.
+    """
+    source = Path(args.report)
+    report = _read_report(source)
+    verify_report(report, source=str(source))
+    loaded = load_bundle(Path(args.bundle)) if args.bundle else None
+    try:
+        explanation = explain(report, args.item_id, loaded)
+    except ExplainError as e:
+        print(f"USAGE ERROR: {e}", file=sys.stderr)
+        return EXIT_USAGE
+    sys.stdout.write(render_json(explanation) if args.json
+                     else render_markdown(explanation))
     return EXIT_PASS
 
 
@@ -565,6 +591,22 @@ def build_parser() -> argparse.ArgumentParser:
         help="exit 1 if the bundles differ at all, for a CI job that treats "
              "a moved dataset as a failure rather than a finding")
     p_diff.set_defaults(func=cmd_diff)
+
+    p_explain = sub.add_parser(
+        "explain",
+        help="drill into one item across every suite that read it: why a row "
+             "is red, and whether two red rows are one finding")
+    p_explain.add_argument("report", help="path to a written report.json")
+    p_explain.add_argument("item_id", help="the item to explain")
+    p_explain.add_argument(
+        "--bundle",
+        help="the evidence bundle the report names, to show the item's text, "
+             "its passages and the diff against `expected`; refused if its "
+             "dataset digest is not the one the report was produced from")
+    p_explain.add_argument("--json", action="store_true",
+                           help="write the structured explanation instead of "
+                                "the readable one")
+    p_explain.set_defaults(func=cmd_explain)
 
     p_audit = sub.add_parser("audit", help="run the full audit and write provenance-stamped reports")
     p_audit.add_argument("--config", required=True, help="target configuration (TOML)")

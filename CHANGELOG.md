@@ -357,6 +357,41 @@ may break the interface.
 
 ### Added
 
+- **`plumbline explain REPORT ITEM_ID`, for the reader looking at one red row.**
+  `report.json` already held a record per item per suite, and the coupling
+  disclosure was already computed from those records, but a person who saw one
+  item in three red rows had to read JSON to learn why the three were red and
+  whether they were three problems or one. The verb assembles that out of what
+  the run wrote down: every suite that read the item, its score and floor, the
+  item's own record, whether the item fails the suite on its own, its share of
+  the pooled score, the comparison against `expected` in words, the item's
+  passages and which of them it declares as answering, the screened language it
+  declared, and any coupling entry that names it.
+
+  It re-scores nothing. The one thing it computes is the token and number diff
+  against `expected`, because the record keeps the score and not the words, and
+  it computes it the way `answer_score` does: citation markers stripped from the
+  answer, function words kept. An earlier draft dropped stopwords and kept the
+  markers, and reported `src` as a word the answer had added, which is a token
+  the score never saw.
+
+  Three refusals rather than three plausible pages. An item id the report does
+  not know exits `2`, because an empty explanation reads as "nothing was wrong
+  with it". A bundle whose dataset digest is not the one the report was produced
+  from is an integrity refusal, because explaining an item against a different
+  dataset produces a fluent account of an answer the run never scored. And the
+  share of a suite's score is offered only when that suite's published score
+  really is the mean of its per-item records, so a suite scored some other way
+  is described as having no per-item share instead of being given a made-up one.
+  Run with no `--bundle`, the sections that need the item's text say they are
+  not being shown; they never render as an empty diff.
+
+  `make tamper-drill` now also asserts the property the verb exists for: after
+  the drill plants "900 dollars" where the reference says 850, `explain` on the
+  planted item must show that number under `accuracy`, `groundedness` and
+  `cross_language`. Output is byte-identical across runs, in both renderings.
+
+
 - **Nothing publishes from a tag the maintainer did not sign.** Both publishing
   paths took whatever ref they were handed. `release.yml` created a GitHub
   Release on any pushed `v*` tag; `publish-pypi.yml` checked that a human had

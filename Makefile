@@ -115,7 +115,11 @@ tamper-drill:
 	  PYTHONPATH=src python3 -m plumbline seal datasets/riverbend-demo >/dev/null; \
 	  set +e; PYTHONPATH=src python3 -m plumbline gate --config examples/riverbend.toml --out out2 >/dev/null 2>&1; code=$$?; set -e; \
 	  [ "$$code" = "1" ] || { echo "expected exit 1 (the fabrication is caught and scored), got $$code" >&2; exit 1; }; \
-	  echo "tamper-drill: integrity refusal (3), then the fabrication caught and scored (1)"
+	  PYTHONPATH=src python3 -m plumbline explain out2/*/report.json rent-cap-en-formal \
+	    --bundle datasets/riverbend-demo > out2/explain.md; \
+	  test -s out2/explain.md || { echo "explain wrote nothing; this check would pass over an empty file" >&2; exit 1; }; \
+	  python3 -c "import sys; t=open('out2/explain.md').read(); secs={b.split(chr(10),1)[0].strip(): b for b in t.split(chr(10)+'## ')[1:]}; bad=[s for s in ('accuracy','groundedness','cross_language') if '900' not in secs.get(s,'')]; sys.exit('explain: the planted number is not visible under '+repr(bad)) if bad else None"; \
+	  echo "tamper-drill: integrity refusal (3), the fabrication caught and scored (1), and explain shows 900 under every suite that read it"
 
 # Static analysis a contributor can run. CI runs semgrep too, in the pinned
 # container in .github/workflows/security.yml, with `semgrep ci`; this is the
