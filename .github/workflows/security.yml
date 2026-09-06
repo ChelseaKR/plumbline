@@ -21,8 +21,13 @@ on:
 permissions:
   contents: read
 
+# CI-CD-STANDARD.md 11c: cancel superseded runs on the same ref -- but two commits pushed to
+# `main` share one ref and are not supersessions of each other. Keyed on the ref alone, the
+# second push cancelled the run checking the first, and a cancelled run is not a failure:
+# nothing goes red and the commit sits on `main` with no verdict at all. The SHA separates
+# them; a pull request keeps one group per PR, so a force-push still cancels its predecessor.
 concurrency:
-  group: security-${{ github.event.pull_request.number || github.ref }}
+  group: security-${{ github.event.pull_request.number || github.ref }}-${{ github.event_name == 'pull_request' && 'pr' || github.sha }}
   cancel-in-progress: true
 
 jobs:
