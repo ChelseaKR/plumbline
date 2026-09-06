@@ -6,10 +6,10 @@ Plumbline audit of target `riverbend-demo`.
 
 | Field | Value |
 |---|---|
-| Run id | `8c1b5c87f37428f5` |
+| Run id | `6a6357fbfcaccad6` |
 | Harness version | `0.2.0` |
-| Harness source | `9068fd4a808a5cd359b0f4d184c5f2d5ab13ac89db058f729cd8dd31aaa585a7` |
-| Report seal | `5be2d3a38d410a22cfe8a94fa2d1e1e41d2c9739b7429a41b1cc0781d029e52b` (sha256 of this report's own body; check it with `plumbline verify`) |
+| Harness source | `3ad0f3f81a29f8229b29aa82584a81b1f5ead5be7cf4338ec9ef2d798eadcc15` |
+| Report seal | `a5627eb4e018e3ec7dec92f3d46d8e0f65bdb00203075b47107b8125aedecef3` (sha256 of this report's own body; check it with `plumbline verify`) |
 | Seed | `1729` |
 | Dataset hash | `949197da4dd6960e3998e9b50b01fca7a48345639e85494dd2a0e666e296e130` (short: `949197da4dd6`) |
 | Judge | `lexical` (deterministic), config hash `f59f35442715bb2f5994035c7049438b893938922013e993950dcb393a79e13c` |
@@ -60,7 +60,7 @@ Two red rows are not always two problems. Where enabled suites read the same evi
 
 ## Regression against baseline
 
-Baseline run `606428d16d1215a2`, dataset `949197da4dd6`, harness `0.2.0`, judge `lexical`.
+Baseline run `8c1b5c87f37428f5`, dataset `949197da4dd6`, harness `0.2.0`, judge `lexical`.
 
 No suite verdict changed.
 
