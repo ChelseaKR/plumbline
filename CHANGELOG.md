@@ -357,6 +357,44 @@ may break the interface.
 
 ### Added
 
+- **A history secret scan that can fail on a leak that has already been revoked.**
+  `security.yml` scanned the whole history with TruffleHog under `--only-verified`,
+  which reports a finding only when it asks the service and the service says the
+  credential is live. A credential that leaked and was then revoked answers no: it
+  is reported under `unverified` and never under `verified`. Revoked is the normal
+  end state of a real incident, so the one scan whose purpose is to find what was
+  committed and taken back out could not fail on the very thing it existed for.
+
+  Measured against a throwaway clone with a real-shaped AWS key planted in one
+  commit and deleted in the next, confirmed present in history and absent at HEAD
+  before the numbers were trusted, and deliberately not AWS's documented example
+  credential, which TruffleHog filters under every tier:
+
+  ```
+  trufflehog --only-verified                        exit 0,   nothing reported
+  trufflehog --results=verified,unknown,unverified  exit 183, 1 unverified secret
+  gitleaks git .                                    exit 1,   2 leaks found
+  ```
+
+  Adding the unverified tier to the existing job would close the hole and would
+  also report two synthetic fixtures in `tests/test_network.py`, one of them the
+  URL in `test_credentials_in_the_url_are_refused` whose whole point is that
+  credentials in a URL are rejected; that job would be red today for no real
+  finding. So a pinned, checksum-verified `gitleaks` job is added beside
+  TruffleHog rather than in place of it. gitleaks matches on pattern rather than
+  on verification, catches the planted key, and reports nothing on this history as
+  it stands. The two answer different questions, and this project's sibling
+  repositories already run exactly this job.
+
+- `tests/test_secret_scanning.py`, holding the invariant rather than the tool: a
+  history scan restricted to verified findings may never be the only history scan.
+  It also pins the existing job's `name`, because branch protection on `main`
+  lists `full-history secret scan (verified only)` as a required context and a
+  renamed required check is never reported at all, which blocks every pull request
+  instead of failing one.
+
+
+
 - **`plumbline explain REPORT ITEM_ID`, for the reader looking at one red row.**
   `report.json` already held a record per item per suite, and the coupling
   disclosure was already computed from those records, but a person who saw one
