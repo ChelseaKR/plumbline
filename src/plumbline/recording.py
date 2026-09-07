@@ -95,6 +95,12 @@ def record(*, questions: bundle_mod.Bundle, adapter: Adapter, out_dir: Path,
             f"if you mean to send that many requests"
         )
 
+    # Before anything is prepared, and long before a socket opens: a draft
+    # item's prompt is blank, so recording against one would ask the live
+    # target nothing and file the answer it got back under a question that
+    # was never put.
+    bundle_mod.refuse_drafts(questions, "recorded against")
+
     out_dir = _prepare_out_dir(out_dir, questions.path, overwrite=overwrite)
     on_error = getattr(adapter, "on_error", "abort")
 

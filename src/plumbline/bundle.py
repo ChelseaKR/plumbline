@@ -30,6 +30,14 @@ FORMAT_VERSION = 1
 BEHAVIOR_CLASSES = ("answer", "refuse")
 REVIEW_STATUSES = ("sme_reviewed", "unreviewed")
 
+# The only value `item.review` may take. An item under review is a *draft*:
+# `plumbline author` writes it with a blank `prompt` and `expected` for a
+# person to fill in, and clearing the marker means deleting the key, not
+# setting it to something else. A second value here would be a state nobody
+# defined, and the two commands that refuse drafts would have to guess.
+ITEM_REVIEW_DRAFT = "draft"
+ITEM_REVIEW_STATUSES = (ITEM_REVIEW_DRAFT,)
+
 
 class BundleError(Exception):
     """The bundle is malformed or unreadable (configuration error, exit 4)."""
@@ -80,6 +88,14 @@ class Item:
     # string that must never appear in any grammatical role belongs in
     # `forbidden`, which is checked by substring and cannot be talked around.
     forbidden_claims: list[str] = field(default_factory=list)
+    # Opt-in: `"draft"` on an item `plumbline author` wrote and nobody has
+    # finished. A draft is exempt from the rule that an answer item carries a
+    # non-blank `expected`, and from the rule that any item carries a
+    # non-blank `prompt` -- being unwritten is what a draft is. That exemption
+    # is only safe because `refuse_drafts` below stands in front of every path
+    # that would score one or send it to a live target, so an item can be
+    # exempt or it can be graded, never both.
+    review: str | None = None
 
 
 @dataclass
@@ -162,6 +178,14 @@ class Bundle:
         that declared `turns` AND were recorded with a matching
         `turn_responses` list; see `conversational_integrity.py`."""
         return self.turn_responses.get(item_id)
+
+    def draft_item_ids(self) -> list[str]:
+        """Ids of items still marked `review: "draft"`, in bundle order.
+
+        Empty for every bundle that has been finished, and for every bundle
+        that was never drafted by `plumbline author`.
+        """
+        return [i.id for i in self.items if i.review == ITEM_REVIEW_DRAFT]
 
     def unreviewed_translation_warnings(self) -> list[str]:
         """One warning line per unreviewed translated item. Visible on every
@@ -434,8 +458,33 @@ def _parse_items(path: Path) -> list[Item]:
                 )
             if raw["id"] in seen:
                 raise BundleError(f"{path.name}:{lineno}: duplicate item id '{raw['id']}'")
-            if raw["behavior"] == "answer" and not str(
-                    raw.get("expected") or "").strip():
+            # Read before the blank checks below, because it is what exempts
+            # an item from them. An unknown value is refused rather than
+            # ignored: `review: "drfat"` would otherwise leave the item
+            # graded, with a typo standing where a safety catch was meant.
+            review = raw.get("review")
+            if review is not None and review not in ITEM_REVIEW_STATUSES:
+                raise BundleError(
+                    f"{path.name}:{lineno}: item '{raw['id']}' sets "
+                    f"review={review!r}; the only value is "
+                    f"{ITEM_REVIEW_DRAFT!r}, and an item that is no longer a "
+                    f"draft omits the key entirely"
+                )
+            drafted = review == ITEM_REVIEW_DRAFT
+            if not drafted and not str(raw["prompt"] or "").strip():
+                # A blank prompt is what `plumbline author` writes and what a
+                # person replaces. One that survived to a recording would ask
+                # the live target nothing and file whatever came back as an
+                # answer to a question that was never put.
+                raise BundleError(
+                    f"{path.name}:{lineno}: item '{raw['id']}' has a blank "
+                    f"prompt. A question with nothing in it is not a "
+                    f"question; if this item is unfinished, mark it "
+                    f"review = \"{ITEM_REVIEW_DRAFT}\", which every scoring "
+                    f"and recording path refuses"
+                )
+            if (raw["behavior"] == "answer" and not drafted
+                    and not str(raw.get("expected") or "").strip()):
                 # Blank is checked after stripping: a reference answer of
                 # "   " is not a reference answer, and one that survives to
                 # scoring makes an empty response look like a perfect match.
@@ -530,13 +579,20 @@ def _parse_items(path: Path) -> list[Item]:
                 turns=turns,
                 forbidden=forbidden,
                 forbidden_claims=forbidden_claims,
+                review=review,
             ))
     if not items:
         raise BundleError(f"{path.name}: no items")
     return items
 
 
-def _parse_sources(path: Path) -> dict[str, Source]:
+def parse_sources(path: Path) -> dict[str, Source]:
+    """Parse a sources.jsonl into id -> Source, in declared order.
+
+    Public because `plumbline author` reads a corpus that is not yet inside
+    any bundle: a question set has to be drafted from passages before there
+    is a bundle to seal them into.
+    """
     sources: dict[str, Source] = {}
     with open(path, encoding="utf-8") as f:
         for lineno, line in enumerate(f, 1):
@@ -611,6 +667,35 @@ def _parse_responses(path: Path, items: list[Item]
     return responses, turn_responses
 
 
+def refuse_drafts(bundle: Bundle, action: str) -> None:
+    """Refuse a bundle that still contains an item marked `review: "draft"`.
+
+    The single gate that makes the draft exemptions in `_parse_items` safe.
+    A draft carries a blank `prompt` and, for an answer item, a blank
+    `expected`; both are the absence of the thing a check reads, and both
+    would be scored as though they were content. So the exemption is granted
+    at parse time and taken away here, in front of every path that scores a
+    bundle or sends it to a live target -- `run_audit` (and therefore `gate`)
+    and `record`. `validate` deliberately does not call this: reporting what
+    is still outstanding is the whole reason a person runs it.
+
+    Named ids, not a count: the next action is to open those items.
+    """
+    drafts = bundle.draft_item_ids()
+    if not drafts:
+        return
+    shown = ", ".join(drafts[:5]) + ("…" if len(drafts) > 5 else "")
+    raise BundleError(
+        f"bundle '{bundle.name}' has {len(drafts)} item(s) still marked "
+        f"review = \"{ITEM_REVIEW_DRAFT}\" ({shown}), so it cannot be "
+        f"{action}. A draft item is one `plumbline author` wrote and nobody "
+        f"has finished: its prompt and its reference answer are blank, and "
+        f"blank is not a question or an expectation. Write them, delete the "
+        f"`review` key from each item, and re-seal the bundle with "
+        f"`plumbline seal`."
+    )
+
+
 def load(bundle_dir: Path) -> Bundle:
     """Verify integrity, then parse. Integrity always comes first: nothing is
     parsed for scoring from a bundle that failed verification."""
@@ -674,7 +759,7 @@ def _load(bundle_dir: Path, *, require_responses: bool) -> Bundle:
     )
 
     sources_name = files.get("sources")
-    sources = (_parse_sources(
+    sources = (parse_sources(
         sealed_path(bundle_dir, sources_name, "sources", covered))
         if sources_name else {})
 
