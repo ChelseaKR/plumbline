@@ -77,13 +77,22 @@ Step 2 is the one people skip and the one that earns its keep. A sabotage that
 silently does nothing produces a green run that reads exactly like a passing
 guard. The hash assertion makes that impossible to mistake.
 
-Two rules that go with the procedure:
+Step 0 is not a formality. `git checkout --` in step 5 restores the *committed*
+file, so if you sabotaged a tree that also held an uncommitted change of your
+own, the restore silently reverts that too. It has happened here; the
+restore-hash assertion is what caught it, which is a second reason to keep step
+5's comparison rather than assuming the checkout did what you meant.
+
+Three rules that go with the procedure:
 
 - **Sabotage a literal, never a named constant.** Renaming a constant can fail
   loudly at import, which is a different signal from the one you are asking for.
 - **If the control does not go red on its first run, that first run is the
   honest measurement.** Say so where the work is reviewed. Do not quietly
   retarget it and report a clean sweep.
+- **Run one control at a time.** Two live sabotages cannot be told apart by a
+  red suite, and a restore that misses one leaves the tree wrong in a way the
+  next run reads as a real failure.
 
 ## Six ways a control lies
 
