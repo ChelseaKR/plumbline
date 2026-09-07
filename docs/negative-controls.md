@@ -216,10 +216,13 @@ the tool is willing to see.
   falsifiable and still miss the defect you did not think of.
 - **It does not scale to every assertion.** Plumbline runs 23 cases against 15
   suites, at the granularity of "this suite, this defect". Per-assertion
-  mutation is a different and heavier instrument; a companion project
-  ([`contextsafe`](https://github.com/ChelseaKR/contextsafe)) runs one, and it
-  generates mutants only on lines the suite actually executes, measured in the
-  same run rather than assumed.
+  mutation testing is a different and heavier instrument. If you reach for one,
+  the design point worth stealing is this: generate mutants only on lines the
+  suite **actually executed**, measured with a coverage run in the same
+  invocation rather than assumed, and print the covered-line count so the
+  denominator is visible. A mutant on a line nothing runs survives for a reason
+  mutation testing was not asked about, and counting it as a survivor is this
+  page's own subject in yet another costume.
 - **It is not free.** [`tests/test_defect_matrix.py`](../tests/test_defect_matrix.py)
   rebuilds the whole matrix on every test run — one full audit per case plus the
   control, and the slowest thing in the suite by a wide margin. That is the
