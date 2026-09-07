@@ -81,6 +81,35 @@ class Item:
     # and Bundle.turns_for/turn_responses_for, the only two places that read
     # this field.
     turns: list[str] = field(default_factory=list)
+    # Opt-in: the language this item's answer is supposed to come back in, when
+    # that is not the language the question was written in, plus the required
+    # `reason` saying why. `{"lang": "en", "reason": "..."}`.
+    #
+    # `multilingual` scores the declaration instead of `lang` when it is
+    # present, and nothing else reads it. It exists because a correct
+    # cross-language answer and a wrong-language answer were the same number: a
+    # consumer whose corpus is English-only and whose product answers an Arabic
+    # question by quoting the English source under an Arabic notice was scored
+    # 0.0000, identically to a system that simply ignored the question's
+    # language. Without a declaration the suite has to guess which of the two it
+    # is looking at, and this harness does not guess.
+    #
+    # Declaring the language the item was already asked in is a bundle error,
+    # not a no-op: it declares nothing and would read, to anyone auditing the
+    # bundle, as a reviewed decision.
+    expected_response_lang: dict[str, Any] | None = None
+    # Opt-in: literal strings the target emits in its own voice rather than as
+    # an answer -- a disclosure notice, a "translated from English" banner, a
+    # tool preamble. `groundedness`, `citation_accuracy` and
+    # `passage_attribution` remove them before measuring what the sources
+    # support, because a lexical support metric marks a correct disclosure
+    # unsupported and a correct disclosure is not a fabrication.
+    #
+    # `privacy`, `representational_harms` and `adversarial` keep reading the
+    # response whole. A notice is the target speaking, and a target that leaks
+    # or attacks in its own voice has still leaked or attacked; a declaration
+    # that could exempt text from those screens would be a way to buy a pass.
+    target_voice: list[str] = field(default_factory=list)
     forbidden: list[str] = field(default_factory=list)  # must not appear in the response
     # Must not be *asserted*. The weaker of the two, and the one a consumer
     # needs when the correct answer is a denial: "the deadline is the 15th" has
@@ -165,6 +194,25 @@ class Bundle:
 
     def response_for(self, item_id: str) -> str | None:
         return self.responses.get(item_id)
+
+    def answer_text_for(self, item: Item) -> str:
+        """The recorded response with the item's declared `target_voice` removed.
+
+        The three suites that ask what the sources support read this; every
+        other suite reads `response_for` and sees the response whole. An item
+        that declares nothing gets its response back unchanged, byte for byte,
+        which is what keeps a bundle with no declarations scoring exactly as it
+        did before this field existed.
+
+        Removal is literal and repeated: a notice emitted twice is removed
+        twice. It is not a regex and not a fuzzy match, because a declaration
+        that quietly matched more than it said would be a way to hide an
+        answer's own sentences from the measure.
+        """
+        text = self.responses.get(item.id) or ""
+        for notice in item.target_voice:
+            text = text.replace(notice, " ")
+        return text
 
     def turns_for(self, item: Item) -> list[str]:
         """The full conversation's user-side turns, in order: `prompt` is
@@ -437,6 +485,54 @@ def sealed_path(bundle_dir: Path, filename: str, role: str,
     return path
 
 
+EXPECTED_RESPONSE_LANG_KEYS = frozenset({"lang", "reason"})
+
+
+def _parse_expected_response_lang(
+        path: Path, lineno: int, raw: dict[str, Any]) -> dict[str, Any] | None:
+    """Validate the opt-in cross-language declaration, or refuse the bundle.
+
+    Every refusal here is a refusal rather than a warning. The whole value of
+    the field is that a reader of a report can tell a reviewed cross-language
+    expectation from an accident, and a malformed one that was quietly ignored
+    would leave `multilingual` scoring the question's own tag while the bundle
+    says on its face that it does not.
+    """
+    declared = raw.get("expected_response_lang")
+    if declared is None:
+        return None
+    if not isinstance(declared, dict):
+        raise BundleError(
+            f"{path.name}:{lineno}: 'expected_response_lang' must be an object "
+            f"with 'lang' and 'reason'"
+        )
+    unknown = sorted(set(declared) - EXPECTED_RESPONSE_LANG_KEYS)
+    if unknown:
+        raise BundleError(
+            f"{path.name}:{lineno}: 'expected_response_lang' carries keys this "
+            f"harness does not read: {', '.join(unknown)}"
+        )
+    for key in sorted(EXPECTED_RESPONSE_LANG_KEYS):
+        value = declared.get(key)
+        if not isinstance(value, str) or not value.strip():
+            raise BundleError(
+                f"{path.name}:{lineno}: item '{raw['id']}' declares an "
+                f"'expected_response_lang' with no {key}. A declaration that "
+                f"overrides a measurement carries the reason it was made, "
+                f"because the report publishes it and a reader has to be able "
+                f"to weigh it"
+            )
+    if declared["lang"] == raw["lang"]:
+        raise BundleError(
+            f"{path.name}:{lineno}: item '{raw['id']}' declares "
+            f"expected_response_lang '{declared['lang']}', which is the "
+            f"language it was already asked in. That declares nothing, and it "
+            f"would read to anyone auditing this bundle as a reviewed decision "
+            f"about a cross-language answer. Remove it"
+        )
+    return {"lang": declared["lang"], "reason": declared["reason"]}
+
+
 def _parse_items(path: Path) -> list[Item]:
     items: list[Item] = []
     seen: set[str] = set()
@@ -562,6 +658,22 @@ def _parse_items(path: Path) -> list[Item]:
                     f"blank turn; a conversation turn with nothing in it is "
                     f"not a turn"
                 )
+            expected_lang = _parse_expected_response_lang(path, lineno, raw)
+            target_voice = raw.get("target_voice", [])
+            if not isinstance(target_voice, list) or not all(
+                    isinstance(s, str) for s in target_voice):
+                raise BundleError(
+                    f"{path.name}:{lineno}: 'target_voice' must be a list of "
+                    f"literal strings the target emits in its own voice"
+                )
+            if any(not s.strip() for s in target_voice):
+                # A blank notice removes nothing and reads, in the bundle, as a
+                # declared exclusion that was reviewed. It is neither.
+                raise BundleError(
+                    f"{path.name}:{lineno}: item '{raw['id']}' declares an "
+                    f"empty 'target_voice' string; excluding nothing is not an "
+                    f"exclusion"
+                )
             seen.add(raw["id"])
             items.append(Item(
                 id=raw["id"],
@@ -577,6 +689,8 @@ def _parse_items(path: Path) -> list[Item]:
                 answering_sources=list(answering or []),
                 adversarial=bool(raw.get("adversarial", False)),
                 turns=turns,
+                expected_response_lang=expected_lang,
+                target_voice=target_voice,
                 forbidden=forbidden,
                 forbidden_claims=forbidden_claims,
                 review=review,
