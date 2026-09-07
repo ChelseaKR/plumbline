@@ -406,6 +406,66 @@ may break the interface.
 
 ### Added
 
+- **`plumbline author` and `plumbline suggest-declarations`, for the two jobs
+  the harness will not do for you.** Writing questions and deciding which
+  passage answers each one are human work, and this repository is explicit
+  that a lexical judge cannot read a question. Both commands lower the cost of
+  that work without moving any of it inside the instrument.
+
+  `plumbline author --sources sources.jsonl --lang en --lang es --out
+  questions/` drafts a **sealed question set**: one item per passage per
+  language, `prompt` and `expected` blank for a person, the passage it was
+  drafted from prefilled as `answering_sources`, a `fact_id` shared by every
+  language drafted from that passage, a `translation` link back to the primary
+  language (marked `unreviewed`, so the existing warning fires until somebody
+  translates it), and `review: "draft"`. Identical inputs give byte-identical
+  output; the manifest carries a fixed `version` rather than a timestamp,
+  because a drafting run that produced a new bundle hash each time would be
+  useless to diff.
+
+  `review: "draft"` is a safety catch rather than a label, and it comes in a
+  pair. A draft item is exempt from the rule that an answer item carries a
+  non-blank `expected` and from the new rule that any item carries a non-blank
+  `prompt` -- and `audit`, `gate` and `record` now **refuse** any bundle that
+  still holds one, naming the item ids. The exemption therefore exists only in
+  a state that cannot be scored and cannot be recorded against. Without the
+  second half it would be the defect this project catalogues everywhere else:
+  a blank reference answer scored as though it were content makes an empty
+  response look like a perfect match, and a blank prompt sent to a live target
+  files whatever comes back as the answer to a question nobody asked.
+  `validate` reports drafts instead of refusing them, because saying what is
+  outstanding is why a person runs it. A `review` value that is not `"draft"`
+  is a bundle error, not a value quietly ignored: `review: "drfat"` would
+  otherwise leave the item graded with a typo standing where the catch was.
+
+  A blank `prompt` is now a bundle error for any non-draft item. Nothing
+  committed here had one; it is the rule the draft exemption is carved out of,
+  and without it a cleared draft could still ask a live target nothing.
+
+  `plumbline suggest-declarations BUNDLE --out sheet.md` writes a Markdown
+  worksheet of suggested `answering_sources` for the items that declare none,
+  and writes **nothing into the bundle**. Each row is ranked from the item's
+  *reference answer* by the deterministic lexical judge -- the same inference
+  `passage_attribution` already computes and already refuses to score. Two
+  properties it is built around: every undeclared item gets a row, so the
+  sheet cannot report a suggestion rate over whatever it happened to be able
+  to rank; and a row that compared nothing says so in words, its margin
+  reading `not computed` rather than `0.0000`, because a zero margin means two
+  passages tied and a row with one candidate has not measured a tie. A
+  comparison inside the decision margin is `undetermined`, never a passage id.
+  On the bundled demo it reproduces the coverage line the report already
+  publishes: 108 answer items with passages, 48 declaring, 60 for review.
+
+  Twenty-six tests, and ten negative controls run against literals rather than
+  named constants -- each applied to the file, asserted present on disk with
+  the original text gone, the named tests required to go red, then restored
+  from a byte copy and required to go green again. The controls cover both
+  halves of the pairing (the refusal stops refusing; each exemption stops
+  exempting), the margin-of-zero coercion, a suggestion named inside the
+  margin, unrankable items dropped instead of listed, a non-deterministic
+  manifest, an accepted empty corpus, and the `--lang` default appending to
+  English instead of replacing it.
+
 - **A history secret scan that can fail on a leak that has already been revoked.**
   `security.yml` scanned the whole history with TruffleHog under `--only-verified`,
   which reports a finding only when it asks the service and the service says the
