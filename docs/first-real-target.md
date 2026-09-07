@@ -138,6 +138,49 @@ as sensitive until it has been read:
   publish none of the transcript and publish the scores and the method
   instead. A curated transcript is not evidence.
 
+### Capturing the interface, and what its contrast score is worth
+
+The `accessibility` suite checks a committed HTML snapshot, and its contrast
+check reads colour pairs from one of two blocks in that snapshot. The
+difference matters more than the score does.
+
+A **declared** block (`plumbline-contrast`) is a list the page writes about
+itself. Plumbline computes the ratios rather than accepting a claim of
+conformance, so those ratios are real — but the *population* is whatever the
+page chose to list. A target whose hint text fails AA can list its passing
+pairs and pass, and no markup-only check can see that, because deciding what
+colour a paragraph is means running the cascade. Every report says so on the
+suite's line, so a declared pass is never quoted as if it covered the page.
+
+A **computed** block (`plumbline-computed-contrast`) comes from a renderer:
+
+```sh
+pip install 'playwright==1.49.1' && playwright install chromium
+python3 tools/capture_interface.py https://target.example.gov/assistant \
+    --out datasets/<bundle>/interface.html
+python3 -m plumbline seal datasets/<bundle>     # the interface is evidence
+```
+
+Playwright is **not** a dependency of Plumbline and `make install` does not
+install it. The capture is an input, like a recording: it lives in `tools/`,
+the gate imports nothing from it, and `plumbline gate` on a machine with no
+browser behaves exactly as it did before. A test asserts that, by importing
+every `plumbline` module and checking that `playwright` never reaches
+`sys.modules`.
+
+The `source: computed` marker is not taken at its word — it is a string anyone
+can type into a file. The suite reads every rendered text run out of the
+snapshot's own markup and requires the block to account for all of them, either
+as a measured pair or as an explicitly skipped node with a stated reason.
+Leaving out the failing pair leaves text unaccounted for, and that is what the
+check sees. An empty block fails rather than reading as a clean page.
+
+Two practical notes. Capture the interface **as a user of it sees it**, in the
+state the recorded conversation happened in; a captured login page is not the
+assistant. And re-seal the bundle afterwards — the interface is hashed with the
+rest of the evidence, so a capture that is not re-sealed will be refused, which
+is the correct behaviour and a confusing one to hit cold.
+
 ## 6. Disclosure, before publication
 
 Nothing is published until the agency has had the report and a fair chance to
