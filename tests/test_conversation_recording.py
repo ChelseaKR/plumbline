@@ -102,12 +102,20 @@ class HistoryMode(unittest.TestCase):
         self.assertEqual(bodies[2]["messages"][-1],
                          {"speaker": "navigator", "say": "answer 2"})
 
-    def test_turn_three_does_not_inherit_a_body_turn_two_mutated(self):
-        """The body template is filled fresh per turn, never edited in place.
+    def test_history_does_not_leak_from_one_item_to_the_next(self):
+        """One adapter records every item, so the history has to be per-item.
 
-        A `set_pointer` that mutated the template would leave turn three
-        sending turn two's history appended to its own, and the target would
-        answer a conversation that never happened.
+        Held on `converse`'s own locals rather than adapter state: were it
+        instance state, the second conversation's *opening* turn would arrive
+        carrying the first conversation, and the target would answer a
+        conversation nobody had.
+
+        Note what this does *not* guard, measured by negative control: making
+        `set_pointer` write in place leaves this green, because `_ask` fills
+        the body template into a fresh dict before writing to it. The copy in
+        `set_pointer` is belt-and-braces for other callers, and
+        `test_the_original_body_is_not_mutated_at_any_level` in
+        `test_network.py` is what holds it.
         """
         def handler(request):
             turn = len(request["body"].get("messages") or []) // 2 + 1
@@ -179,6 +187,24 @@ class ConversationConfiguration(unittest.TestCase):
         with self.assertRaises(AdapterError) as ctx:
             self.build(mode="telepathy")
         self.assertIn("telepathy", str(ctx.exception))
+
+    def test_an_empty_or_non_table_conversation_is_refused(self):
+        # `conversation = true` in TOML, or an empty `[adapter.conversation]`.
+        # Present-but-saying-nothing is not a declaration, and treating it as
+        # one would put the recorder back to guessing.
+        for raw in ({}, True, "history", []):
+            with self.assertRaises(AdapterError) as ctx:
+                make_adapter(dict(
+                    http_config("http://127.0.0.1:9/x"), conversation=raw))
+            self.assertIn("[adapter.conversation]", str(ctx.exception))
+
+    def test_the_session_envelope_is_recorded_in_the_manifest_too(self):
+        adapter, _ = self.build(mode="session", session_pointer="session.id",
+                                session_body_pointer="sid")
+        described = adapter.describe()["conversation"]
+        self.assertEqual(described, {"mode": "session",
+                                     "session_pointer": "session.id",
+                                     "session_body_pointer": "sid"})
 
     def test_a_subprocess_mode_is_refused_for_an_http_target(self):
         # `lines` is a real mode; it is just not one a socket can do.
