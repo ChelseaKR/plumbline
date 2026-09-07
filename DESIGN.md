@@ -1461,12 +1461,19 @@ work:
    `forbidden` remains the tool when a miss is unaffordable. A per-language
    marker list under `[judge.languages]` is the obvious extension and has not
    been built because nobody has asked for it in a language it would need.
-10. **The contrast check trusts the snapshot's own declaration.** The
-    arithmetic is Plumbline's, but the colour pairs come from a JSON block in
-    the captured interface, so a snapshot declaring only its passing pairs
-    passes. Reading the pairs out of the page's own CSS would close it and
-    would mean shipping a CSS cascade implementation; an undeclared palette
-    already fails, which is the half of the problem worth having.
+10. **The declared contrast block is still a list the page writes about
+    itself**, and a snapshot declaring only its passing pairs still passes on
+    that path. What changed is that it no longer passes *silently*: the report
+    names the source, and the caveat that a failing pair can simply be left out
+    travels with every record and into the report's own prose. The other half
+    is now available and is no longer a CSS cascade Plumbline has to write:
+    `tools/capture_interface.py` loads the page in a browser, records the
+    computed foreground and nearest painted background of every text node, and
+    the suite requires that block to account for every rendered text run in the
+    markup it sits in. Omission is the threat, and an omitted pair is an
+    unaccounted-for text run. What remains open is that **the capture is
+    optional** — a target audited without it is audited on the page's own
+    account of its colours, and only the report says so.
 11. **Coupling declarations are written by hand.** `couplings.py` does not
    discover couplings; the matrix does. The guard in
    `tests/test_couplings.py` is what stops the two drifting apart — it fails
