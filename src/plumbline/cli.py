@@ -47,6 +47,7 @@ from .baseline import (
     write_baseline,
 )
 from .explain import ExplainError, explain, render_json, render_markdown
+from . import compare as compare_mod
 from .bundle import (
     BundleError,
     IntegrityError,
@@ -241,6 +242,55 @@ def cmd_explain(args: argparse.Namespace) -> int:
         return EXIT_USAGE
     sys.stdout.write(render_json(explanation) if args.json
                      else render_markdown(explanation))
+    return EXIT_PASS
+
+
+def cmd_compare(args: argparse.Namespace) -> int:
+    """Audit several targets against one question set and say which differences are real.
+
+    Every target is audited first, then the comparison is assembled. Auditing first is what
+    makes the refusal possible at all: the dataset and judge hashes being compared are the
+    ones the runs actually used, not the ones their configuration files claim.
+
+    Exits 4 when the targets were not audited against the same evidence, naming the hashes.
+    Exits 1 if any target's own verdict is FAIL, because a comparison is not a verdict and
+    must not launder one: a build asking "did these pass" still gets its answer.
+    """
+    runs: list[compare_mod.TargetRun] = []
+    for position, config_path in enumerate(args.config, start=1):
+        config = load_config(Path(config_path))
+        outcome = run_audit(config, seed=args.seed, out_dir=Path(args.out))
+        _warn(outcome.warnings)
+        # Loaded again for its question-set identity. `run_audit` verified this bundle's
+        # checksums a moment ago and `load` verifies them again, so the digest is taken over
+        # content that has been checked, not over whatever is on disk now.
+        runs.append(compare_mod.TargetRun(
+            position=position, name=config.name,
+            config=str(config_path), report=outcome.report,
+            question_set_sha256=compare_mod.question_set_digest(
+                load_bundle(config.dataset_path)),
+        ))
+
+    comparison = compare_mod.compare_runs(runs)
+    out_dir = Path(args.out)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    json_path = out_dir / "comparison.json"
+    md_path = out_dir / "comparison.md"
+    json_path.write_text(compare_mod.render_json(comparison), encoding="utf-8")
+    md_path.write_text(compare_mod.render_markdown(comparison), encoding="utf-8")
+
+    if args.json:
+        sys.stdout.write(compare_mod.render_json(comparison))
+    else:
+        for line in compare_mod.summarize_for_terminal(comparison):
+            print(line)
+        print(f"reports: {json_path}")
+        print(f"         {md_path}")
+    failed = [t["label"] for t in comparison["targets"] if t["verdict"] != "PASS"]
+    if failed:
+        print(f"note:    these targets did not pass their own floors: {', '.join(failed)}",
+              file=sys.stderr)
+        return EXIT_SUITE_FAILURE
     return EXIT_PASS
 
 
@@ -712,6 +762,24 @@ def build_parser() -> argparse.ArgumentParser:
                                 "the readable one")
     p_explain.set_defaults(func=cmd_explain)
 
+    p_compare = sub.add_parser(
+        "compare",
+        help="audit several targets against one question set and say which "
+             "differences are larger than the noise")
+    p_compare.add_argument(
+        "--config", action="append", required=True, metavar="TOML",
+        help="a target configuration; pass it once per target, and the "
+             "targets appear in the order given")
+    p_compare.add_argument("--out", default="comparisons",
+                           help="output directory (default: comparisons)")
+    p_compare.add_argument("--seed", type=int, default=DEFAULT_SEED,
+                           help=f"random seed, recorded in provenance "
+                                f"(default: {DEFAULT_SEED})")
+    p_compare.add_argument("--json", action="store_true",
+                           help="write the structured comparison to stdout "
+                                "instead of the readable summary")
+    p_compare.set_defaults(func=cmd_compare)
+
     p_audit = sub.add_parser("audit", help="run the full audit and write provenance-stamped reports")
     p_audit.add_argument("--config", required=True, help="target configuration (TOML)")
     p_audit.add_argument("--out", default="audits", help="report output directory (default: audits)")
@@ -868,7 +936,7 @@ def main(argv: list[str] | None = None) -> int:
               "in a suite; please report it.", file=sys.stderr)
         return EXIT_INTERNAL_ERROR
     except (ConfigError, BundleError, BaselineError, EmptyPopulationError,
-            CoverageError, OutboundError, SigningError,
+            CoverageError, OutboundError, SigningError, compare_mod.CompareError,
             history_mod.HistoryError, RetentionError, ValueError, KeyError) as e:
         msg = e.args[0] if e.args else e
         print(f"CONFIGURATION ERROR: {msg}", file=sys.stderr)

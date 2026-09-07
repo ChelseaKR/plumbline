@@ -150,7 +150,7 @@ minimum detectable effect, baseline regression comparison, a pinned
 fail-closed CI gate, live-target recording over HTTP or against a local
 program, and an optional model judge — none of which the gate can reach. Every
 suite has been **observed failing** on a defect it exists to catch; see
-[`proof/matrix.md`](proof/matrix.md). 849 tests, standard library only,
+[`proof/matrix.md`](proof/matrix.md). 865 tests, standard library only,
 offline.
 
 The fourteenth and fifteenth suites are beyond the specification. The
@@ -713,6 +713,46 @@ the report was produced from is refused, because explaining an item against a
 different dataset would produce a fluent account of an answer this run never
 scored. `--json` writes the same content as a structure. Output is
 byte-identical across runs.
+
+## Comparing several targets
+
+A procurement reviewer choosing between two vendors wants one question set
+graded against each, and a table that says which differences are real:
+
+```sh
+PYTHONPATH=src python3 -m plumbline compare \
+  --config vendor-a.toml --config vendor-b.toml --out comparisons
+```
+
+Per suite it prints each target's score, confidence interval and n, and for
+every pair the delta labelled **distinguishable** or **inside noise**. The
+threshold is derived from both runs, `sqrt((mde_a^2 + mde_b^2) / 2)`: the
+standard error of the *difference*, expressed in the two MDEs each report
+already carries. Where both runs are equally precise it is exactly the MDE they
+published.
+
+Three things it refuses to do, because each alternative is a number nobody
+measured:
+
+- **Different questions are not compared.** The targets must share a question
+  set -- the items and the passages -- or it exits `4` naming both digests.
+  What it does *not* require is the same bundle: a bundle's `dataset_sha256`
+  covers its recorded answers, so two targets answering one question set never
+  share it, and requiring that would refuse every comparison worth making.
+- **A suite one target did not score gets no delta.** It is named, and no pair
+  is emitted across the gap. An absent measurement is not a difference of zero.
+- **A suite reporting no minimum detectable effect is `not qualifiable`**, never
+  `inside noise`. The second is a claim that the difference is smaller than the
+  sample can detect; a suite that computed no MDE has not made it.
+
+Targets appear in the order given. There is no ranking column and no composite
+score: this compares suites, it does not choose a winner.
+
+Worth knowing what this looks like in practice: the tamper drill's planted
+defect -- three items out of 108 -- reads as **inside noise**, and that is the
+correct answer. Three items cannot move a 108-item suite past its own detection
+threshold, and a tool that called that gap real would be the reason two vendors
+get picked apart on 0.86 against 0.88.
 
 ## Languages
 

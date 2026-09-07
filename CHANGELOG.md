@@ -406,6 +406,34 @@ may break the interface.
 
 ### Added
 
+- **`plumbline compare --config a.toml --config b.toml`, for choosing between
+  targets.** One question set graded against several targets, with a table per
+  suite: each target's score, confidence interval and n, and for every pair the
+  delta labelled `distinguishable` or `inside noise`. Targets appear in the
+  order given; there is no ranking column and no composite score.
+
+  The pairwise threshold is derived from both runs rather than taken from one:
+  `sqrt((mde_a^2 + mde_b^2) / 2)`, which is the standard error of the difference
+  expressed in the two MDEs the reports already carry, and which returns exactly
+  the published MDE when both runs are equally precise. The conservative
+  alternative, taking the larger of the two, was tried and rejected on
+  measurement: a target answering half of a twelve-question set wrong has
+  bimodal per-item scores and so a large MDE of its own, and the maximum rule
+  reported that target as `inside noise` against a perfect one.
+
+  What must match is the QUESTION SET -- the items and the passages -- not the
+  bundle. A bundle's `dataset_sha256` covers its recorded responses, so two
+  targets answering one question set never share it; refusing on it would refuse
+  every comparison the verb exists to make. Differing question sets exit `4`
+  naming both digests, as does a differing judge configuration.
+
+  Three absences are kept out of the numbers. A suite one target did not score
+  is named and given no delta, rather than a delta of zero. A suite with no
+  score at all yields `delta: null` and `not comparable`, in the type and not
+  only in the prose. And a suite reporting no minimum detectable effect is
+  `not qualifiable`, never `inside noise` -- the latter claims the difference is
+  smaller than the sample can detect, which a suite that computed no MDE has not
+  said.
 - **`docs/negative-controls.md`: the procedure behind `proof/matrix.md`, written
   so another project can adopt it.** The matrix has always demonstrated that
   every suite can fail; nothing here described how to establish that for a check
