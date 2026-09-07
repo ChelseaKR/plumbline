@@ -11,6 +11,55 @@ may break the interface.
 
 ### Fixed
 
+- **The TruffleHog history scan still could not fail on a revoked credential.**
+  #76 added the `gitleaks` job beside it, on the argument that widening
+  TruffleHog's result tiers would report two synthetic fixtures in
+  `tests/test_network.py` and go red for no real finding. Half of that was
+  right: those two fixtures -- the same `https://user:secret@example.test/chat`
+  on two lines, the argument to `test_credentials_in_the_url_are_refused` --
+  are the entire noise, re-measured against the real history today. The
+  conclusion was not. The answer to a noisy DETECTOR is to switch that detector
+  off in one lane and keep it armed in another, not to leave the tier narrowed
+  and rely on a second tool to cover the gap.
+
+  The `secrets` job now runs two lanes. Lane 1 is
+  `--results=verified,unknown,unverified --exclude-detectors=Lob,URI`, so a
+  credential the provider has already revoked -- the normal end state of a real
+  leak, and the case a history sweep exists for -- fails the build. Lane 2 is
+  the gate exactly as it stood, `--results=verified --exclude-detectors=Lob`
+  over every path, under `if: ${{ !cancelled() }}`, so URI stays armed for
+  verified findings and the pair is a strict superset of what the job checked
+  before. `gitleaks` stays: it matches on pattern, which TruffleHog does not,
+  and TruffleHog verifies, which gitleaks cannot.
+
+  Neither trufflehog step had a `version:` input. That input selects the image
+  that scans (`ghcr.io/trufflesecurity/trufflehog:${VERSION}`) and defaults to
+  `latest`, so the SHA pin on `uses:` pinned only the wrapper and this scan
+  silently tracked whatever upstream published last. Both lanes now pin
+  `3.97.1`, the release the SHA names.
+
+  Measured against the real history with trufflehog 3.97.1, all 107 commits of
+  `main` in an isolated clone: the widened tier alone reports the two URI
+  fixtures and nothing else; lane 1 as configured reports nothing across 1,583
+  chunks; lane 2 reports nothing.
+
+  `tests/test_secret_scanning.py` grew five assertions: some lane reports
+  `unverified`, no lane spells its selection `--only-verified`, every detector
+  a widened lane excludes stays armed in another lane (Lob aside), each
+  trufflehog step's `version:` input matches its pinned ref, and the scan walks
+  the whole tree. Its existing assertions -- including the one holding the job
+  to the name branch protection requires -- are unchanged, and the two that
+  searched the whole file for a flag now read the `extra_args:` lines, because
+  the workflow's own explanation of why `--only-verified` is wrong would
+  otherwise satisfy a substring search for it.
+
+  The job's `name:` deliberately still says "verified only" and is now an
+  understatement. `main`'s classic branch protection requires that exact
+  context with `enforce_admins: true`; renaming it here would retire the
+  context the protection requires and leave every future pull request waiting
+  on a check that can never report, with no break-glass path. Renaming it means
+  editing that settings page in the same change.
+
 - **Three hundred lines of this file belonged to no release.** Between
   2026-08-27 and 2026-09-01 five merged pull requests (#40, #41, #42, #44,
   #48) prepended their entries above the `## [Unreleased]` heading instead of
