@@ -406,6 +406,55 @@ may break the interface.
 
 ### Added
 
+- **Judge lexicons are declarable per language, and a language none covers is
+  refused rather than scored.** `refusal` decides whether a response is a
+  refusal by matching phrases, and the shipped phrases are English and Spanish.
+  Run it over a bundle in any other language and no refusal in it can be
+  detected at all: every item asked to refuse scores as an answer, and the
+  suite publishes a number that reads as a finding about the target rather than
+  about the instrument. Over a bundle that is all `behavior: answer` it reports
+  1.00 and passes, having read nothing. The denial markers behind
+  `forbidden_claims` have the same shape, in the fail-closed direction: a
+  correct denial in a language with no negators in force reads as an assertion
+  of the false claim.
+
+  `[judge.languages.<tag>]` now accepts `refusal_markers` and `denial_markers`
+  beside the existing `words` and `script`, and `require_lexicon_coverage`
+  refuses before any suite runs, naming the exact key to add --
+  `[judge.languages.pt].refusal_markers`, not "no lexicon for pt". `refusal`
+  and `conversational_integrity` need the refusal lexicon, `adversarial` needs
+  the denial one, and every other suite reads neither and imposes no
+  requirement. Nothing was scored when it fires: no report directory is written
+  that could be mistaken for a measurement.
+
+  **The split moves nothing.** Detection unions every lexicon in force rather
+  than scoping to the item's declared language, deliberately: scoping would be
+  more precise and would fail open, because the reason `multilingual` exists is
+  that a target asked in Spanish may answer in English, and an English refusal
+  to a Spanish item is still a refusal. With nothing declared that union is
+  byte-for-byte the flat tuple this module shipped before, and the judge
+  configuration hash is unchanged at `f59f35442715` -- pinned to that literal
+  by a test rather than recomputed from the object, because it is what every
+  consuming repository's committed baseline compares against.
+
+  A declared lexicon replaces the shipped one for that tag, the same
+  replace-not-extend rule `words` follows. That is the one place the rule cuts
+  against the target, since it lets a configuration *narrow* refusal detection,
+  which `[judge] refusal_markers` cannot -- so the narrowed list is in the
+  judge configuration hash and a baseline built before it refuses to compare.
+
+  A marker that could never match is refused rather than repaired: matching is
+  a substring test against a lowercased response, so an uppercase or padded
+  phrase can never fire, and quietly lowercasing it would mean the phrases in
+  the config file are not the phrases in force. A duplicate is refused too --
+  it moves the judge hash without changing what is detected.
+
+  `screen_patterns`, the language-specific part of the privacy and harm
+  screens, is deliberately not declarable and not part of the requirement. The
+  harm list should be written with the communities a system serves rather than
+  by a vendor, so a coverage gate over it could only be satisfied by writing
+  one badly. Part of #61; DESIGN.md open item 9 records what is left.
+
 - **`docs/negative-controls.md`: the procedure behind `proof/matrix.md`, written
   so another project can adopt it.** The matrix has always demonstrated that
   every suite can fail; nothing here described how to establish that for a check

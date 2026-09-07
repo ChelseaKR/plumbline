@@ -1455,12 +1455,24 @@ work:
    nobody has asked for it; building it on speculation would be adding surface
    this file would then have to defend.
 9. **The denial detector knows explicit negation and nothing else.** It cannot
-   see a paraphrase, an implicature, or a denial phrased without a marker, and
-   its markers are English and Spanish. Every one of those is a false red row
-   rather than a missed claim, which is the direction to be wrong in, and
-   `forbidden` remains the tool when a miss is unaffordable. A per-language
-   marker list under `[judge.languages]` is the obvious extension and has not
-   been built because nobody has asked for it in a language it would need.
+   see a paraphrase, an implicature, or a denial phrased without a marker.
+   Every one of those is a false red row rather than a missed claim, which is
+   the direction to be wrong in, and `forbidden` remains the tool when a miss
+   is unaffordable.
+
+   The *shipped* markers are still English and Spanish, but that is no longer
+   silent. `[judge.languages.<tag>].denial_markers` and `.refusal_markers`
+   declare them per language, and an enabled suite over a language with no
+   lexicon in force is a configuration error before anything is scored, naming
+   the key to add. What was missing was not the extension so much as the
+   refusal: a fixed list run over a language it does not cover cannot fire, so
+   `refusal` scored every refusal in that language as an answer and published
+   the number.
+
+   `screen_patterns` — the language-specific part of the privacy and harm
+   screens — is deliberately still out. The harm list should be written with
+   the communities a system serves rather than by a vendor, so a coverage
+   requirement over it would be a gate satisfiable only by writing one badly.
 10. **The declared contrast block is still a list the page writes about
     itself**, and a snapshot declaring only its passing pairs still passes on
     that path. What changed is that it no longer passes *silently*: the report

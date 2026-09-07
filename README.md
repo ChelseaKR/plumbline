@@ -150,7 +150,7 @@ minimum detectable effect, baseline regression comparison, a pinned
 fail-closed CI gate, live-target recording over HTTP or against a local
 program, and an optional model judge — none of which the gate can reach. Every
 suite has been **observed failing** on a defect it exists to catch; see
-[`proof/matrix.md`](proof/matrix.md). 849 tests, standard library only,
+[`proof/matrix.md`](proof/matrix.md). 882 tests, standard library only,
 offline.
 
 The fourteenth and fifteenth suites are beyond the specification. The
@@ -753,6 +753,54 @@ Two things that will bite a word list and do not bite a script range:
 
 An item written in a language with no profile in force is a configuration
 error, never a quiet pass, and the error names the config table to add.
+
+### The lexicons are declared the same way, and coverage is required
+
+Recognising a language is one question; being able to *read* it is another, and
+the second one used to have no answer at all. `refusal` decides whether a
+response is a refusal by matching phrases, and the shipped phrases are English
+and Spanish. Point it at a bundle in any other language and **no refusal in it
+can be detected** — every item asked to refuse scores as an answer, and the
+suite publishes a number that reads as a finding about the target rather than
+about the instrument. Over a bundle that happens to be all `behavior: answer`,
+it reports 1.00 and passes, having read nothing. The denial markers behind
+`forbidden_claims` have the same shape.
+
+So the same table carries the lexicons:
+
+```toml
+[judge.languages.pt]
+words = ["voce", "pedido", "beneficios", "prazo"]
+refusal_markers = ["nao posso ajudar", "nao tenho como"]
+denial_markers = ["nao e", "nunca", "em vez de"]
+```
+
+**A language in the bundle with no lexicon an enabled suite needs is a
+configuration error, before anything is scored**, naming the exact key —
+`[judge.languages.pt].refusal_markers`, not "no lexicon for pt". `refusal` and
+`conversational_integrity` need `refusal_markers`; `adversarial` needs
+`denial_markers`; every other suite reads neither and imposes no requirement.
+
+Three things worth knowing:
+
+- **A lexicon may be declared without a detection profile.** They answer
+  different questions, and a target not running `multilingual` should not have
+  to invent a function-word profile to get a marker list accepted.
+- **Detection unions every lexicon in force** rather than scoping to the item's
+  declared language. Scoping would be more precise and would fail open: the
+  reason `multilingual` exists is that a target asked in Spanish may answer in
+  English, and an English refusal to a Spanish item is still a refusal.
+- **A declared lexicon replaces the shipped one for that tag**, so unlike
+  `[judge] refusal_markers` — which extends only and can never narrow — this
+  *can* narrow detection. That is why it is inside the judge configuration hash:
+  a run that can recognise fewer refusals is not the same measurement, and a
+  baseline built before the narrowing refuses to compare against it.
+
+`screen_patterns`, the language-specific part of the privacy and harm screens,
+is deliberately **not** declarable yet and not part of the coverage
+requirement. The harm list should be written with the communities a system
+serves rather than by a vendor, and a requirement over a family with no honest
+way to fill it is a gate that can only be satisfied by writing one badly.
 
 ## Statistical honesty
 
