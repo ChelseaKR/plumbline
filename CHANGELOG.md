@@ -406,6 +406,26 @@ may break the interface.
 
 ### Added
 
+- **`docs/negative-controls.md`: the procedure behind `proof/matrix.md`, written
+  so another project can adopt it.** The matrix has always demonstrated that
+  every suite can fail; nothing here described how to establish that for a check
+  in general, or what goes wrong when you try. The page sets out the git-object
+  procedure -- commit, baseline the file with `git hash-object`, sabotage, prove
+  the hash moved, run, clear `__pycache__`, restore, assert the hash matches --
+  and then the six distinct ways a negative control has lied here anyway: a
+  substitution that silently did not apply, a branch unreachable from the
+  fixture, an earlier branch returning first, a fixture sitting where the
+  failure is impossible, a stale `.pyc` executing after the source was restored,
+  and two runs sharing one interpreter. Each is tied to real code: this
+  repository's `edit_response`, which raises rather than no-opping; `swelter`'s
+  `verdict_for`, extracted so its did-not-run branch is reachable at all;
+  `sprout`'s cross-process determinism test, whose docstring records the two
+  fixtures that were not enough. The TruffleHog tier measurement in it was
+  re-run on 2026-09-07 against 3.97.1 rather than quoted, including the half
+  that matters: a vendor's documented example credential is reported under no
+  tier, so planting one gives a control that cannot fire and a run that reads as
+  a pass.
+
 - **`plumbline record` can record a conversation, and refuses to pretend it
   did.** ADR 0003 made `turns` and `turn_responses` additive to the bundle
   format and `conversational_integrity` grades them turn by turn, but `record`
