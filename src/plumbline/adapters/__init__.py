@@ -20,6 +20,12 @@ promised:
    half-recorded transcript can never be graded as if the target had merely
    done badly.
 
+A multi-turn item needs a fourth thing, and it is a declaration rather than a
+rule: **there is no universal way to send a second turn.** See
+`conversation.py` for `[adapter.conversation]`, and note that a question set
+with multi-turn items recorded through an adapter that never declared one is
+refused, not quietly recorded single-turn.
+
 Two kinds ship. `http_json` talks to a service; `subprocess` runs a local
 program, which fits the offline-first default better than HTTP does — a
 subprocess recording opens no socket at all. Both are bounded the same way:
@@ -51,6 +57,20 @@ class Adapter(Protocol):
 
     def respond(self, item: Item) -> str:
         """The target's answer to one item, or raise AdapterError."""
+
+    def converse(self, item: Item) -> list[str]:
+        """One answer per user turn of a multi-turn item, in order.
+
+        The first element answers `item.prompt`; the rest answer `item.turns`,
+        so the returned list is always `1 + len(item.turns)` long — the shape
+        `bundle.py` requires of `turn_responses`. A failure on any turn raises
+        `AdapterError` and the recording aborts: half a conversation graded as
+        a whole one is a low score standing in for a broken integration.
+
+        Only called when the item declares turns AND the adapter declared an
+        `[adapter.conversation]` table. `recording.py` refuses the combination
+        of a multi-turn item and no declaration rather than falling back here.
+        """
 
 
 def _factories() -> dict[str, Any]:
