@@ -57,6 +57,13 @@ question = "{prompt}"
 locale = "{lang}"
 trace_id = "{item_id}"
 
+# How a follow-up turn reaches this target. For a local program it is stdin:
+# one line per turn into one process, one answer line back per turn. Without
+# this table the four escalating conversations in the question set are refused
+# rather than recorded one turn deep.
+[adapter.conversation]
+mode = "lines"
+
 [judge]
 kind = "lexical"
 

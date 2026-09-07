@@ -177,6 +177,36 @@ def _recording_lines(recording: dict[str, Any] | None) -> list[str]:
     return lines
 
 
+def _contrast_source_lines(report: dict[str, Any]) -> list[str]:
+    """Say where the accessibility suite's colour pairs came from.
+
+    A contrast score means two different things depending on its source, and a
+    reader of the report cannot tell them apart from the number. Pairs a
+    renderer computed cover every text node in the snapshot; pairs the page
+    declared cover whatever the page chose to list, which is the one thing a
+    markup-only check can never verify. The caveat goes in the report rather
+    than only in the JSON, because the report is what a procurement reader
+    reads.
+    """
+    lines: list[str] = []
+    for suite in report["suites"]:
+        details = suite.get("details") or {}
+        source = details.get("contrast_source")
+        if not source:
+            continue
+        interface = details.get("interface") or "the captured interface"
+        lines.append(
+            f"- `{suite['suite']}` measured contrast for `{interface}` from "
+            f"**{source}** colour pairs."
+        )
+        caveat = details.get("contrast_caveat")
+        if caveat:
+            lines.append(f"  - {caveat}.")
+    if lines:
+        lines.append("")
+    return lines
+
+
 def _unverifiable_lines(report: dict[str, Any]) -> list[str]:
     """What each suite could not check, and how much of its population that
     was.
@@ -198,6 +228,45 @@ def _unverifiable_lines(report: dict[str, Any]) -> list[str]:
             f"**UNVERIFIABLE** ({reasons}) — excluded from the score, and not "
             f"counted as passes."
         )
+    if lines:
+        lines.append("")
+    return lines
+
+
+# The two opt-in item declarations, and the details key each suite publishes
+# the item ids under. A declaration moves a number, so how many items rest on
+# one belongs in the report next to the number it moved.
+DECLARATION_KEYS: tuple[tuple[str, str], ...] = (
+    ("items_declaring_expected_response_lang", "expected_response_lang"),
+    ("items_declaring_target_voice", "target_voice"),
+)
+
+
+def _declaration_lines(report: dict[str, Any]) -> list[str]:
+    """How many of each suite's items were scored under a bundle declaration.
+
+    `expected_response_lang` changes what `multilingual` compares against and
+    `target_voice` changes what the grounding and attribution suites read, so
+    both change verdicts. A reader who cannot see how much of a score rests on
+    a declaration is reading a measurement and a set of assertions added
+    together with no way to tell which is which.
+
+    Nothing is printed for a bundle that declares neither, which is what keeps
+    a report byte-identical to the one it produced before the fields existed.
+    """
+    lines: list[str] = []
+    for s in report["suites"]:
+        details = s.get("details") or {}
+        for key, field_name in DECLARATION_KEYS:
+            ids = details.get(key)
+            if not ids:
+                continue
+            lines.append(
+                f"- `{s['suite']}` scored **{len(ids)} of {s['n']}** items "
+                f"under a `{field_name}` declaration the bundle makes: "
+                f"{', '.join(ids)}. A declaration is the dataset's statement, "
+                f"not a measurement this harness made."
+            )
     if lines:
         lines.append("")
     return lines
@@ -279,6 +348,8 @@ def render_markdown(report: dict[str, Any]) -> str:
     if report.get("scope"):
         lines.extend(render_scope_markdown(report["scope"]))
     lines.extend(_unverifiable_lines(report))
+    lines.extend(_declaration_lines(report))
+    lines.extend(_contrast_source_lines(report))
     for s in report["suites"]:
         reason = (s.get("stats") or {}).get("reason")
         if reason and s["ci"] is None:

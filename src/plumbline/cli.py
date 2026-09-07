@@ -34,6 +34,12 @@ from .audit import (
     run_audit,
     verify_run_id,
 )
+from .authoring import (
+    AuthoringUsageError,
+    render_sheet,
+    suggestions_for,
+    write_question_set,
+)
 from .baseline import (
     BaselineError,
     build_baseline,
@@ -50,6 +56,7 @@ from .bundle import (
     seal as seal_bundle,
 )
 from .config import ConfigError, load_config
+from .judges import make_judge
 from .diff import diff_bundles, summarize_for_terminal as summarize_diff
 from . import history as history_mod
 from .couplings import summarize_for_terminal as summarize_couplings
@@ -114,8 +121,74 @@ def cmd_validate(args: argparse.Namespace) -> int:
         adapter = recording.get("adapter") or {}
         print(f"recorded: {recording.get('recorded_at')} from "
               f"{adapter.get('endpoint')} via the {adapter.get('kind')} adapter")
+    drafts = bundle.draft_item_ids()
+    if drafts:
+        # Reported, not refused: `validate` exists to say what is outstanding.
+        # `audit`, `gate` and `record` are the ones that refuse.
+        shown = ", ".join(drafts[:5]) + ("…" if len(drafts) > 5 else "")
+        print(f"drafts:   {len(drafts)} item(s) still marked "
+              f"review = \"draft\" ({shown}); `audit`, `gate` and `record` "
+              f"refuse this bundle until every one is written and the key "
+              f"deleted")
     _warn(bundle.unreviewed_translation_warnings())
     print("integrity: OK")
+    return EXIT_PASS
+
+
+def cmd_author(args: argparse.Namespace) -> int:
+    """Draft a question-set skeleton from a source corpus.
+
+    Writes no question and no reference answer: those are the human work this
+    lowers the cost of, not the work it does. Every item lands marked
+    `review: "draft"`, and every scoring and recording path refuses a bundle
+    that still carries one.
+    """
+    # `action="append"` with a non-empty default appends to it rather than
+    # replacing it, so the default is `None` and is resolved here: with
+    # `default=["en"]`, `--lang es` would silently draft English as well.
+    languages = args.lang if args.lang else ["en"]
+    try:
+        checksums = write_question_set(
+            sources_path=Path(args.sources), out_dir=Path(args.out),
+            languages=languages, name=args.name)
+    except AuthoringUsageError as e:
+        print(f"USAGE ERROR: {e}", file=sys.stderr)
+        return EXIT_USAGE
+    files = checksums.get("files", {})
+    print(f"drafted:  {args.out}")
+    print(f"items:    {sum(1 for _ in open(Path(args.out) / 'items.jsonl', encoding='utf-8'))} "
+          f"draft items across {', '.join(languages)}")
+    print(f"dataset:  {checksums['bundle_sha256'][:12]} "
+          f"(sha256 {checksums['bundle_sha256']})")
+    print(f"sealed:   {len(files)} files")
+    print("next:     write each item's `prompt` and `expected`, check the "
+          "prefilled `answering_sources` against the passage, delete the "
+          "`review` key, then `plumbline seal` — the hash change is the trace")
+    return EXIT_PASS
+
+
+def cmd_suggest_declarations(args: argparse.Namespace) -> int:
+    """Write a worksheet of suggested `answering_sources`, for a person.
+
+    Deterministic and offline by construction: the deterministic lexical
+    judge, never a model. Nothing is written into the bundle.
+    """
+    bundle = load_bundle_questions(Path(args.bundle))
+    judge, warnings = make_judge({"kind": "lexical"}, offline_only=True)
+    _warn(warnings)
+    rows = suggestions_for(bundle, judge)
+    sheet = render_sheet(bundle, rows)
+    out = Path(args.out)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(sheet, encoding="utf-8")
+    named = sum(1 for r in rows if r.is_declaration)
+    print(f"bundle:   {bundle.name} (dataset {bundle.dataset_id})")
+    print(f"undeclared: {len(rows)} answer item(s) with passages")
+    print(f"suggested:  {named}; the other {len(rows) - named} name a reason "
+          f"instead of a passage")
+    print(f"sheet:    {out}")
+    print("note:     a suggestion is where a person should look, not a "
+          "declaration; nothing was written into the bundle")
     return EXIT_PASS
 
 
@@ -596,6 +669,37 @@ def build_parser() -> argparse.ArgumentParser:
     p_validate = sub.add_parser("validate", help="verify bundle integrity and report item count, dataset id, warnings")
     p_validate.add_argument("bundle", help="path to an evidence bundle directory")
     p_validate.set_defaults(func=cmd_validate)
+
+    p_author = sub.add_parser(
+        "author",
+        help="draft a question-set skeleton from a source corpus: one draft "
+             "item per passage per language, prompts and reference answers "
+             "left blank for a person")
+    p_author.add_argument(
+        "--sources", required=True,
+        help="path to a sources.jsonl corpus to draft questions from")
+    p_author.add_argument(
+        "--out", required=True,
+        help="directory to write the sealed question-set skeleton into "
+             "(must not already hold anything)")
+    p_author.add_argument(
+        "--lang", action="append", default=None, metavar="TAG",
+        help="language tag to draft an item in; repeat for more. The first "
+             "given is the primary one, and every other language's item "
+             "links to it as an unreviewed translation. Default: en")
+    p_author.add_argument(
+        "--name", default="drafted-question-set",
+        help="bundle name recorded in the manifest")
+    p_author.set_defaults(func=cmd_author)
+
+    p_suggest = sub.add_parser(
+        "suggest-declarations",
+        help="write a worksheet of suggested answering_sources for the items "
+             "that declare none; writes nothing into the bundle")
+    p_suggest.add_argument("bundle", help="path to a bundle or question set")
+    p_suggest.add_argument(
+        "--out", required=True, help="path to write the Markdown worksheet to")
+    p_suggest.set_defaults(func=cmd_suggest_declarations)
 
     p_seal = sub.add_parser("seal", help="(re)generate a bundle's checksums.json")
     p_seal.add_argument("bundle", help="path to an evidence bundle directory")

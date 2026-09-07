@@ -1,5 +1,8 @@
 """Structural accessibility checks on a captured interface snapshot."""
 
+import json
+import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -8,7 +11,11 @@ from plumbline.bundle import load
 from plumbline.judges import LexicalJudge
 from plumbline.stats import KIND_CENSUS
 from plumbline.suites import FAIL, PASS, EmptyPopulationError, get as get_suite
-from plumbline.suites.accessibility import contrast_ratio, relative_luminance
+from plumbline.suites.accessibility import (
+    contrast_ratio,
+    normalise_text,
+    relative_luminance,
+)
 
 from helpers import answer_item, response, write_bundle
 
@@ -24,15 +31,20 @@ BAD_CONTRAST = """[
 
 def interface(*, lang='lang="en"', contrast=GOOD_CONTRAST, live=True,
               labelled=True, headings="<h1>Navigator</h1><h2>Ask</h2>",
-              extra="", trailing=""):
+              extra="", trailing="", computed=None):
     live_attrs = ' role="log" aria-live="polite"' if live else ""
     label = '<label for="q">Your question</label>' if labelled else ""
     contrast_block = (
         f'<script type="application/json" id="plumbline-contrast">{contrast}'
         f'</script>' if contrast is not None else ""
     )
+    computed_block = (
+        f'<script type="application/json" id="plumbline-computed-contrast">'
+        f'{computed}</script>' if computed is not None else ""
+    )
     return f"""<html {lang}>
-<head><meta charset="utf-8"><title>Navigator</title>{contrast_block}</head>
+<head><meta charset="utf-8"><title>Navigator</title>{contrast_block}\
+{computed_block}</head>
 <body>
 {headings}
 <div id="transcript"{live_attrs}></div>
@@ -46,6 +58,30 @@ def interface(*, lang='lang="en"', contrast=GOOD_CONTRAST, live=True,
 </body>
 </html>
 """
+
+
+#: The text runs `interface()` renders, in document order, as the suite
+#: normalises them. A computed block has to account for every one of them.
+DEFAULT_RUNS = ("Navigator", "Ask", "Your question")
+
+
+def computed_block(runs=DEFAULT_RUNS, *, foreground="#1a1c1e",
+                   background="#ffffff", source="computed", skipped=(),
+                   extra_pairs=()):
+    """A capture block covering `runs`, all at a passing colour by default."""
+    pairs = [
+        {"name": f"run-{i}", "text": text, "foreground": foreground,
+         "background": background, "size": "normal"}
+        for i, text in enumerate(runs)
+    ]
+    pairs.extend(extra_pairs)
+    return json.dumps({
+        "source": source,
+        "tool": "playwright/chromium 131.0.0",
+        "url": "https://example.invalid/assistant",
+        "pairs": pairs,
+        "skipped": list(skipped),
+    })
 
 
 class ColorMathTests(unittest.TestCase):
@@ -217,6 +253,161 @@ class AccessibilitySuiteTests(unittest.TestCase):
         result = self._evaluate(interface(contrast="{not json"))
         self.assertIn("contrast_declarations", result.details["failed_checks"])
 
+    # --- computed pairs -----------------------------------------------------
+    #
+    # The declared block is a list the page writes about itself, so it can be
+    # complete about its passing pairs and silent about the rest. These tests
+    # are about the source that cannot be silent: a capture is checked against
+    # the markup it sits in.
+
+    def test_the_declared_path_says_so_and_carries_its_caveat(self):
+        result = self._evaluate(interface())
+        record = self._detail(result, "contrast_declarations")
+        self.assertEqual(record["contrast_source"], "declared")
+        self.assertIn("a pair that fails can be left out", record["caveat"])
+        self.assertIn("self-declared pairs", record["detail"])
+        self.assertEqual(result.details["contrast_source"], "declared")
+
+    def test_a_complete_capture_passes_and_names_its_source(self):
+        result = self._evaluate(interface(computed=computed_block()))
+        record = self._detail(result, "contrast_declarations")
+        self.assertEqual(record["score"], 1.0)
+        self.assertEqual(record["contrast_source"], "computed")
+        self.assertNotIn("caveat", record)
+        self.assertEqual(result.details["contrast_source"], "computed")
+        self.assertIn("every text run in the snapshot accounted for",
+                      record["detail"])
+
+    def test_the_capture_finds_the_failing_pair_the_declaration_left_out(self):
+        """#70's fixture: the same page passes declared and fails captured.
+
+        The declared block lists only the colours that pass. The capture has to
+        account for every text run in the markup, so the hint text it left out
+        arrives with its real colour and its real ratio.
+        """
+        page = interface(
+            trailing='<p id="hint">Answers may take a moment.</p>',
+            computed=computed_block(
+                runs=("Navigator", "Ask", "Your question"),
+                extra_pairs=[{
+                    "name": "p#hint", "text": "Answers may take a moment.",
+                    "foreground": "#b9c2cc", "background": "#ffffff",
+                    "size": "normal",
+                }],
+            ),
+        )
+        declared_only = interface(
+            trailing='<p id="hint">Answers may take a moment.</p>')
+
+        passed_declared = self._evaluate(declared_only)
+        self.assertNotIn("contrast_declarations",
+                         passed_declared.details["failed_checks"])
+        self.assertIn("self-declared pairs",
+                      self._detail(passed_declared,
+                                   "contrast_declarations")["detail"])
+
+        failed_computed = self._evaluate(page)
+        detail = self._detail(failed_computed, "contrast_declarations")["detail"]
+        self.assertIn("contrast_declarations",
+                      failed_computed.details["failed_checks"])
+        self.assertIn("p#hint", detail)
+        self.assertIn("needs 4.5:1", detail)
+
+    def test_a_capture_missing_a_text_run_fails_and_names_it(self):
+        """Omission is the whole threat, and omission is what this sees.
+
+        Removing the pair for text the markup still contains leaves that text
+        unaccounted for, which is exactly the shape a pair deleted for failing
+        would take.
+        """
+        result = self._evaluate(interface(
+            computed=computed_block(runs=("Navigator", "Ask"))))
+        detail = self._detail(result, "contrast_declarations")["detail"]
+        self.assertIn("contrast_declarations", result.details["failed_checks"])
+        self.assertIn("does not account for", detail)
+        self.assertIn("Your question", detail)
+
+    def test_a_repeated_text_run_needs_a_pair_each_time(self):
+        """A multiset, not a set: the same sentence twice in two colours.
+
+        With a set comparison the second, failing occurrence could be dropped
+        and the first would cover for it.
+        """
+        result = self._evaluate(interface(
+            trailing="<p>Ask</p>", computed=computed_block()))
+        detail = self._detail(result, "contrast_declarations")["detail"]
+        self.assertIn("does not account for", detail)
+
+    def test_an_empty_capture_is_a_failure_not_a_clean_page(self):
+        """A capture that recorded nothing is not a capture that found nothing.
+
+        This is the failed-capture case: the tool crashed or matched no nodes,
+        and an empty `pairs` list reading as "computed, all pass" would turn a
+        broken tool into the best possible score.
+        """
+        result = self._evaluate(interface(computed=computed_block(runs=())))
+        detail = self._detail(result, "contrast_declarations")["detail"]
+        self.assertIn("contrast_declarations", result.details["failed_checks"])
+        self.assertIn("recorded nothing", detail)
+
+    def test_the_computed_marker_is_not_taken_at_its_word(self):
+        result = self._evaluate(interface(
+            computed=computed_block(source="hand-written")))
+        detail = self._detail(result, "contrast_declarations")["detail"]
+        self.assertIn("contrast_declarations", result.details["failed_checks"])
+        self.assertIn("hand-written", detail)
+
+    def test_a_pair_with_no_text_cannot_be_matched_and_fails(self):
+        block = json.dumps({
+            "source": "computed", "pairs": [
+                {"name": "body", "foreground": "#000", "background": "#fff"}],
+        })
+        result = self._evaluate(interface(computed=block))
+        self.assertIn("carries no `text`",
+                      self._detail(result, "contrast_declarations")["detail"])
+
+    def test_a_skipped_node_needs_a_stated_reason(self):
+        """A node dropped without a reason is a node left out.
+
+        The renderer legitimately paints nothing for `display:none`, so a
+        capture may skip it -- but not silently, or `skipped` becomes the
+        place a failing pair goes to disappear.
+        """
+        result = self._evaluate(interface(computed=computed_block(
+            runs=("Navigator", "Ask"),
+            skipped=[{"text": "Your question", "reason": ""}])))
+        self.assertIn("non-empty `reason`",
+                      self._detail(result, "contrast_declarations")["detail"])
+
+    def test_a_skipped_node_with_a_reason_is_accounted_for(self):
+        result = self._evaluate(interface(computed=computed_block(
+            runs=("Navigator", "Ask"),
+            skipped=[{"text": "Your question", "reason": "display:none"}])))
+        record = self._detail(result, "contrast_declarations")
+        self.assertEqual(record["score"], 1.0)
+        self.assertIn("1 not painted by the renderer", record["detail"])
+
+    def test_an_unusable_capture_does_not_fall_back_to_the_declaration(self):
+        """A broken capture must not score the same as a good one.
+
+        Falling back would mean the way to make a failing capture pass is to
+        break it, and the report would say `declared` while a `computed` block
+        sat in the file.
+        """
+        result = self._evaluate(interface(contrast=GOOD_CONTRAST,
+                                          computed="{not json"))
+        record = self._detail(result, "contrast_declarations")
+        self.assertEqual(record["score"], 0.0)
+        self.assertEqual(record["contrast_source"], "computed")
+        self.assertIn("not valid JSON", record["detail"])
+
+    def test_a_capture_needs_no_declaration_block(self):
+        result = self._evaluate(interface(contrast=None,
+                                          computed=computed_block()))
+        self.assertEqual(
+            self._detail(result, "contrast_declarations")["score"], 1.0)
+
+
     def test_statistics_are_refused_because_this_is_a_census(self):
         result = self._evaluate(interface())
         self.assertEqual(result.score_kind, KIND_CENSUS)
@@ -228,6 +419,75 @@ class AccessibilitySuiteTests(unittest.TestCase):
         ))
         with self.assertRaises(EmptyPopulationError):
             get_suite("accessibility").evaluate(bundle, self.judge, 1.0)
+
+
+class TheCaptureToolIsOutsideTheGate(unittest.TestCase):
+    """`plumbline gate` must not depend on a browser to run.
+
+    The capture is an input, like a recording. If any module under
+    `plumbline.` reached `playwright`, running the gate on a machine with no
+    browser would stop working, and the offline stdlib-only promise the whole
+    project rests on would have quietly acquired a 300MB dependency.
+    """
+
+    def test_no_plumbline_module_imports_playwright(self):
+        script = (
+            "import sys, pkgutil, importlib\n"
+            "import plumbline\n"
+            # `plumbline.__main__` parses argv at import time, so importing it
+            # here would run the CLI rather than load a module.
+            "for m in pkgutil.walk_packages(plumbline.__path__, 'plumbline.'):\n"
+            "    if m.name.endswith('.__main__'):\n"
+            "        continue\n"
+            "    importlib.import_module(m.name)\n"
+            "hits = [n for n in sys.modules if n.split('.')[0] == 'playwright']\n"
+            "print('|'.join(hits))\n"
+        )
+        out = subprocess.run(
+            [sys.executable, "-c", script],
+            capture_output=True, text=True,
+            env={"PYTHONPATH": str(Path(__file__).resolve().parent.parent / "src"),
+                 "PATH": "/usr/bin:/bin"},
+            check=True,
+        )
+        self.assertEqual(out.stdout.strip(), "", "a plumbline module imported playwright")
+
+    def test_the_capture_tool_does_not_import_playwright_at_module_scope(self):
+        source = (Path(__file__).resolve().parent.parent
+                  / "tools" / "capture_interface.py").read_text(encoding="utf-8")
+        for line in source.splitlines():
+            if line.startswith(("import ", "from ")):
+                self.assertNotIn("playwright", line,
+                                 "playwright is imported at module scope, so "
+                                 "`--help` would need a browser installed")
+
+    def test_the_capture_normalises_text_the_way_the_suite_does(self):
+        """Both sides of the completeness check must agree on whitespace.
+
+        They are written in different languages, so nothing but a test holds
+        them together; if they drift, every honest capture reads as incomplete
+        and the check gets switched off for being wrong.
+        """
+        source = (Path(__file__).resolve().parent.parent
+                  / "tools" / "capture_interface.py").read_text(encoding="utf-8")
+        self.assertIn('s.split(/\\s+/).filter(Boolean).join(" ")', source)
+        for raw in ("  Ask   a\n question ", "Ask a question", "\tAsk a question\n"):
+            self.assertEqual(normalise_text(raw), " ".join(raw.split()))
+
+    def test_the_block_a_recapture_writes_replaces_the_previous_one(self):
+        from importlib.util import module_from_spec, spec_from_file_location
+        path = (Path(__file__).resolve().parent.parent
+                / "tools" / "capture_interface.py")
+        spec = spec_from_file_location("capture_interface", path)
+        module = module_from_spec(spec)
+        spec.loader.exec_module(module)
+        first = module.insert_block(
+            "<html><head><title>x</title></head><body>a</body></html>",
+            module.render_block({"pairs": [], "skipped": []}, "u", "t"))
+        second = module.insert_block(
+            first, module.render_block({"pairs": [], "skipped": []}, "u2", "t"))
+        self.assertEqual(second.count("plumbline-computed-contrast"), 1)
+        self.assertIn('"url": "u2"', second)
 
 
 if __name__ == "__main__":

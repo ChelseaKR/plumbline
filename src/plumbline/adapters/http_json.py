@@ -26,8 +26,29 @@ trace_id = "{item_id}"
 Bounds live in `network.py`. The two bounds that belong here are the ones
 about the *set* rather than the call: a minimum interval between requests, so
 recording does not behave like a load test against a public service, and a
-ceiling on how many items may be sent at all, so pointing the recorder at the
-wrong question set costs one legible refusal instead of ten thousand requests.
+ceiling on how many requests may be sent at all, so pointing the recorder at
+the wrong question set costs one legible refusal instead of ten thousand
+requests. Both count *turns*, not items — a three-turn item is three requests,
+and a ceiling that could not see that would not be a ceiling.
+
+Multi-turn items need one more table, because how a follow-up turn reaches a
+target cannot be guessed from an endpoint:
+
+```toml
+[adapter.conversation]
+mode = "history"                 # send the conversation so far in the body
+history_pointer = "messages"     # ...at this dotted path in [adapter.body]
+# role_key/content_key/user_role/assistant_role declare the envelope; the
+# defaults are the shape most chat APIs use.
+
+# or:
+mode = "session"                     # the target hands out a conversation id
+session_pointer = "session.id"       # ...read from the first turn's response
+session_body_pointer = "session_id"  # ...and sent back at this body path
+```
+
+Without it, a question set containing a multi-turn item is refused rather than
+recorded one turn deep. See `conversation.py`.
 """
 
 from __future__ import annotations
@@ -40,6 +61,7 @@ from .. import network
 from ..bundle import Item
 from ..errors import OutboundError
 from . import AdapterError
+from . import conversation as conversation_mod
 
 MAX_MIN_INTERVAL_SECONDS = 60.0
 DEFAULT_MAX_ITEMS = 250
@@ -56,7 +78,12 @@ KNOWN_KEYS = frozenset({
     "kind", "questions", "endpoint", "method", "headers", "body",
     "response_pointer", "timeout_seconds", "max_response_bytes", "retries",
     "retry_delay_seconds", "min_interval_seconds", "max_items", "on_error",
+    "conversation",
 })
+
+#: How this adapter can carry follow-up turns. `lines` belongs to the
+#: subprocess adapter: there is no stdin on a socket.
+CONVERSATION_MODES = (conversation_mod.MODE_HISTORY, conversation_mod.MODE_SESSION)
 
 
 class HttpJsonAdapter:
@@ -64,13 +91,16 @@ class HttpJsonAdapter:
 
     def __init__(self, *, shape: network.CallShape, headers: dict[str, str],
                  min_interval_seconds: float, max_items: int,
-                 on_error: str, sleep: Callable[[float], None] = time.sleep,
+                 on_error: str,
+                 conversation: conversation_mod.ConversationConfig | None = None,
+                 sleep: Callable[[float], None] = time.sleep,
                  clock: Callable[[], float] = time.monotonic) -> None:
         self._shape = shape
         self._headers = headers
         self._min_interval = min_interval_seconds
         self.max_items = max_items
         self.on_error = on_error
+        self.conversation = conversation
         self._sleep = sleep
         self._clock = clock
         self._last_call: float | None = None
@@ -154,20 +184,40 @@ class HttpJsonAdapter:
                 "answer, which the smoke suite then fails on)"
             )
 
+        conversation = None
+        if "conversation" in cfg:
+            conversation = conversation_mod.parse(
+                cfg["conversation"], allowed_modes=CONVERSATION_MODES,
+                where=cls.kind)
+            # A pointer that collides with a key the body template already
+            # declares would have the recorder overwrite what the operator
+            # wrote, on later turns only — the request would differ from the
+            # committed template in a way no manifest reading shows.
+            head = (conversation.history_pointer
+                    or conversation.session_body_pointer).split(".")[0]
+            if head in body:
+                raise AdapterError(
+                    f"[adapter.conversation] writes to {head!r}, which "
+                    f"[adapter.body] already declares. Later turns would "
+                    f"overwrite what you wrote there and earlier turns would "
+                    f"not; pick a key the body does not use."
+                )
+
         shape = network.CallShape(
             url=url, method=method, header_names=tuple(headers),
             body_template=body, response_pointer=pointer, bounds=bounds,
         )
         return cls(shape=shape, headers=headers,
                    min_interval_seconds=float(min_interval),
-                   max_items=max_items, on_error=on_error), warnings
+                   max_items=max_items, on_error=on_error,
+                   conversation=conversation), warnings
 
     # --- provenance ---------------------------------------------------------
 
     def describe(self) -> dict[str, Any]:
         """What goes into the recorded bundle's manifest. Header names, never
         header values; endpoint without query string or credentials."""
-        return {
+        described = {
             "kind": self.kind,
             "endpoint": network.public_endpoint(self._shape.url),
             "request_sha256": self._shape.digest(),
@@ -175,28 +225,97 @@ class HttpJsonAdapter:
             "min_interval_seconds": self._min_interval,
             "on_error": self.on_error,
         }
+        if self.conversation is not None:
+            described["conversation"] = self.conversation.describe()
+        return described
 
     # --- recording ----------------------------------------------------------
 
     def respond(self, item: Item) -> str:
+        answer, _ = self._ask(item, item.prompt, extra=None, turn=1)
+        return answer
+
+    def converse(self, item: Item) -> list[str]:
+        """Ask every turn in order, carrying history the declared way.
+
+        Each turn is a separate request and each pays the minimum interval, so
+        a three-turn item is throttled like three items rather than like one:
+        the bound exists to be kind to somebody's service, and the service
+        counts requests, not conversations.
+        """
+        if self.conversation is None:  # pragma: no cover - recording.py refuses first
+            raise AdapterError(
+                f"item '{item.id}' declares turns but this adapter has no "
+                f"[adapter.conversation] table"
+            )
+        conv = self.conversation
+        asked: list[str] = []
+        answers: list[str] = []
+        session: object = None
+        for index, text in enumerate([item.prompt, *item.turns], start=1):
+            extra: tuple[str, object] | None = None
+            if conv.mode == conversation_mod.MODE_HISTORY:
+                extra = (conv.history_pointer,
+                         conv.history_entries(asked, answers))
+            elif index > 1:
+                # `session`: the first turn carries no id because the target
+                # has not issued one yet. It is read from turn one's response
+                # below and refused if it never appears, rather than sending
+                # `null` and letting the target start a fresh conversation
+                # per turn — which would look exactly like a passing recording.
+                extra = (conv.session_body_pointer, session)
+            answer, payload = self._ask(item, text, extra=extra, turn=index)
+            asked.append(text)
+            answers.append(answer)
+            if conv.mode == conversation_mod.MODE_SESSION and index == 1:
+                session = self._session_id(item, payload, conv.session_pointer)
+        return answers
+
+    @staticmethod
+    def _session_id(item: Item, payload: object, pointer: str) -> object:
+        try:
+            value = network.resolve_pointer(payload, pointer)
+        except OutboundError as e:
+            raise AdapterError(
+                f"item '{item.id}': turn 1 answered, but there is no session "
+                f"id at '{pointer}' ({e}). Every later turn would open a new "
+                f"conversation, and a recording of several first turns is not "
+                f"a recording of a conversation."
+            ) from e
+        if not isinstance(value, (str, int)) or isinstance(value, bool):
+            raise AdapterError(
+                f"item '{item.id}': the session id at '{pointer}' is "
+                f"{type(value).__name__}, not a string or number"
+            )
+        return value
+
+    def _ask(self, item: Item, prompt: str, *, extra: tuple[str, object] | None,
+             turn: int) -> tuple[str, object]:
         self._throttle()
         body = network.fill_template(self._shape.body_template, {
-            "prompt": item.prompt,
+            "prompt": prompt,
             "lang": item.lang,
             "item_id": item.id,
         })
+        if extra is not None:
+            pointer, value = extra
+            if not isinstance(body, dict):  # pragma: no cover - body is a table
+                raise AdapterError("[adapter.body] must be a table")
+            body = network.set_pointer(body, pointer, value)
+        where = f"item '{item.id}'" if turn == 1 and extra is None \
+            else f"item '{item.id}' turn {turn}"
         try:
             payload = network.call_json(self._shape, self._headers, body)
             answer = network.resolve_pointer(payload, self._shape.response_pointer)
         except OutboundError as e:
-            raise AdapterError(f"item '{item.id}': {e}") from e
+            raise AdapterError(f"{where}: {e}") from e
         if not isinstance(answer, str):
             raise AdapterError(
-                f"item '{item.id}': the value at "
+                f"{where}: the value at "
                 f"'{self._shape.response_pointer}' is "
                 f"{type(answer).__name__}, not the answer text"
             )
-        return answer
+        return answer, payload
 
     def _throttle(self) -> None:
         if not self._min_interval:

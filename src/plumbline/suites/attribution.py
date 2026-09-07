@@ -60,6 +60,7 @@ from . import (
     UNVERIFIABLE,
     Suite,
     SuiteResult,
+    readable,
     register,
     unreadable_reason,
     unverifiable_block,
@@ -125,14 +126,28 @@ class PassageAttributionSuite(Suite):
         hard_failures: list[str] = []
         not_retrieved: list[str] = []
 
+        declaring: list[str] = []
         for item in declared:
-            response = bundle.response_for(item.id) or ""
+            # Read through `answer_text_for`, so both sides of the margin see
+            # the same text and the target's own notice is on neither. The
+            # suite's whole design is that the judge's quirks cancel across the
+            # two comparisons; a notice removed from one side and not the other
+            # would break exactly that.
+            response = bundle.answer_text_for(item)
+            if item.target_voice:
+                declaring.append(item.id)
             # An unreadable response is accounted for equally badly by every
             # passage, so both sides of the comparison come out at the support
             # measure's vacuous 1.0 and the margin is zero. That would be
             # reported as `indistinguishable`, which reads as "two plausible
             # passages" when the truth is "no answer". Name it for what it is.
+            #
+            # A response that is nothing but the declared notice is the same
+            # situation reached another way, and it reads the same to this
+            # instrument, so it is named the same rather than scored.
             unreadable = unreadable_reason(bundle, item)
+            if unreadable is None and item.target_voice and not readable(response):
+                unreadable = UNREADABLE
             if unreadable is not None:
                 reasons[unreadable].append(item.id)
                 records.append({
@@ -157,6 +172,8 @@ class PassageAttributionSuite(Suite):
                 "answering_support": round(support, 4),
                 "cited": cited,
             }
+            if item.target_voice:
+                record["target_voice_excluded"] = list(item.target_voice)
             missing = [s for s in item.answering_sources if s not in item.sources]
             if missing:
                 not_retrieved.append(item.id)
@@ -252,6 +269,16 @@ class PassageAttributionSuite(Suite):
                 "misattributed_items": sorted(misattributed),
                 "answering_passage_not_available": sorted(not_retrieved),
                 "load_bearing_failures": sorted(hard_failures),
+                **({} if not declaring else {
+                    "items_declaring_target_voice": declaring,
+                    "target_voice_note": (
+                        "the strings these items declare as the target's own "
+                        "voice were removed from the response before either "
+                        "side of the margin was measured, so a notice cannot "
+                        "account for a passage and cannot tilt the comparison "
+                        "it appears in"
+                    ),
+                }),
                 "severity_rule": (
                     "a load-bearing item composed from a passage that does not "
                     "answer the question fails this suite regardless of the "

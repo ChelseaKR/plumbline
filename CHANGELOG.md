@@ -434,6 +434,187 @@ may break the interface.
   `not qualifiable`, never `inside noise` -- the latter claims the difference is
   smaller than the sample can detect, which a suite that computed no MDE has not
   said.
+- **`docs/negative-controls.md`: the procedure behind `proof/matrix.md`, written
+  so another project can adopt it.** The matrix has always demonstrated that
+  every suite can fail; nothing here described how to establish that for a check
+  in general, or what goes wrong when you try. The page sets out the git-object
+  procedure -- commit, baseline the file with `git hash-object`, sabotage, prove
+  the hash moved, run, clear `__pycache__`, restore, assert the hash matches --
+  and then the six distinct ways a negative control has lied here anyway: a
+  substitution that silently did not apply, a branch unreachable from the
+  fixture, an earlier branch returning first, a fixture sitting where the
+  failure is impossible, a stale `.pyc` executing after the source was restored,
+  and two runs sharing one interpreter. Each is tied to real code: this
+  repository's `edit_response`, which raises rather than no-opping; `swelter`'s
+  `verdict_for`, extracted so its did-not-run branch is reachable at all;
+  `sprout`'s cross-process determinism test, whose docstring records the two
+  fixtures that were not enough. The TruffleHog tier measurement in it was
+  re-run on 2026-09-07 against 3.97.1 rather than quoted, including the half
+  that matters: a vendor's documented example credential is reported under no
+  tier, so planting one gives a control that cannot fire and a run that reads as
+  a pass.
+
+- **`plumbline record` can record a conversation, and refuses to pretend it
+  did.** ADR 0003 made `turns` and `turn_responses` additive to the bundle
+  format and `conversational_integrity` grades them turn by turn, but `record`
+  did not know the fields existed: it asked one prompt per item, so the only
+  multi-turn evidence the suite could grade was evidence produced by other
+  means.
+
+  The missing piece was never the loop. There is no universal way to send a
+  second turn — one service wants the history back in the body, another hands
+  out a session id, a local program reads a line at a time — so
+  `[adapter.conversation]` declares it. `http_json` implements `mode =
+  "history"` (the exchange so far written at a declared body pointer, in a
+  fully declarable message envelope) and `mode = "session"` (an id read from
+  the first response and sent back at a declared body pointer);
+  `subprocess` implements `mode = "lines"`, one stdin line per turn into one
+  process and one answer line back per turn, which needed no change to the
+  bounded run: the existing timeout, output ceiling and reader threads cover a
+  whole conversation as they covered one call.
+
+  **A multi-turn item and no `[adapter.conversation]` is now a configuration
+  error, refused before the first request, rather than a single-turn
+  fallback.** That fallback is this project's own dominant failure shape
+  arriving through its own recorder: the opener's answer filed under an item
+  declaring three turns produces a bundle whose `conversational_integrity`
+  result is entirely UNVERIFIABLE — a suite reporting it could not see
+  anything, about a recording that could have seen everything, with nothing
+  saying the recorder simply never asked.
+
+  Two smaller corrections came with it. `max_items` counts turns rather than
+  items, because turns are what gets sent and an item count silently understates
+  every set containing a conversation — the demo's 178 items are 186 requests.
+  And the recorded manifest carries `questions.turns` and
+  `conversations_recorded` beside the item count, plus the conversation
+  envelope in `adapter`, so a reader can tell how turn two was actually
+  carried.
+
+  The fixture targets gained `--comply-late`, which gives way on turn 2 and
+  refuses again on the last turn. Measured end to end against the demo question
+  set: `adversarial` scores 1.0000 and PASSES, because it reads only the final
+  response; `conversational_integrity` scores 0.0000 and FAILS. That gap is the
+  suite's whole reason for existing, and until now nothing in the repository
+  could produce a live recording that demonstrated it.
+
+- **Two opt-in item declarations, so a correct behaviour and a wrong one stop
+  being the same number** (#71, [ADR 0005](docs/adr/0005-item-declarations-that-move-a-score-carry-their-reason.md)).
+  Both came from a consumer, and both had the same shape: the harness had no
+  way to tell which of two opposite things it was looking at, so their evidence
+  set could not grow past one such item without the gate going red.
+
+  - `expected_response_lang`, an object carrying `lang` and a required
+    `reason`. A consumer's corpus for one jurisdiction is English-only, and
+    their product answers an Arabic question by quoting the English passage
+    under an Arabic notice saying so. `multilingual` scored that `0.0000` --
+    identically to a system that ignored the question's language outright. The
+    suite now scores against the declaration when there is one. It still has to
+    be answered in: a declaration moves the target, it does not remove it, and
+    an item declaring English and answered in Spanish still fails.
+  - `target_voice`, a list of literal strings the target emits in its own voice
+    -- a disclosure notice, a translation banner. A lexical support metric
+    marks a notice unsupported, so a correct disclosure scored as a
+    fabrication. `groundedness`, `citation_accuracy` and `passage_attribution`
+    read the response with the declared strings removed.
+
+  **`target_voice` exempts text from the measures and from nothing else.**
+  `privacy`, `representational_harms` and `adversarial` keep reading every
+  response whole. A notice is the target speaking, and a target that leaks or
+  complies with an injection in its own voice has still leaked and complied. A
+  declaration that could hide that would be a way to buy a pass by declaring
+  the sentence that fails. `proof/matrix.md` gains a case that plants exactly
+  that -- a probe extracts the system prompt and the bundle declares the leaked
+  sentence as a notice -- and all three suites still fail.
+
+  Three traps, each closed with a test that fails without the fix. A response
+  that is *nothing but* a declared notice measures as an empty string, and
+  support for an empty string is arithmetically total, so it is reported
+  claim-free rather than scored a perfect `1.00`. A number appearing only
+  inside a notice is no longer read as the answer stating a figure its sources
+  lack, which is this harness's name for fabrication. And an attribution item
+  that is only a notice is named `unreadable` rather than reported
+  `indistinguishable`, which would read as "two plausible passages" when the
+  truth is that there is no answer.
+
+  Both declarations are published. Each suite that reads one names the items
+  that made it, the item record carries the stated reason, and the report
+  prints how many of a suite's items were scored under a declaration. A reader
+  who cannot separate the measured part of a score from the declared part is
+  reading two things added together.
+
+  A bundle declaring neither is unaffected, and that is checked rather than
+  asserted: regenerating the 178-item demo audit moved no score, no floor, no
+  verdict, no `n` and no interval. `FORMAT_VERSION` does not move. The
+  `notice` response field the proposal offered as a second source for the same
+  exclusion is deliberately not built: nothing that records a response can
+  populate it today, so it would be a field nobody can fill.
+
+- Two defect-matrix cases, `declared-language-not-answered` and
+  `target-voice-declared-over-a-leak`, bringing the matrix to 23. The first
+  plants a declaration and leaves the answers alone, so what fails is the
+  declaration and nothing else; the second is the leak case with the leak
+  declared as a notice, and its couplings are the same three suites as before.
+
+- **`plumbline author` and `plumbline suggest-declarations`, for the two jobs
+  the harness will not do for you.** Writing questions and deciding which
+  passage answers each one are human work, and this repository is explicit
+  that a lexical judge cannot read a question. Both commands lower the cost of
+  that work without moving any of it inside the instrument.
+
+  `plumbline author --sources sources.jsonl --lang en --lang es --out
+  questions/` drafts a **sealed question set**: one item per passage per
+  language, `prompt` and `expected` blank for a person, the passage it was
+  drafted from prefilled as `answering_sources`, a `fact_id` shared by every
+  language drafted from that passage, a `translation` link back to the primary
+  language (marked `unreviewed`, so the existing warning fires until somebody
+  translates it), and `review: "draft"`. Identical inputs give byte-identical
+  output; the manifest carries a fixed `version` rather than a timestamp,
+  because a drafting run that produced a new bundle hash each time would be
+  useless to diff.
+
+  `review: "draft"` is a safety catch rather than a label, and it comes in a
+  pair. A draft item is exempt from the rule that an answer item carries a
+  non-blank `expected` and from the new rule that any item carries a non-blank
+  `prompt` -- and `audit`, `gate` and `record` now **refuse** any bundle that
+  still holds one, naming the item ids. The exemption therefore exists only in
+  a state that cannot be scored and cannot be recorded against. Without the
+  second half it would be the defect this project catalogues everywhere else:
+  a blank reference answer scored as though it were content makes an empty
+  response look like a perfect match, and a blank prompt sent to a live target
+  files whatever comes back as the answer to a question nobody asked.
+  `validate` reports drafts instead of refusing them, because saying what is
+  outstanding is why a person runs it. A `review` value that is not `"draft"`
+  is a bundle error, not a value quietly ignored: `review: "drfat"` would
+  otherwise leave the item graded with a typo standing where the catch was.
+
+  A blank `prompt` is now a bundle error for any non-draft item. Nothing
+  committed here had one; it is the rule the draft exemption is carved out of,
+  and without it a cleared draft could still ask a live target nothing.
+
+  `plumbline suggest-declarations BUNDLE --out sheet.md` writes a Markdown
+  worksheet of suggested `answering_sources` for the items that declare none,
+  and writes **nothing into the bundle**. Each row is ranked from the item's
+  *reference answer* by the deterministic lexical judge -- the same inference
+  `passage_attribution` already computes and already refuses to score. Two
+  properties it is built around: every undeclared item gets a row, so the
+  sheet cannot report a suggestion rate over whatever it happened to be able
+  to rank; and a row that compared nothing says so in words, its margin
+  reading `not computed` rather than `0.0000`, because a zero margin means two
+  passages tied and a row with one candidate has not measured a tie. A
+  comparison inside the decision margin is `undetermined`, never a passage id.
+  On the bundled demo it reproduces the coverage line the report already
+  publishes: 108 answer items with passages, 48 declaring, 60 for review.
+
+  Twenty-six tests, and ten negative controls run against literals rather than
+  named constants -- each applied to the file, asserted present on disk with
+  the original text gone, the named tests required to go red, then restored
+  from a byte copy and required to go green again. The controls cover both
+  halves of the pairing (the refusal stops refusing; each exemption stops
+  exempting), the margin-of-zero coercion, a suggestion named inside the
+  margin, unrankable items dropped instead of listed, a non-deterministic
+  manifest, an accepted empty corpus, and the `--lang` default appending to
+  English instead of replacing it.
+
 - **A history secret scan that can fail on a leak that has already been revoked.**
   `security.yml` scanned the whole history with TruffleHog under `--only-verified`,
   which reports a finding only when it asks the service and the service says the

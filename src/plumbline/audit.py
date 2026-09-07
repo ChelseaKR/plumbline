@@ -293,6 +293,11 @@ def run_audit(config: TargetConfig, *, seed: int = DEFAULT_SEED, out_dir: Path,
     # 2. Integrity, then parse. bundle.load verifies checksums before parsing;
     #    IntegrityError propagates to the CLI as exit 3, nothing scored.
     bundle = bundle_mod.load(config.dataset_path)
+    # An unfinished question set is not evidence. A draft item's prompt and
+    # reference answer are blank, and a blank reference answer makes an empty
+    # response look like a perfect match, so this refuses before any suite
+    # sees the bundle rather than scoring around it.
+    bundle_mod.refuse_drafts(bundle, "scored")
 
     # 3. Warnings: visible on every run, never fatal, never suppressed. A
     #    model judge's notice rides the same channel, so a reader who only

@@ -150,7 +150,7 @@ minimum detectable effect, baseline regression comparison, a pinned
 fail-closed CI gate, live-target recording over HTTP or against a local
 program, and an optional model judge — none of which the gate can reach. Every
 suite has been **observed failing** on a defect it exists to catch; see
-[`proof/matrix.md`](proof/matrix.md). 761 tests, standard library only,
+[`proof/matrix.md`](proof/matrix.md). 865 tests, standard library only,
 offline.
 
 The fourteenth and fifteenth suites are beyond the specification. The
@@ -466,6 +466,21 @@ same as objecting to one.
   every other suite reads — floor 0.90, see
   [ADR 0003](docs/adr/0003-multi-turn-items-are-additive-not-a-new-bundle-format.md)).
   Floors are per-target configuration; these are demonstration defaults.
+- Two opt-in item declarations, for the cases where a correct behaviour and a
+  wrong one were otherwise the same number
+  ([ADR 0005](docs/adr/0005-item-declarations-that-move-a-score-carry-their-reason.md)).
+  `expected_response_lang`, with a required `reason`, says an answer was meant
+  to come back in a language other than the one the question was written in, and
+  `multilingual` scores against that instead of guessing which of the two it is
+  looking at. `target_voice` names literal strings the target emits in its own
+  voice, and the three suites that ask what the sources support read the
+  response without them, so a correct disclosure stops scoring as a
+  fabrication. Both are published: the reason, the item ids, and a report line
+  saying how many of a suite's items were scored under one.
+  **`target_voice` exempts text from those measures and from nothing else** --
+  `privacy`, `representational_harms` and `adversarial` read every response
+  whole, and `proof/matrix.md` carries the case that plants a leak and declares
+  it a notice.
 - Enabling a suite the bundle cannot exercise is a configuration error, not a
   vacuous pass.
 - Reports: `report.json` + `report.md`, verdict first, full provenance block,
@@ -556,6 +571,62 @@ is wrong.
 `proof/matrix.md` carries three cases for it, including one that plants the
 defect with the declaration removed and expects **everything to pass** — the
 honest limit of the instrument, executable.
+
+## Drafting a question set, and reviewing its declarations
+
+Both of the things above are human work: somebody writes the questions, and
+somebody decides which passage answers each one. Neither is work this harness
+will do for you — a generated prompt graded against a generated expectation is
+an instrument measuring itself. Two commands lower the cost of doing it
+without moving any of it inside.
+
+```sh
+# One draft item per passage per language, from a source corpus.
+PYTHONPATH=src python3 -m plumbline author \
+  --sources sources.jsonl --lang en --lang es --out questions/
+
+# A worksheet of suggested `answering_sources`, for the items that declare none.
+PYTHONPATH=src python3 -m plumbline suggest-declarations \
+  datasets/riverbend-demo --out sheet.md
+```
+
+`author` writes a **sealed question set** whose every item has a blank
+`prompt`, a blank `expected`, the passage it was drafted from prefilled as
+`answering_sources`, a `fact_id` shared by every language drafted from that
+passage, a `translation` link back to the primary language, and
+`review: "draft"`. Identical inputs produce byte-identical output; there is no
+timestamp in the manifest.
+
+**`review: "draft"` is a safety catch, not a label.** A draft is exempt from
+the two rules that a `prompt` and an answer item's `expected` may not be
+blank — being unwritten is what a draft is — and `audit`, `gate` and `record`
+**refuse outright** any bundle that still contains one, naming the items. So
+the exemption exists only in a state that cannot be scored and cannot be
+recorded against. That pairing is the whole design: a blank reference answer
+that reached scoring would make an empty response look like a perfect match,
+and a blank prompt that reached `record` would ask the live target nothing and
+file the silence as an answer. `validate` is the one command that reports
+drafts instead of refusing them, because saying what is still outstanding is
+why a person runs it.
+
+Finishing a draft means writing the two fields, checking the prefilled
+declaration against the passage, **deleting** the `review` key, and re-sealing.
+Any other value in that key is a bundle error rather than a value that is
+quietly ignored: `review: "drfat"` would otherwise leave the item graded with
+a typo standing where the catch was meant.
+
+`suggest-declarations` writes a Markdown worksheet and **nothing into the
+bundle**. Each row is computed from the item's *reference answer* by the
+deterministic lexical judge — the same inference `passage_attribution` already
+refuses to score, for the same reason. Two properties it is built around:
+every undeclared item gets a row, so a sheet cannot report a suggestion rate
+over whatever it managed to rank; and a row that made no comparison says so in
+words, with its margin reading `not computed` rather than `0.0000`, because a
+zero margin is a measured tie and these are not one. A comparison inside the
+decision margin is `undetermined`, never a passage id.
+
+On the bundled demo it reproduces the coverage line the report already
+publishes: 108 answer items with passages, 48 declaring, 60 listed for review.
 
 ## Mentioning a claim is not making it
 

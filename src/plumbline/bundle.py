@@ -30,6 +30,14 @@ FORMAT_VERSION = 1
 BEHAVIOR_CLASSES = ("answer", "refuse")
 REVIEW_STATUSES = ("sme_reviewed", "unreviewed")
 
+# The only value `item.review` may take. An item under review is a *draft*:
+# `plumbline author` writes it with a blank `prompt` and `expected` for a
+# person to fill in, and clearing the marker means deleting the key, not
+# setting it to something else. A second value here would be a state nobody
+# defined, and the two commands that refuse drafts would have to guess.
+ITEM_REVIEW_DRAFT = "draft"
+ITEM_REVIEW_STATUSES = (ITEM_REVIEW_DRAFT,)
+
 
 class BundleError(Exception):
     """The bundle is malformed or unreadable (configuration error, exit 4)."""
@@ -73,6 +81,35 @@ class Item:
     # and Bundle.turns_for/turn_responses_for, the only two places that read
     # this field.
     turns: list[str] = field(default_factory=list)
+    # Opt-in: the language this item's answer is supposed to come back in, when
+    # that is not the language the question was written in, plus the required
+    # `reason` saying why. `{"lang": "en", "reason": "..."}`.
+    #
+    # `multilingual` scores the declaration instead of `lang` when it is
+    # present, and nothing else reads it. It exists because a correct
+    # cross-language answer and a wrong-language answer were the same number: a
+    # consumer whose corpus is English-only and whose product answers an Arabic
+    # question by quoting the English source under an Arabic notice was scored
+    # 0.0000, identically to a system that simply ignored the question's
+    # language. Without a declaration the suite has to guess which of the two it
+    # is looking at, and this harness does not guess.
+    #
+    # Declaring the language the item was already asked in is a bundle error,
+    # not a no-op: it declares nothing and would read, to anyone auditing the
+    # bundle, as a reviewed decision.
+    expected_response_lang: dict[str, Any] | None = None
+    # Opt-in: literal strings the target emits in its own voice rather than as
+    # an answer -- a disclosure notice, a "translated from English" banner, a
+    # tool preamble. `groundedness`, `citation_accuracy` and
+    # `passage_attribution` remove them before measuring what the sources
+    # support, because a lexical support metric marks a correct disclosure
+    # unsupported and a correct disclosure is not a fabrication.
+    #
+    # `privacy`, `representational_harms` and `adversarial` keep reading the
+    # response whole. A notice is the target speaking, and a target that leaks
+    # or attacks in its own voice has still leaked or attacked; a declaration
+    # that could exempt text from those screens would be a way to buy a pass.
+    target_voice: list[str] = field(default_factory=list)
     forbidden: list[str] = field(default_factory=list)  # must not appear in the response
     # Must not be *asserted*. The weaker of the two, and the one a consumer
     # needs when the correct answer is a denial: "the deadline is the 15th" has
@@ -80,6 +117,14 @@ class Item:
     # string that must never appear in any grammatical role belongs in
     # `forbidden`, which is checked by substring and cannot be talked around.
     forbidden_claims: list[str] = field(default_factory=list)
+    # Opt-in: `"draft"` on an item `plumbline author` wrote and nobody has
+    # finished. A draft is exempt from the rule that an answer item carries a
+    # non-blank `expected`, and from the rule that any item carries a
+    # non-blank `prompt` -- being unwritten is what a draft is. That exemption
+    # is only safe because `refuse_drafts` below stands in front of every path
+    # that would score one or send it to a live target, so an item can be
+    # exempt or it can be graded, never both.
+    review: str | None = None
 
 
 @dataclass
@@ -150,6 +195,25 @@ class Bundle:
     def response_for(self, item_id: str) -> str | None:
         return self.responses.get(item_id)
 
+    def answer_text_for(self, item: Item) -> str:
+        """The recorded response with the item's declared `target_voice` removed.
+
+        The three suites that ask what the sources support read this; every
+        other suite reads `response_for` and sees the response whole. An item
+        that declares nothing gets its response back unchanged, byte for byte,
+        which is what keeps a bundle with no declarations scoring exactly as it
+        did before this field existed.
+
+        Removal is literal and repeated: a notice emitted twice is removed
+        twice. It is not a regex and not a fuzzy match, because a declaration
+        that quietly matched more than it said would be a way to hide an
+        answer's own sentences from the measure.
+        """
+        text = self.responses.get(item.id) or ""
+        for notice in item.target_voice:
+            text = text.replace(notice, " ")
+        return text
+
     def turns_for(self, item: Item) -> list[str]:
         """The full conversation's user-side turns, in order: `prompt` is
         always turn one. A single-turn item (the default) returns a
@@ -162,6 +226,14 @@ class Bundle:
         that declared `turns` AND were recorded with a matching
         `turn_responses` list; see `conversational_integrity.py`."""
         return self.turn_responses.get(item_id)
+
+    def draft_item_ids(self) -> list[str]:
+        """Ids of items still marked `review: "draft"`, in bundle order.
+
+        Empty for every bundle that has been finished, and for every bundle
+        that was never drafted by `plumbline author`.
+        """
+        return [i.id for i in self.items if i.review == ITEM_REVIEW_DRAFT]
 
     def unreviewed_translation_warnings(self) -> list[str]:
         """One warning line per unreviewed translated item. Visible on every
@@ -413,6 +485,54 @@ def sealed_path(bundle_dir: Path, filename: str, role: str,
     return path
 
 
+EXPECTED_RESPONSE_LANG_KEYS = frozenset({"lang", "reason"})
+
+
+def _parse_expected_response_lang(
+        path: Path, lineno: int, raw: dict[str, Any]) -> dict[str, Any] | None:
+    """Validate the opt-in cross-language declaration, or refuse the bundle.
+
+    Every refusal here is a refusal rather than a warning. The whole value of
+    the field is that a reader of a report can tell a reviewed cross-language
+    expectation from an accident, and a malformed one that was quietly ignored
+    would leave `multilingual` scoring the question's own tag while the bundle
+    says on its face that it does not.
+    """
+    declared = raw.get("expected_response_lang")
+    if declared is None:
+        return None
+    if not isinstance(declared, dict):
+        raise BundleError(
+            f"{path.name}:{lineno}: 'expected_response_lang' must be an object "
+            f"with 'lang' and 'reason'"
+        )
+    unknown = sorted(set(declared) - EXPECTED_RESPONSE_LANG_KEYS)
+    if unknown:
+        raise BundleError(
+            f"{path.name}:{lineno}: 'expected_response_lang' carries keys this "
+            f"harness does not read: {', '.join(unknown)}"
+        )
+    for key in sorted(EXPECTED_RESPONSE_LANG_KEYS):
+        value = declared.get(key)
+        if not isinstance(value, str) or not value.strip():
+            raise BundleError(
+                f"{path.name}:{lineno}: item '{raw['id']}' declares an "
+                f"'expected_response_lang' with no {key}. A declaration that "
+                f"overrides a measurement carries the reason it was made, "
+                f"because the report publishes it and a reader has to be able "
+                f"to weigh it"
+            )
+    if declared["lang"] == raw["lang"]:
+        raise BundleError(
+            f"{path.name}:{lineno}: item '{raw['id']}' declares "
+            f"expected_response_lang '{declared['lang']}', which is the "
+            f"language it was already asked in. That declares nothing, and it "
+            f"would read to anyone auditing this bundle as a reviewed decision "
+            f"about a cross-language answer. Remove it"
+        )
+    return {"lang": declared["lang"], "reason": declared["reason"]}
+
+
 def _parse_items(path: Path) -> list[Item]:
     items: list[Item] = []
     seen: set[str] = set()
@@ -434,8 +554,33 @@ def _parse_items(path: Path) -> list[Item]:
                 )
             if raw["id"] in seen:
                 raise BundleError(f"{path.name}:{lineno}: duplicate item id '{raw['id']}'")
-            if raw["behavior"] == "answer" and not str(
-                    raw.get("expected") or "").strip():
+            # Read before the blank checks below, because it is what exempts
+            # an item from them. An unknown value is refused rather than
+            # ignored: `review: "drfat"` would otherwise leave the item
+            # graded, with a typo standing where a safety catch was meant.
+            review = raw.get("review")
+            if review is not None and review not in ITEM_REVIEW_STATUSES:
+                raise BundleError(
+                    f"{path.name}:{lineno}: item '{raw['id']}' sets "
+                    f"review={review!r}; the only value is "
+                    f"{ITEM_REVIEW_DRAFT!r}, and an item that is no longer a "
+                    f"draft omits the key entirely"
+                )
+            drafted = review == ITEM_REVIEW_DRAFT
+            if not drafted and not str(raw["prompt"] or "").strip():
+                # A blank prompt is what `plumbline author` writes and what a
+                # person replaces. One that survived to a recording would ask
+                # the live target nothing and file whatever came back as an
+                # answer to a question that was never put.
+                raise BundleError(
+                    f"{path.name}:{lineno}: item '{raw['id']}' has a blank "
+                    f"prompt. A question with nothing in it is not a "
+                    f"question; if this item is unfinished, mark it "
+                    f"review = \"{ITEM_REVIEW_DRAFT}\", which every scoring "
+                    f"and recording path refuses"
+                )
+            if (raw["behavior"] == "answer" and not drafted
+                    and not str(raw.get("expected") or "").strip()):
                 # Blank is checked after stripping: a reference answer of
                 # "   " is not a reference answer, and one that survives to
                 # scoring makes an empty response look like a perfect match.
@@ -513,6 +658,22 @@ def _parse_items(path: Path) -> list[Item]:
                     f"blank turn; a conversation turn with nothing in it is "
                     f"not a turn"
                 )
+            expected_lang = _parse_expected_response_lang(path, lineno, raw)
+            target_voice = raw.get("target_voice", [])
+            if not isinstance(target_voice, list) or not all(
+                    isinstance(s, str) for s in target_voice):
+                raise BundleError(
+                    f"{path.name}:{lineno}: 'target_voice' must be a list of "
+                    f"literal strings the target emits in its own voice"
+                )
+            if any(not s.strip() for s in target_voice):
+                # A blank notice removes nothing and reads, in the bundle, as a
+                # declared exclusion that was reviewed. It is neither.
+                raise BundleError(
+                    f"{path.name}:{lineno}: item '{raw['id']}' declares an "
+                    f"empty 'target_voice' string; excluding nothing is not an "
+                    f"exclusion"
+                )
             seen.add(raw["id"])
             items.append(Item(
                 id=raw["id"],
@@ -528,15 +689,24 @@ def _parse_items(path: Path) -> list[Item]:
                 answering_sources=list(answering or []),
                 adversarial=bool(raw.get("adversarial", False)),
                 turns=turns,
+                expected_response_lang=expected_lang,
+                target_voice=target_voice,
                 forbidden=forbidden,
                 forbidden_claims=forbidden_claims,
+                review=review,
             ))
     if not items:
         raise BundleError(f"{path.name}: no items")
     return items
 
 
-def _parse_sources(path: Path) -> dict[str, Source]:
+def parse_sources(path: Path) -> dict[str, Source]:
+    """Parse a sources.jsonl into id -> Source, in declared order.
+
+    Public because `plumbline author` reads a corpus that is not yet inside
+    any bundle: a question set has to be drafted from passages before there
+    is a bundle to seal them into.
+    """
     sources: dict[str, Source] = {}
     with open(path, encoding="utf-8") as f:
         for lineno, line in enumerate(f, 1):
@@ -611,6 +781,35 @@ def _parse_responses(path: Path, items: list[Item]
     return responses, turn_responses
 
 
+def refuse_drafts(bundle: Bundle, action: str) -> None:
+    """Refuse a bundle that still contains an item marked `review: "draft"`.
+
+    The single gate that makes the draft exemptions in `_parse_items` safe.
+    A draft carries a blank `prompt` and, for an answer item, a blank
+    `expected`; both are the absence of the thing a check reads, and both
+    would be scored as though they were content. So the exemption is granted
+    at parse time and taken away here, in front of every path that scores a
+    bundle or sends it to a live target -- `run_audit` (and therefore `gate`)
+    and `record`. `validate` deliberately does not call this: reporting what
+    is still outstanding is the whole reason a person runs it.
+
+    Named ids, not a count: the next action is to open those items.
+    """
+    drafts = bundle.draft_item_ids()
+    if not drafts:
+        return
+    shown = ", ".join(drafts[:5]) + ("…" if len(drafts) > 5 else "")
+    raise BundleError(
+        f"bundle '{bundle.name}' has {len(drafts)} item(s) still marked "
+        f"review = \"{ITEM_REVIEW_DRAFT}\" ({shown}), so it cannot be "
+        f"{action}. A draft item is one `plumbline author` wrote and nobody "
+        f"has finished: its prompt and its reference answer are blank, and "
+        f"blank is not a question or an expectation. Write them, delete the "
+        f"`review` key from each item, and re-seal the bundle with "
+        f"`plumbline seal`."
+    )
+
+
 def load(bundle_dir: Path) -> Bundle:
     """Verify integrity, then parse. Integrity always comes first: nothing is
     parsed for scoring from a bundle that failed verification."""
@@ -674,7 +873,7 @@ def _load(bundle_dir: Path, *, require_responses: bool) -> Bundle:
     )
 
     sources_name = files.get("sources")
-    sources = (_parse_sources(
+    sources = (parse_sources(
         sealed_path(bundle_dir, sources_name, "sources", covered))
         if sources_name else {})
 

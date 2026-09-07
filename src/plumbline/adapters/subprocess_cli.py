@@ -27,7 +27,18 @@ locale = "{lang}"
 [adapter.env]                  # the program's entire environment, plus PATH
 LANG = "C.UTF-8"
 NAVIGATOR_TOKEN = { env = "NAVIGATOR_TOKEN" }
+
+[adapter.conversation]         # only needed for multi-turn items
+mode = "lines"                 # one stdin line per turn, one stdout line back
 ```
+
+**Multi-turn items** run the program **once for the whole conversation**, with
+one newline-delimited line written per user turn and one non-blank output line
+expected back per turn. That fits a program that already reads a line at a
+time, keeps whatever state a conversation needs inside one process, and leaves
+every bound below unchanged: one timeout, one output ceiling, one process to
+kill. Without `[adapter.conversation]`, a question set containing a multi-turn
+item is refused rather than recorded one turn deep — see `conversation.py`.
 
 **There is no shell.** `command` is an argv list and is executed directly; a
 string is refused with an explanation rather than split or handed to `sh`.
@@ -61,6 +72,7 @@ from ..bundle import Item
 from ..errors import OutboundError
 from ..hashing import canonical_json, sha256_text
 from . import AdapterError
+from . import conversation as conversation_mod
 
 _Number = TypeVar("_Number", int, float)
 
@@ -81,8 +93,12 @@ OUTPUT_MODES = ("json", "text")
 KNOWN_KEYS = frozenset({
     "kind", "questions", "command", "workdir", "env", "input", "stdin",
     "output", "response_pointer", "timeout_seconds", "max_output_bytes",
-    "min_interval_seconds", "max_items", "on_error",
+    "min_interval_seconds", "max_items", "on_error", "conversation",
 })
+
+#: How this adapter can carry follow-up turns. A local program has no session
+#: to be handed and no body to put a history in; it has stdin.
+CONVERSATION_MODES = (conversation_mod.MODE_LINES,)
 
 
 def _sha256_file(path: Path) -> str:
@@ -114,6 +130,7 @@ class SubprocessAdapter:
                  output_mode: str, response_pointer: str | None,
                  timeout_seconds: float, max_output_bytes: int,
                  min_interval_seconds: float, max_items: int, on_error: str,
+                 conversation: conversation_mod.ConversationConfig | None = None,
                  sleep: Callable[[float], None] = time.sleep,
                  clock: Callable[[], float] = time.monotonic) -> None:
         self._command = command
@@ -129,6 +146,7 @@ class SubprocessAdapter:
         self._min_interval = min_interval_seconds
         self.max_items = max_items
         self.on_error = on_error
+        self.conversation = conversation
         self._sleep = sleep
         self._clock = clock
         self._last_call: float | None = None
@@ -262,13 +280,40 @@ class SubprocessAdapter:
                 "answer, which the smoke suite then fails on)"
             )
 
+        conversation = None
+        if "conversation" in cfg:
+            conversation = conversation_mod.parse(
+                cfg["conversation"], allowed_modes=CONVERSATION_MODES,
+                where=cls.kind)
+            if input_mode == "none":
+                raise AdapterError(
+                    "[adapter.conversation] mode = \"lines\" writes one line "
+                    "per turn to the program's stdin, but input = \"none\" "
+                    "writes nothing. A follow-up turn cannot travel in the "
+                    "command: argv is fixed before the program starts."
+                )
+            # input = "text" writes the turn's own text and needs no
+            # placeholder; input = "json" writes [adapter.stdin], which must
+            # therefore carry the turn somewhere. A {prompt} that lives only
+            # in `command` is fixed before the program starts, so it cannot
+            # differ per turn even though it satisfies the single-turn check
+            # above.
+            if input_mode == "json" and "prompt" not in network.placeholders_in(
+                    stdin_template):
+                raise AdapterError(
+                    "[adapter.conversation] mode = \"lines\" carries each turn "
+                    "in [adapter.stdin]'s {prompt}, and [adapter.stdin] does "
+                    "not use it, so every turn would send the program the same "
+                    "line"
+                )
+
         return cls(
             command=list(command), program=program, workdir=workdir, env=env,
             input_mode=input_mode, stdin_template=stdin_template,
             output_mode=output_mode, response_pointer=pointer,
             timeout_seconds=timeout, max_output_bytes=max_output,
             min_interval_seconds=min_interval, max_items=max_items,
-            on_error=on_error,
+            on_error=on_error, conversation=conversation,
         ), warnings
 
     @staticmethod
@@ -338,7 +383,7 @@ class SubprocessAdapter:
         variable *names* are recorded; values never are.
         """
         shape = self._call_shape()
-        return {
+        described: dict[str, Any] = {
             "kind": self.kind,
             # Every adapter reports an `endpoint`, so reports and `validate`
             # can say where evidence came from without knowing the transport.
@@ -355,23 +400,92 @@ class SubprocessAdapter:
             "min_interval_seconds": self._min_interval,
             "on_error": self.on_error,
         }
+        if self.conversation is not None:
+            described["conversation"] = self.conversation.describe()
+        return described
 
     # --- recording ----------------------------------------------------------
 
-    def respond(self, item: Item) -> str:
-        self._throttle()
+    def converse(self, item: Item) -> list[str]:
+        """One process, one stdin line per turn, one stdout line per answer.
+
+        The program is run once for the whole conversation, so it can keep
+        whatever state a conversation needs, and the existing bounds apply
+        unchanged: one timeout, one output ceiling, one process to kill. The
+        turns are written as newline-delimited lines and the answers are read
+        back the same way, which is why `_run` needed no changes — it already
+        drains both pipes on reader threads, so the child cannot deadlock
+        against a full one partway through a long exchange.
+
+        Exactly one answer line per turn is required. Too few means the
+        program stopped answering partway through and the rest of the
+        conversation never happened; too many means the line protocol does not
+        mean what this configuration says it means. Either way the alignment
+        between turn *k* and answer *k* is a guess, and a guess recorded as
+        evidence is worse than a refusal.
+        """
+        if self.conversation is None:  # pragma: no cover - recording.py refuses first
+            raise AdapterError(
+                f"item '{item.id}' declares turns but this adapter has no "
+                f"[adapter.conversation] table"
+            )
+        turns = [item.prompt, *item.turns]
+        # Throttled once per turn, like the HTTP adapter: the bound is about
+        # how hard the recorder leans on the target, and the target does the
+        # same amount of work whether the turns arrive down one pipe or many.
+        for _ in turns:
+            self._throttle()
         values = {"prompt": item.prompt, "lang": item.lang, "item_id": item.id}
         try:
-            # fill_template's signature is object -> object because it also
-            # fills JSON request bodies of arbitrary shape (see network.py);
-            # substituting into a list[str] argv always yields a list[str]
-            # back, which the generic signature can't express on its own.
             argv = cast("list[str]", network.fill_template(self._command, values))
-            payload = self._stdin_bytes(values)
+            payload = b"".join(
+                self._stdin_line(dict(values, prompt=turn)) for turn in turns)
         except network.OutboundConfigError as e:
             raise AdapterError(f"item '{item.id}': {e}") from e
 
         stdout, stderr, code, outcome = self._run(argv, payload)
+        self._raise_for_outcome(item, outcome, code, stderr)
+        try:
+            text = stdout.decode("utf-8")
+        except UnicodeDecodeError as e:
+            raise AdapterError(
+                f"item '{item.id}': the program's output is not UTF-8 ({e})"
+            ) from e
+        lines = [line for line in text.splitlines() if line.strip()]
+        if len(lines) != len(turns):
+            raise AdapterError(
+                f"item '{item.id}': {len(turns)} turn(s) were written to "
+                f"{self._program.name} and it printed {len(lines)} non-blank "
+                f"line(s). mode = \"lines\" is one answer line per turn; "
+                f"without that, which answer belongs to which turn is a guess."
+            )
+        return [self._answer_from(item, line, stderr, turn=n)
+                for n, line in enumerate(lines, start=1)]
+
+    def _stdin_line(self, values: dict[str, str]) -> bytes:
+        if self._input_mode == "text":
+            line = values["prompt"]
+        else:
+            body = network.fill_template(self._stdin_template, values)
+            line = json.dumps(body, ensure_ascii=False)
+        # `bundle.py` allows a turn to contain a newline; a line protocol
+        # cannot carry one. Refusing here names the cause: written as two
+        # lines, the program would answer twice and the count check below
+        # would report a length mismatch, which is the wrong diagnosis.
+        #
+        # Reachable only with input = "text". With input = "json" the turn is
+        # a value inside a JSON object and `json.dumps` escapes the newline,
+        # so the line written really is one line — the guard is not merely
+        # unhit on that path, it is unreachable, and both halves are tested.
+        if "\n" in line:
+            raise AdapterError(
+                f"a turn's stdin line contains a newline, which would read as "
+                f"two turns: {line[:80]!r}"
+            )
+        return (line + "\n").encode("utf-8")
+
+    def _raise_for_outcome(self, item: Item, outcome: str, code: int | None,
+                           stderr: bytes) -> None:
         if outcome == "timeout":
             raise AdapterError(
                 f"item '{item.id}': {self._program.name} did not finish within "
@@ -389,13 +503,29 @@ class SubprocessAdapter:
                 f"item '{item.id}': {self._program.name} exited {code}"
                 + (f": {self._snippet(stderr)}" if stderr else "")
             )
+
+    def respond(self, item: Item) -> str:
+        self._throttle()
+        values = {"prompt": item.prompt, "lang": item.lang, "item_id": item.id}
+        try:
+            # fill_template's signature is object -> object because it also
+            # fills JSON request bodies of arbitrary shape (see network.py);
+            # substituting into a list[str] argv always yields a list[str]
+            # back, which the generic signature can't express on its own.
+            argv = cast("list[str]", network.fill_template(self._command, values))
+            payload = self._stdin_bytes(values)
+        except network.OutboundConfigError as e:
+            raise AdapterError(f"item '{item.id}': {e}") from e
+
+        stdout, stderr, code, outcome = self._run(argv, payload)
+        self._raise_for_outcome(item, outcome, code, stderr)
         try:
             text = stdout.decode("utf-8")
         except UnicodeDecodeError as e:
             raise AdapterError(
                 f"item '{item.id}': the program's output is not UTF-8 ({e})"
             ) from e
-        return self._answer(item, text, stderr)
+        return self._answer_from(item, text, stderr)
 
     def _stdin_bytes(self, values: dict[str, str]) -> bytes | None:
         if self._input_mode == "none":
@@ -405,12 +535,20 @@ class SubprocessAdapter:
         body = network.fill_template(self._stdin_template, values)
         return json.dumps(body, ensure_ascii=False).encode("utf-8")
 
-    def _answer(self, item: Item, text: str, stderr: bytes) -> str:
+    def _answer_from(self, item: Item, text: str, stderr: bytes,
+                     turn: int | None = None) -> str:
+        """One answer, out of a whole stdout (single-turn) or one line of it.
+
+        `turn` only changes what the error says. It is not cosmetic: a
+        conversation that broke on turn three and one that never started look
+        identical in a message that names only the item.
+        """
+        where = f"item '{item.id}'" + (f" turn {turn}" if turn else "")
         if self._output_mode == "text":
             answer = text.strip()
             if not answer:
                 raise AdapterError(
-                    f"item '{item.id}': {self._program.name} exited 0 and "
+                    f"{where}: {self._program.name} exited 0 and "
                     f"printed nothing"
                     + (f" (stderr: {self._snippet(stderr)})" if stderr else "")
                     + ". That is a broken integration, not an empty answer; "
@@ -422,21 +560,21 @@ class SubprocessAdapter:
             payload = json.loads(text)
         except json.JSONDecodeError as e:
             raise AdapterError(
-                f"item '{item.id}': output = \"json\" but the program printed "
+                f"{where}: output = \"json\" but the program printed "
                 f"something else ({e}): {self._snippet(text.encode('utf-8'))}"
             ) from e
         # `from_config` refuses to build an adapter with output = "json" and
-        # no response_pointer, and `_answer` only reaches this branch when
+        # no response_pointer, and this branch is only reached when
         # `self._output_mode != "text"` (checked above) — i.e. "json". mypy
         # cannot see either guard from here; the None case is unreachable.
         assert self._response_pointer is not None
         try:
             value = network.resolve_pointer(payload, self._response_pointer)
         except OutboundError as e:
-            raise AdapterError(f"item '{item.id}': {e}") from e
+            raise AdapterError(f"{where}: {e}") from e
         if not isinstance(value, str):
             raise AdapterError(
-                f"item '{item.id}': the value at "
+                f"{where}: the value at "
                 f"'{self._response_pointer}' is {type(value).__name__}, not "
                 f"the answer text"
             )

@@ -305,6 +305,52 @@ def resolve_pointer(payload: object, pointer: str) -> object:
     return current
 
 
+def set_pointer(body: dict[str, Any], pointer: str, value: object) -> dict[str, Any]:
+    """Return a copy of ``body`` with ``value`` written at a dotted path.
+
+    The mirror of :func:`resolve_pointer`, used to place conversation history
+    or a session id into a request body the target configuration declared. The
+    copy is shallow-per-level rather than in-place, so the body *template* a
+    recorder holds is never mutated: turn three must not inherit turn two's
+    history because a dict was edited underneath it.
+
+    Object keys only. A list index is refused rather than supported, because
+    writing into a position in an array the template did not declare means
+    inventing the elements before it, and a body nobody wrote is not a body
+    anybody can defend.
+    """
+    if not isinstance(pointer, str) or not pointer:
+        raise OutboundConfigError("a body pointer must be a non-empty string")
+    parts = pointer.split(".")
+    if any(not part for part in parts):
+        raise OutboundConfigError(
+            f"body pointer {pointer!r} has an empty segment")
+    if any(part.lstrip("-").isdigit() for part in parts):
+        raise OutboundConfigError(
+            f"body pointer {pointer!r} indexes a list; only object keys can be "
+            f"written, because writing into an array position means inventing "
+            f"the elements before it"
+        )
+    out = dict(body)
+    current = out
+    for part in parts[:-1]:
+        nxt = current.get(part)
+        if nxt is None:
+            nxt = {}
+        elif not isinstance(nxt, dict):
+            raise OutboundConfigError(
+                f"body pointer {pointer!r}: '{part}' is already "
+                f"{type(nxt).__name__} in the request body, so the rest of the "
+                f"path cannot be written under it"
+            )
+        else:
+            nxt = dict(nxt)
+        current[part] = nxt
+        current = nxt
+    current[parts[-1]] = value
+    return out
+
+
 # --- The call ---------------------------------------------------------------
 
 @dataclass(frozen=True)

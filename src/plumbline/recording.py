@@ -87,35 +87,92 @@ def record(*, questions: bundle_mod.Bundle, adapter: Adapter, out_dir: Path,
            note: str | None = None,
            progress: Callable[[str, str], None] | None = None) -> RecordingResult:
     """Ask the target every item in the question set and seal the result."""
+    # The ceiling counts *turns*, because turns are what gets sent. A
+    # question set of eighty items where twenty are three-turn conversations
+    # is a hundred and twenty requests, and a ceiling that could only see the
+    # eighty would let forty of them past a bound somebody set deliberately.
+    turns_total = sum(1 + len(item.turns) for item in questions.items)
     max_items = getattr(adapter, "max_items", None)
-    if max_items is not None and len(questions.items) > max_items:
+    if max_items is not None and turns_total > max_items:
+        multi = sum(1 for item in questions.items if item.turns)
         raise RecordingError(
-            f"the question set has {len(questions.items)} items and the "
-            f"adapter's max_items bound is {max_items}; raise it deliberately "
-            f"if you mean to send that many requests"
+            f"the question set has {len(questions.items)} items which come to "
+            f"{turns_total} turn(s)"
+            + (f" ({multi} of them multi-turn)" if multi else "")
+            + f" and the adapter's max_items bound is {max_items}; raise it "
+              f"deliberately if you mean to send that many requests"
         )
+
+    # A multi-turn item and an adapter that was never told how a follow-up
+    # turn reaches the target is a configuration error, not a single-turn
+    # fallback. Recording the opener's answer under an item that declares
+    # three turns produces a bundle whose `conversational_integrity` result is
+    # entirely UNVERIFIABLE — a suite reporting it could not see anything,
+    # about a recording that could have seen everything, with nothing saying
+    # the recorder simply did not ask. Refused before the first request, so
+    # the answer is "fix the config", not "look at what you already spent".
+    conversation = getattr(adapter, "conversation", None)
+    multi_turn = [item.id for item in questions.items if item.turns]
+    if multi_turn and conversation is None:
+        shown = ", ".join(multi_turn[:3]) + ("…" if len(multi_turn) > 3 else "")
+        raise RecordingError(
+            f"{len(multi_turn)} item(s) in this question set declare follow-up "
+            f"turns ({shown}) and the [adapter] table has no "
+            f"[adapter.conversation] saying how a follow-up turn reaches this "
+            f"target. Recording them one turn deep would file the opener's "
+            f"answer under a multi-turn item, and `conversational_integrity` "
+            f"would report every one of them as unverifiable rather than as "
+            f"never asked."
+        )
+
+    # Before anything is prepared, and long before a socket opens: a draft
+    # item's prompt is blank, so recording against one would ask the live
+    # target nothing and file the answer it got back under a question that
+    # was never put.
+    bundle_mod.refuse_drafts(questions, "recorded against")
 
     out_dir = _prepare_out_dir(out_dir, questions.path, overwrite=overwrite)
     on_error = getattr(adapter, "on_error", "abort")
 
     responses: list[dict[str, Any]] = []
     empty: list[dict[str, Any]] = []
+    conversations = 0
     for item in questions.items:
+        turns: list[str] | None = None
         try:
-            text = adapter.respond(item)
+            if item.turns:
+                turns = adapter.converse(item)
+                _check_turns(item, turns)
+                text = turns[-1]
+                conversations += 1
+            else:
+                text = adapter.respond(item)
         except AdapterError as e:
             if on_error != "record_empty":
                 raise
             # An empty answer is not a quiet skip: `smoke` has a floor of 1.00
             # and fails on it, and the failure is named in the manifest.
+            #
+            # A part-recorded conversation is dropped entirely rather than
+            # padded out with empties: `turn_responses` must be 1:1 with the
+            # declared turns, and a list of blanks would be graded as turns
+            # where the target said nothing rather than turns nobody asked.
+            # The item lands as an empty single-turn response, which `smoke`
+            # fails on and `conversational_integrity` reports unverifiable.
             text = ""
+            turns = None
             empty.append({"id": item.id, "error": str(e)})
-        responses.append({"id": item.id, "response": text})
+        entry: dict[str, Any] = {"id": item.id, "response": text}
+        if turns is not None:
+            entry["turn_responses"] = turns
+        responses.append(entry)
         if progress is not None:
             progress(item.id, text)
 
     _write_bundle(out_dir, questions, responses)
     manifest = _build_manifest(questions, adapter, responses, empty,
+                               conversations=conversations,
+                               turns_total=turns_total,
                                synthetic=synthetic, note=note)
     _write_json(out_dir / bundle_mod.MANIFEST_FILENAME, manifest)
     checksums = bundle_mod.seal(out_dir)
@@ -125,6 +182,29 @@ def record(*, questions: bundle_mod.Bundle, adapter: Adapter, out_dir: Path,
         dataset_sha256=checksums["bundle_sha256"],
         recorded=len(responses), empty=empty,
     )
+
+
+def _check_turns(item: bundle_mod.Item, turns: object) -> None:
+    """An adapter's conversation must be 1:1 with the item's declared turns.
+
+    `bundle.py` refuses a `turn_responses` list of the wrong length when it
+    loads the recording, so a mismatch would already be caught — but it would
+    be caught *after* the recording was made and sealed, as a bundle that
+    cannot be read, with the target already asked. Checking it here names the
+    adapter while the recording is still in progress.
+    """
+    expected = 1 + len(item.turns)
+    if (not isinstance(turns, list)
+            or not all(isinstance(t, str) for t in turns)):
+        raise AdapterError(
+            f"item '{item.id}': the adapter returned "
+            f"{type(turns).__name__}, not one answer string per turn")
+    if len(turns) != expected:
+        raise AdapterError(
+            f"item '{item.id}' declares {expected} user turn(s) and the "
+            f"adapter returned {len(turns)} answer(s); which answer belongs "
+            f"to which turn would be a guess"
+        )
 
 
 def _write_bundle(out_dir: Path, questions: bundle_mod.Bundle,
@@ -150,6 +230,7 @@ def _write_bundle(out_dir: Path, questions: bundle_mod.Bundle,
 
 def _build_manifest(questions: bundle_mod.Bundle, adapter: Adapter,
                     responses: list[dict[str, Any]], empty: list[dict[str, Any]], *,
+                    conversations: int, turns_total: int,
                     synthetic: bool, note: str | None) -> dict[str, Any]:
     manifest = dict(questions.manifest)
     files = {k: v for k, v in questions.manifest.get("files", {}).items()}
@@ -175,8 +256,14 @@ def _build_manifest(questions: bundle_mod.Bundle, adapter: Adapter,
             "version": questions.manifest.get("version"),
             "sha256": questions.dataset_sha256,
             "items": len(questions.items),
+            # Turns, alongside items, because they are what was actually
+            # asked: a reader checking a recording against a rate limit or an
+            # operator's agreed volume needs the number of requests, and an
+            # item count silently understates it for every conversation.
+            "turns": turns_total,
         },
         "responses_recorded": len(responses),
+        "conversations_recorded": conversations,
         "responses_recorded_empty": empty,
     }
     if note:
