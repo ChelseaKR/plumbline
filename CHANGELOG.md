@@ -406,6 +406,64 @@ may break the interface.
 
 ### Added
 
+- **Two opt-in item declarations, so a correct behaviour and a wrong one stop
+  being the same number** (#71, [ADR 0005](docs/adr/0005-item-declarations-that-move-a-score-carry-their-reason.md)).
+  Both came from a consumer, and both had the same shape: the harness had no
+  way to tell which of two opposite things it was looking at, so their evidence
+  set could not grow past one such item without the gate going red.
+
+  - `expected_response_lang`, an object carrying `lang` and a required
+    `reason`. A consumer's corpus for one jurisdiction is English-only, and
+    their product answers an Arabic question by quoting the English passage
+    under an Arabic notice saying so. `multilingual` scored that `0.0000` --
+    identically to a system that ignored the question's language outright. The
+    suite now scores against the declaration when there is one. It still has to
+    be answered in: a declaration moves the target, it does not remove it, and
+    an item declaring English and answered in Spanish still fails.
+  - `target_voice`, a list of literal strings the target emits in its own voice
+    -- a disclosure notice, a translation banner. A lexical support metric
+    marks a notice unsupported, so a correct disclosure scored as a
+    fabrication. `groundedness`, `citation_accuracy` and `passage_attribution`
+    read the response with the declared strings removed.
+
+  **`target_voice` exempts text from the measures and from nothing else.**
+  `privacy`, `representational_harms` and `adversarial` keep reading every
+  response whole. A notice is the target speaking, and a target that leaks or
+  complies with an injection in its own voice has still leaked and complied. A
+  declaration that could hide that would be a way to buy a pass by declaring
+  the sentence that fails. `proof/matrix.md` gains a case that plants exactly
+  that -- a probe extracts the system prompt and the bundle declares the leaked
+  sentence as a notice -- and all three suites still fail.
+
+  Three traps, each closed with a test that fails without the fix. A response
+  that is *nothing but* a declared notice measures as an empty string, and
+  support for an empty string is arithmetically total, so it is reported
+  claim-free rather than scored a perfect `1.00`. A number appearing only
+  inside a notice is no longer read as the answer stating a figure its sources
+  lack, which is this harness's name for fabrication. And an attribution item
+  that is only a notice is named `unreadable` rather than reported
+  `indistinguishable`, which would read as "two plausible passages" when the
+  truth is that there is no answer.
+
+  Both declarations are published. Each suite that reads one names the items
+  that made it, the item record carries the stated reason, and the report
+  prints how many of a suite's items were scored under a declaration. A reader
+  who cannot separate the measured part of a score from the declared part is
+  reading two things added together.
+
+  A bundle declaring neither is unaffected, and that is checked rather than
+  asserted: regenerating the 178-item demo audit moved no score, no floor, no
+  verdict, no `n` and no interval. `FORMAT_VERSION` does not move. The
+  `notice` response field the proposal offered as a second source for the same
+  exclusion is deliberately not built: nothing that records a response can
+  populate it today, so it would be a field nobody can fill.
+
+- Two defect-matrix cases, `declared-language-not-answered` and
+  `target-voice-declared-over-a-leak`, bringing the matrix to 23. The first
+  plants a declaration and leaves the answers alone, so what fails is the
+  declaration and nothing else; the second is the leak case with the leak
+  declared as a notice, and its couplings are the same three suites as before.
+
 - **`plumbline author` and `plumbline suggest-declarations`, for the two jobs
   the harness will not do for you.** Writing questions and deciding which
   passage answers each one are human work, and this repository is explicit

@@ -81,6 +81,19 @@ def _resolved_text(bundle: Bundle, source_id: str) -> str:
     return source.text
 
 
+def _target_voice_details(declaring: list[str], note: str) -> dict[str, Any]:
+    """The `target_voice` block, present only when something declared it.
+
+    Added rather than emitted empty, so a bundle that declares nothing produces
+    the report it produced before the field existed. An empty list and a
+    paragraph about it would be the whole diff of a change that did nothing.
+    """
+    if not declaring:
+        return {}
+    return {"items_declaring_target_voice": declaring,
+            "target_voice_note": note}
+
+
 def _support(judge: Judge, response: str, source_text: str
              ) -> tuple[float, float, float, list[str]]:
     """(combined, token_support, number_support, unsupported_numbers)."""
@@ -111,8 +124,12 @@ class GroundednessSuite(Suite):
         # nothing — only function words, no numbers — so that is excluded here
         # too rather than scored a perfect 1.00.
         scorable, excluded = split_unreadable(bundle, eligible)
+        # Read through `answer_text_for`, so a response that is nothing but the
+        # target's own declared notice lands here as a claim-free response
+        # rather than being measured. A notice is not an answer, and support
+        # for it is not support for anything.
         vacuous = [i.id for i in scorable
-                   if asserts_nothing(bundle.response_for(i.id) or "")]
+                   if asserts_nothing(bundle.answer_text_for(i))]
         excluded[NO_CLAIM] = vacuous
         asserted_nothing = set(vacuous)
         population = self.require_population(
@@ -133,8 +150,9 @@ class GroundednessSuite(Suite):
         } for item_id in vacuous)
         sample: list[float] = []
         hard_failures: list[str] = []
+        declaring: list[str] = []
         for item in population:
-            response = bundle.response_for(item.id) or ""
+            response = bundle.answer_text_for(item)
             source_text = bundle.source_text_for(item)
             score, tokens, numbers, unsupported = _support(
                 judge, response, source_text)
@@ -145,6 +163,9 @@ class GroundednessSuite(Suite):
                 "number_support": round(numbers, 4),
                 "sources": list(item.sources),
             }
+            if item.target_voice:
+                declaring.append(item.id)
+                record["target_voice_excluded"] = list(item.target_voice)
             if unsupported:
                 record["unsupported_numbers"] = unsupported
                 record["note"] = (
@@ -178,6 +199,15 @@ class GroundednessSuite(Suite):
                     i.id for i in bundle.items
                     if i.behavior == "answer" and not i.sources
                 ],
+                **_target_voice_details(declaring, (
+                    "these items declare literal strings the target emits in "
+                    "its own voice -- a disclosure notice, a translation "
+                    "banner -- and those strings were removed before support "
+                    "was measured. A correct disclosure is not a fabrication, "
+                    "and a lexical support metric cannot tell the two apart. "
+                    "The screens that look for leaks and attacks still read "
+                    "every response whole"
+                )),
                 "unverifiable": unverifiable_block(
                     excluded, eligible=len(eligible),
                     scored=len(population),
@@ -283,7 +313,7 @@ class CitationAccuracySuite(Suite):
         uncited = []
         population = []
         for item in candidates:
-            response = bundle.response_for(item.id) or ""
+            response = bundle.answer_text_for(item)
             resolvable = [c for c in citations(response)
                           if bundle.source(c) is not None]
             if resolvable:
@@ -299,6 +329,7 @@ class CitationAccuracySuite(Suite):
 
         records: list[dict[str, Any]] = []
         sample = []
+        declaring = []
         for item, response, cited in population:
             cited_text = "\n".join(_resolved_text(bundle, c) for c in cited)
             score, tokens, numbers, unsupported = _support(
@@ -322,6 +353,9 @@ class CitationAccuracySuite(Suite):
                 "token_support": round(tokens, 4),
                 "number_support": round(numbers, 4),
             }
+            if item.target_voice:
+                declaring.append(item.id)
+                record["target_voice_excluded"] = list(item.target_voice)
             if asserts_nothing(response):
                 record["asserts_nothing"] = True
             if unsupported:
@@ -350,6 +384,13 @@ class CitationAccuracySuite(Suite):
                 "metric": "min(content-token recall, number support) against "
                           "only the sources the answer actually cited",
                 "answers_citing_nothing_resolvable": uncited,
+                **_target_voice_details(declaring, (
+                    "the strings these items declare as the target's own voice "
+                    "were removed before the citation and the support were "
+                    "read, so a notice carrying no citation cannot make an "
+                    "answer look uncited and a number stated only inside a "
+                    "notice cannot be read as an unsupported claim"
+                )),
                 "scope_note": (
                     "numeric fabrication is owned by the groundedness suite, "
                     "which checks against every available source; this suite "

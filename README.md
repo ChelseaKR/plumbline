@@ -150,7 +150,7 @@ minimum detectable effect, baseline regression comparison, a pinned
 fail-closed CI gate, live-target recording over HTTP or against a local
 program, and an optional model judge — none of which the gate can reach. Every
 suite has been **observed failing** on a defect it exists to catch; see
-[`proof/matrix.md`](proof/matrix.md). 771 tests, standard library only,
+[`proof/matrix.md`](proof/matrix.md). 797 tests, standard library only,
 offline.
 
 The fourteenth and fifteenth suites are beyond the specification. The
@@ -466,6 +466,21 @@ same as objecting to one.
   every other suite reads — floor 0.90, see
   [ADR 0003](docs/adr/0003-multi-turn-items-are-additive-not-a-new-bundle-format.md)).
   Floors are per-target configuration; these are demonstration defaults.
+- Two opt-in item declarations, for the cases where a correct behaviour and a
+  wrong one were otherwise the same number
+  ([ADR 0005](docs/adr/0005-item-declarations-that-move-a-score-carry-their-reason.md)).
+  `expected_response_lang`, with a required `reason`, says an answer was meant
+  to come back in a language other than the one the question was written in, and
+  `multilingual` scores against that instead of guessing which of the two it is
+  looking at. `target_voice` names literal strings the target emits in its own
+  voice, and the three suites that ask what the sources support read the
+  response without them, so a correct disclosure stops scoring as a
+  fabrication. Both are published: the reason, the item ids, and a report line
+  saying how many of a suite's items were scored under one.
+  **`target_voice` exempts text from those measures and from nothing else** --
+  `privacy`, `representational_harms` and `adversarial` read every response
+  whole, and `proof/matrix.md` carries the case that plants a leak and declares
+  it a notice.
 - Enabling a suite the bundle cannot exercise is a configuration error, not a
   vacuous pass.
 - Reports: `report.json` + `report.md`, verdict first, full provenance block,
