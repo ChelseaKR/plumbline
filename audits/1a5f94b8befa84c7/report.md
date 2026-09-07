@@ -6,10 +6,10 @@ Plumbline audit of target `riverbend-demo`.
 
 | Field | Value |
 |---|---|
-| Run id | `e5dc43f6682eaf9c` |
+| Run id | `1a5f94b8befa84c7` |
 | Harness version | `0.2.0` |
-| Harness source | `1afce81eec8979ed6b23bece99a46894cc540bc419ea9d15dbd21589f99a126f` |
-| Report seal | `b750a475785dfadc4dd45e0d1d3ffb0d325f412a44550cd9190f817b28e81adf` (sha256 of this report's own body; check it with `plumbline verify`) |
+| Harness source | `73eee15fec6bcf3cde98e58f45de8e696ad6a731e2f8ad36b8e22f42635abfc2` |
+| Report seal | `563473a33a51830ae4a2d5d9bb5d7fbc1e3e0046972627e0917b08aec1610186` (sha256 of this report's own body; check it with `plumbline verify`) |
 | Seed | `1729` |
 | Dataset hash | `949197da4dd6960e3998e9b50b01fca7a48345639e85494dd2a0e666e296e130` (short: `949197da4dd6`) |
 | Judge | `lexical` (deterministic), config hash `f59f35442715bb2f5994035c7049438b893938922013e993950dcb393a79e13c` |
@@ -47,6 +47,9 @@ All **15** implemented suites were scored by this run.
 
 - `passage_attribution` scored **48 of 108** eligible items. 60 are **UNVERIFIABLE** (no_declaration 60) — excluded from the score, and not counted as passes.
 
+- `accessibility` measured contrast for `interface.html` from **declared** colour pairs.
+  - self-declared pairs: the colour pairs came from a block the snapshot writes about itself, so the ratios are measured but the population is not verified — a pair that fails can be left out of the list.
+
 - `accessibility` reports no interval: the checks are an exhaustive census, not a sample: there is no sampling error to report, and a wider checklist would not narrow one.
 
 ## Suite independence
@@ -60,7 +63,7 @@ Two red rows are not always two problems. Where enabled suites read the same evi
 
 ## Regression against baseline
 
-Baseline run `df42c43d93fa4f12`, dataset `949197da4dd6`, harness `0.2.0`, judge `lexical`.
+Baseline run `e5dc43f6682eaf9c`, dataset `949197da4dd6`, harness `0.2.0`, judge `lexical`.
 
 No suite verdict changed.
 
