@@ -149,6 +149,53 @@ class Pointers(unittest.TestCase):
             network.resolve_pointer({}, "")
 
 
+class WritingIntoARequestBody(unittest.TestCase):
+    """`set_pointer`, the mirror of `resolve_pointer`.
+
+    Used to place conversation history or a session id into the body a target
+    configuration declared, so its rules are about not quietly rewriting what
+    the operator wrote.
+    """
+
+    def test_writes_at_a_nested_path_creating_what_is_missing(self):
+        body = {"question": "q"}
+        out = network.set_pointer(body, "chat.messages", [1, 2])
+        self.assertEqual(out, {"question": "q", "chat": {"messages": [1, 2]}})
+
+    def test_the_original_body_is_not_mutated_at_any_level(self):
+        # The recorder holds one body template for the whole recording. An
+        # in-place write would leave turn three sending turn two's history
+        # appended to its own, and the target would answer a conversation
+        # that never happened.
+        body = {"chat": {"model": "m"}}
+        network.set_pointer(body, "chat.messages", [1])
+        self.assertEqual(body, {"chat": {"model": "m"}})
+
+    def test_an_existing_sibling_survives(self):
+        out = network.set_pointer({"chat": {"model": "m"}}, "chat.messages", [])
+        self.assertEqual(out["chat"], {"model": "m", "messages": []})
+
+    def test_a_list_index_is_refused_rather_than_supported(self):
+        # Writing into an array position means inventing the elements before
+        # it, and a body nobody wrote is a body nobody can defend.
+        with self.assertRaises(network.OutboundConfigError) as ctx:
+            network.set_pointer({}, "messages.0.content", "hi")
+        self.assertIn("array", str(ctx.exception))
+
+    def test_walking_through_a_scalar_is_refused(self):
+        with self.assertRaises(network.OutboundConfigError) as ctx:
+            network.set_pointer({"chat": "text"}, "chat.messages", [])
+        self.assertIn("str", str(ctx.exception))
+
+    def test_an_empty_segment_is_refused(self):
+        with self.assertRaises(network.OutboundConfigError):
+            network.set_pointer({}, "chat..messages", [])
+
+    def test_pointer_must_be_a_non_empty_string(self):
+        with self.assertRaises(network.OutboundConfigError):
+            network.set_pointer({}, "", [])
+
+
 class Calls(unittest.TestCase):
     def shape(self, url, **kw):
         bounds = network.Bounds.from_config(kw.pop("bounds", {}))

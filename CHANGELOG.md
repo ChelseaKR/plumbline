@@ -406,6 +406,49 @@ may break the interface.
 
 ### Added
 
+- **`plumbline record` can record a conversation, and refuses to pretend it
+  did.** ADR 0003 made `turns` and `turn_responses` additive to the bundle
+  format and `conversational_integrity` grades them turn by turn, but `record`
+  did not know the fields existed: it asked one prompt per item, so the only
+  multi-turn evidence the suite could grade was evidence produced by other
+  means.
+
+  The missing piece was never the loop. There is no universal way to send a
+  second turn — one service wants the history back in the body, another hands
+  out a session id, a local program reads a line at a time — so
+  `[adapter.conversation]` declares it. `http_json` implements `mode =
+  "history"` (the exchange so far written at a declared body pointer, in a
+  fully declarable message envelope) and `mode = "session"` (an id read from
+  the first response and sent back at a declared body pointer);
+  `subprocess` implements `mode = "lines"`, one stdin line per turn into one
+  process and one answer line back per turn, which needed no change to the
+  bounded run: the existing timeout, output ceiling and reader threads cover a
+  whole conversation as they covered one call.
+
+  **A multi-turn item and no `[adapter.conversation]` is now a configuration
+  error, refused before the first request, rather than a single-turn
+  fallback.** That fallback is this project's own dominant failure shape
+  arriving through its own recorder: the opener's answer filed under an item
+  declaring three turns produces a bundle whose `conversational_integrity`
+  result is entirely UNVERIFIABLE — a suite reporting it could not see
+  anything, about a recording that could have seen everything, with nothing
+  saying the recorder simply never asked.
+
+  Two smaller corrections came with it. `max_items` counts turns rather than
+  items, because turns are what gets sent and an item count silently understates
+  every set containing a conversation — the demo's 178 items are 186 requests.
+  And the recorded manifest carries `questions.turns` and
+  `conversations_recorded` beside the item count, plus the conversation
+  envelope in `adapter`, so a reader can tell how turn two was actually
+  carried.
+
+  The fixture targets gained `--comply-late`, which gives way on turn 2 and
+  refuses again on the last turn. Measured end to end against the demo question
+  set: `adversarial` scores 1.0000 and PASSES, because it reads only the final
+  response; `conversational_integrity` scores 0.0000 and FAILS. That gap is the
+  suite's whole reason for existing, and until now nothing in the repository
+  could produce a live recording that demonstrated it.
+
 - **Two opt-in item declarations, so a correct behaviour and a wrong one stop
   being the same number** (#71, [ADR 0005](docs/adr/0005-item-declarations-that-move-a-score-carry-their-reason.md)).
   Both came from a consumer, and both had the same shape: the harness had no
