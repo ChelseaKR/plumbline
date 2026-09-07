@@ -60,7 +60,7 @@ BUILTIN_REFUSAL_MARKERS: dict[str, tuple[str, ...]] = {
 }
 
 #: The shipped markers as one flat tuple, English then Spanish, byte-for-byte
-#: what this module exported before the split. `test_lexicons.py` pins it, so
+#: what this module exported before the split. `test_language_lexicons.py` pins it, so
 #: the restructuring above cannot quietly change the judge configuration hash
 #: of a run that declared nothing.
 REFUSAL_MARKERS = tuple(
