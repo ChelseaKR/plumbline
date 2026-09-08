@@ -11,6 +11,37 @@ may break the interface.
 
 ### Fixed
 
+- **The GitHub Action published no outputs at all on every gate exit but zero.**
+  `shell: bash` means `bash --noprofile --norc -eo pipefail`. The step ran the gate
+  as `... | tee "$captured"` and read `${PIPESTATUS[0]}` on the next line, so under
+  pipefail the pipeline carried the gate's non-zero status and errexit ended the
+  script there, before `code` was read and before one line reached
+  `$GITHUB_OUTPUT`. Measured against this repository's own `action.yml` body, with
+  the gate stubbed at each documented exit code:
+
+  | gate exit | outputs written |
+  |---|---|
+  | 0 | `exit-code`, `verdict`, `report-json`, `report-md` |
+  | 1, 3, 4, 5 | none |
+
+  So `verdict` was empty on exactly the runs a consuming workflow branches on, and
+  `exit-code`, documented as `0 pass / 1 fail / 3 integrity refusal / 4
+  configuration error / 5 internal error`, could only ever be `0`. A `FAIL` reached
+  a caller as an absent value, which is this harness's own dominant defect class
+  inside the thing it ships to other repositories. The step's own exit code was
+  correct throughout, so the job still went red and nothing pointed at the gap. The
+  gate now runs as an `if` condition, which is exempt from errexit by rule rather
+  than by toggling a shell option, and `PIPESTATUS` still describes it in the
+  branch taken.
+
+- **The tests that covered that step ran a different shell from the one that
+  ships.** `GitHubActionStepTests` lifts the real step body out of `action.yml` and
+  executes it, precisely so a grep cannot pass over a script that no longer works.
+  It then ran it under a plain `bash` -- no `-e`, no `-o pipefail` -- so the script
+  continued past the pipeline and the class asserted `exit-code=1`, `exit-code=3`
+  and a `FAIL` verdict that a runner never produced. The shell is part of what
+  ships, so it is now part of what is executed.
+
 - **The TruffleHog history scan still could not fail on a revoked credential.**
   #76 added the `gitleaks` job beside it, on the argument that widening
   TruffleHog's result tiers would report two synthetic fixtures in
