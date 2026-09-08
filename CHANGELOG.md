@@ -11,6 +11,25 @@ may break the interface.
 
 ### Fixed
 
+- **`check_claims` reported eight matching figures and never said what share of
+  the documents that was.** The green line `claims: 8 published figures match the
+  committed evidence` was true, and the eight claims bind **15 of the 490 numerals**
+  in `README.md` and `DESIGN.md` — 9 of 193 in the README, 6 of 297 in `DESIGN.md`.
+  A gate that does not carry its own denominator reads exactly like one that
+  examined everything, which is the defect this repository exists to argue against.
+
+  The census is now printed on every passing run, per document, and four
+  structural refusals sit under it: a claim anchored in a document that
+  `GATED_DOCUMENTS` does not declare, a declared document that no claim binds a
+  figure in, a claim whose pattern captures no figure at all, and a document the
+  numeral scan reads as empty. None of the four is a count, so none of them
+  becomes a hand-maintained number that jams a queue.
+
+  The numerator is not a second tally that could drift from the claims: it counts
+  the groups the claims actually captured, tokenised by the same pattern the
+  denominator uses, so a capture that is not a numeral is left out rather than
+  inflating the share.
+
 - **The GitHub Action published no outputs at all on every gate exit but zero.**
   `shell: bash` means `bash --noprofile --norc -eo pipefail`. The step ran the gate
   as `... | tee "$captured"` and read `${PIPESTATUS[0]}` on the next line, so under

@@ -241,12 +241,125 @@ CLAIMS: tuple[Claim, ...] = (
 )
 
 
+#: The documents a claim may be anchored in, each with the reason it is a
+#: claims surface rather than narration. The list is self-limiting in both
+#: directions: a claim naming a document that is not here is refused, and a
+#: document here that no claim binds a figure in is refused too, because a
+#: declared claims surface with nothing anchored in it is the whole subject of
+#: this file wearing a different hat.
+GATED_DOCUMENTS: dict[str, str] = {
+    "README.md": (
+        "the project's own account of what it measures, and where every "
+        "figure a reader meets first is published"),
+    "DESIGN.md": (
+        "the design record; the demonstration bundle's composition is stated "
+        "here and nowhere else"),
+}
+
+#: One published figure. `0.9944` is one figure and not two, so the decimal
+#: point is inside the token: a census whose tokens disagree with what a claim
+#: captures cannot be read as a share of anything.
+NUMERAL = re.compile(r"(?<![\w.])\d+(?:\.\d+)?(?![\w.])")
+
+
+def _read(doc: str) -> str:
+    """The document, whitespace-collapsed the way the claims are matched."""
+    return re.sub(r"\s+", " ", (REPO / doc).read_text(encoding="utf-8"))
+
+
+def coverage(
+    claims: tuple[Claim, ...] = CLAIMS,
+    texts: dict[str, str] | None = None,
+) -> dict[str, tuple[int, int]]:
+    """Per gated document: numerals bound to the evidence, and numerals present.
+
+    This is the number the green line was missing. `claims: 8 published
+    figures match the committed evidence` was true and said nothing about how
+    much of the two documents those eight figures covered -- and the answer
+    was 15 numerals out of 490. A gate that does not state its own denominator
+    reads exactly like one that examined everything.
+
+    A figure is counted as bound when a claim captures it *and* the captured
+    text is a numeral by the same tokenizer the denominator uses. A capture
+    that is not a numeral -- the spelled-out suite count -- is deliberately not
+    added to the numerator, because inflating it against a numeral denominator
+    would be the same defect one level in.
+    """
+    if texts is None:
+        texts = {doc: _read(doc) for doc in GATED_DOCUMENTS}
+    census = {doc: [0, len(NUMERAL.findall(text))]
+              for doc, text in texts.items()}
+    for claim in claims:
+        found = list(re.finditer(claim.pattern, texts[claim.doc]))
+        if len(found) != 1:
+            continue  # `check` reports this; a census cannot also fail on it.
+        for value in found[0].groupdict().values():
+            if value is not None and NUMERAL.fullmatch(value):
+                census[claim.doc][0] += 1
+    return {doc: (bound, total) for doc, (bound, total) in census.items()}
+
+
+def refuse_a_universe_that_cannot_fail(
+    claims: tuple[Claim, ...] = CLAIMS,
+    texts: dict[str, str] | None = None,
+) -> None:
+    """The floor. None of these is a counter, so none of them jams a queue.
+
+    Each refusal names a way this file could report green over a surface it
+    never looked at: a claim anchored in a document nobody declared, a
+    declared document with nothing anchored in it, a claim that captures no
+    figure at all, and a document the numeral scan reads as empty.
+    """
+    if texts is None:
+        texts = {doc: _read(doc)
+                 for doc in set(GATED_DOCUMENTS) | {c.doc for c in claims}}
+    undeclared = sorted({c.doc for c in claims} - set(GATED_DOCUMENTS))
+    if undeclared:
+        raise Stale(
+            f"{undeclared} are anchored by a claim and are not declared claims "
+            f"surfaces in GATED_DOCUMENTS, so nothing says why their prose is "
+            f"held to the evidence")
+    for claim in claims:
+        found = list(re.finditer(claim.pattern, texts[claim.doc]))
+        if len(found) != 1:
+            continue
+        if not any(value is not None and NUMERAL.fullmatch(value)
+                   for value in found[0].groupdict().values()):
+            if not any(value in WORDS
+                       for value in found[0].groupdict().values()):
+                raise Stale(
+                    f"the claim about {claim.what} captures no figure, so it "
+                    f"holds nothing to the evidence")
+    for doc, (bound, total) in coverage(claims, texts).items():
+        if total == 0:
+            raise Stale(
+                f"{doc} is a declared claims surface and the numeral scan "
+                f"found nothing in it, so this file's coverage over it cannot "
+                f"be read")
+        if bound == 0:
+            raise Stale(
+                f"{doc} is declared a claims surface in GATED_DOCUMENTS and no "
+                f"claim binds a figure in it. Either anchor one, or say it is "
+                f"narration by removing it from GATED_DOCUMENTS")
+        if bound > total:
+            raise Stale(
+                f"{doc} reports {bound} bound figures out of {total} present, "
+                f"which means the two are not counting the same thing")
+
+
 def check(claims: tuple[Claim, ...] = CLAIMS) -> list[str]:
     """Return one line per claim that does not match the evidence."""
     known = facts()
-    texts = {doc: re.sub(r"\s+", " ",
-                         (REPO / doc).read_text(encoding="utf-8"))
-             for doc in {c.doc for c in claims}}
+    texts = {doc: _read(doc)
+             for doc in set(GATED_DOCUMENTS) | {c.doc for c in claims}}
+    # The universe refusals are about the *shipped* set of claims. Tests hand
+    # this function one deliberately broken claim at a time to prove the
+    # failure modes, and "the other declared document has nothing anchored in
+    # it" is true of every one of those calls and means nothing about the
+    # repository. So the floor applies to the real set, which is the set the
+    # gate runs.
+    if claims is CLAIMS:
+        refuse_a_universe_that_cannot_fail(claims, texts)
 
     problems: list[str] = []
     for claim in claims:
@@ -286,8 +399,17 @@ def main(argv: list[str] | None = None) -> int:
         print(f"\n{len(problems)} published claim(s) disagree with the "
               f"committed evidence.", file=sys.stderr)
         return 1
+    census = coverage()
+    bound = sum(b for b, _ in census.values())
+    total = sum(t for _, t in census.values())
+    per_doc = "; ".join(f"{doc} {b} of {t}"
+                        for doc, (b, t) in sorted(census.items()))
     print(f"claims: {len(CLAIMS)} published figures match the committed "
           f"evidence")
+    print(f"        {bound} of {total} numerals in the gated documents are "
+          f"anchored to it ({per_doc})")
+    print(f"        the rest are unchecked prose: this gate is evidence about "
+          f"{bound} figures, not about either document")
     return 0
 
 
