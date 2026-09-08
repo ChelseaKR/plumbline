@@ -17,6 +17,9 @@ and a sentence that has been reworded out from under its own check.
 
 from __future__ import annotations
 
+import contextlib
+import io
+import re
 import sys
 import unittest
 from pathlib import Path
@@ -92,6 +95,109 @@ class TheFiguresComeFromTheEvidence(unittest.TestCase):
         facts = check_claims.facts()
         self.assertIn(f"out of {facts['tolerated_items']} items scores "
                       f"{facts['tolerated_score']} and passes", note)
+
+
+class TheGateStatesItsOwnCoverage(unittest.TestCase):
+    """`8 published figures match the evidence` was true and not a share.
+
+    It said nothing about how much of the two documents those eight figures
+    covered, and the answer was 15 numerals out of 490. A green line that does
+    not carry its own denominator reads exactly like one that examined
+    everything -- which is the defect this repository exists to argue against,
+    in the file that argues it.
+    """
+
+    def test_every_gated_document_reports_both_numbers(self):
+        census = check_claims.coverage()
+        self.assertEqual(set(census), set(check_claims.GATED_DOCUMENTS))
+        for doc, (bound, total) in census.items():
+            self.assertGreater(total, 0, doc)
+            self.assertGreater(bound, 0, doc)
+            self.assertLessEqual(bound, total, doc)
+
+    def test_the_numerator_counts_what_the_claims_actually_capture(self):
+        # Not a separate count that could drift from the claims: every bound
+        # figure is a group some claim matched, tokenised the same way the
+        # denominator is.
+        texts = {doc: check_claims._read(doc)
+                 for doc in check_claims.GATED_DOCUMENTS}
+        expected = {doc: 0 for doc in texts}
+        for claim in check_claims.CLAIMS:
+            found = list(re.finditer(claim.pattern, texts[claim.doc]))
+            self.assertEqual(len(found), 1, claim.what)
+            for value in found[0].groupdict().values():
+                if check_claims.NUMERAL.fullmatch(value or ""):
+                    expected[claim.doc] += 1
+        self.assertEqual({d: b for d, (b, _) in
+                          check_claims.coverage(texts=texts).items()},
+                         expected)
+
+    def test_the_command_prints_the_share_it_examined(self):
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            self.assertEqual(check_claims.main([]), 0)
+        printed = out.getvalue()
+        census = check_claims.coverage()
+        bound = sum(b for b, _ in census.values())
+        total = sum(t for _, t in census.values())
+        self.assertIn(f"{bound} of {total} numerals", printed)
+        for doc, (b, t) in census.items():
+            self.assertIn(f"{doc} {b} of {t}", printed)
+
+    def test_the_share_is_not_the_whole_document(self):
+        # If this ever stops being true the sentence about unchecked prose is
+        # wrong and has to go, which is the point of asserting it.
+        census = check_claims.coverage()
+        self.assertLess(sum(b for b, _ in census.values()),
+                        sum(t for _, t in census.values()))
+
+
+class TheUniverseCannotShrinkInSilence(unittest.TestCase):
+    """Four floors, each proved to refuse. None of them is a counter."""
+
+    def test_a_claim_in_an_undeclared_document_is_refused(self):
+        stray = check_claims.Claim(
+            doc="CHANGELOG.md", what="a figure in a document nobody declared",
+            pattern=r"(?P<n>[0-9]+)",
+            expect=lambda facts: {"n": facts["items"]})
+        with self.assertRaises(check_claims.Stale) as caught:
+            check_claims.refuse_a_universe_that_cannot_fail((stray,))
+        self.assertIn("CHANGELOG.md", str(caught.exception))
+
+    def test_a_declared_document_with_nothing_anchored_is_refused(self):
+        readme_only = tuple(c for c in check_claims.CLAIMS
+                            if c.doc == "README.md")
+        self.assertTrue(readme_only)
+        with self.assertRaises(check_claims.Stale) as caught:
+            check_claims.refuse_a_universe_that_cannot_fail(readme_only)
+        self.assertIn("DESIGN.md", str(caught.exception))
+
+    def test_a_claim_that_captures_no_figure_is_refused(self):
+        # Synthetic documents, so the claim under test is the only one that
+        # matches: a claim whose pattern does not match exactly once is a
+        # different failure, reported by `check`, and this refusal must not be
+        # reached through it.
+        wordless = check_claims.Claim(
+            doc="README.md", what="a claim that binds nothing",
+            pattern=r"(?P<what>a sentence with no figure in it)",
+            expect=lambda facts: {"what": "a sentence with no figure in it"})
+        texts = {"README.md": "a sentence with no figure in it",
+                 "DESIGN.md": "the bundle holds 178 items"}
+        with self.assertRaises(check_claims.Stale) as caught:
+            check_claims.refuse_a_universe_that_cannot_fail((wordless,), texts)
+        self.assertIn("captures no figure", str(caught.exception))
+
+    def test_a_document_the_scan_reads_as_empty_is_refused(self):
+        texts = {doc: check_claims._read(doc)
+                 for doc in check_claims.GATED_DOCUMENTS}
+        texts["DESIGN.md"] = "a design record with no figures in it at all"
+        with self.assertRaises(check_claims.Stale) as caught:
+            check_claims.refuse_a_universe_that_cannot_fail(
+                check_claims.CLAIMS, texts)
+        self.assertIn("DESIGN.md", str(caught.exception))
+
+    def test_the_shipped_universe_passes_all_four(self):
+        check_claims.refuse_a_universe_that_cannot_fail()
 
 
 if __name__ == "__main__":
