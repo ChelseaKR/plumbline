@@ -61,3 +61,12 @@ mode this repository is about.
 ## Reporting a vulnerability
 
 See [`SECURITY.md`](SECURITY.md). Do not open a public issue for one.
+
+## Commercial solicitation
+
+Issues here are not open to bids. They are design records — written so a decision is
+reconstructable later — not scope documents for outside quoting, and unsolicited offers to
+implement one for a fee will be declined.
+
+Contributions through the normal fork-and-PR process are welcome, and `good first issue` is the
+place to start.
