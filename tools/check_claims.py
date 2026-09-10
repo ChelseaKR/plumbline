@@ -262,9 +262,179 @@ GATED_DOCUMENTS: dict[str, str] = {
 NUMERAL = re.compile(r"(?<![\w.])\d+(?:\.\d+)?(?![\w.])")
 
 
+#: A claim anchors ONE sentence. Every figure in this repository is restated
+#: two or three more times, and a restatement is exactly where the drift went:
+#: on 2026-09-08 `DESIGN.md` said `174 items` six times and `fourteen suites`
+#: three times while the evidence said 178 and fifteen, and the sentence the
+#: claims above do anchor -- `**178 items (89 en, 89 es)**`, in the same file --
+#: was right. So the gate held the one sentence it was pointed at and the
+#: document around it was wrong.
+#:
+#: The two checks below are the restatement half. Neither carries a number a
+#: human maintains: the suite ids and the bundle size are read from the same
+#: committed artifacts the claims are, so they move when the evidence moves.
+#: That is deliberate -- the alternative considered and rejected was six more
+#: `Claim` rows, which is the hand-maintained counter that jams a queue.
+
+#: Where DESIGN.md inventories the suites. Every suite id in the committed
+#: report has to be named inside it. Scoped to the section rather than to the
+#: file because the roadmap table names every suite in passing, so a
+#: whole-document membership test passes over an inventory missing one -- which
+#: is how `conversational_integrity` sat outside this section for three weeks.
+SUITE_INVENTORY = ("DESIGN.md", "## Suites")
+
+#: A heading that dates itself is a record of what was observed then, not a
+#: claim about now. Rewriting `## Acceptance record (verified at M9, clean
+#: checkout)` so its figures read true today destroys the thing it is for.
+#: Recognised structurally -- a year, or a heading that names itself a record
+#: -- rather than by listing line numbers, which move on every edit.
+DATED_RECORD_HEADING = re.compile(r"\b20\d\d\b|acceptance record|roadmap",
+                                  re.IGNORECASE)
+
+#: Live sentences that say `N items` about some population other than the
+#: bundle. Each entry must be observed in the live prose or this file fails:
+#: an exemption for a sentence nobody writes is an exemption that quietly
+#: covers the next one somebody does write. Same rule the claim patterns are
+#: held to.
+EXEMPT_ITEM_PHRASES: tuple[tuple[str, str], ...] = (
+    ("At 26 items",
+     "the bundle before it was grown, named so the comparison has two ends"),
+    ("96 items scored twice with the same number",
+     "the accuracy/fairness overlap the report counts, not the bundle"),
+)
+
+ITEM_COUNT = re.compile(r"\b(\d+) items\b")
+
+
 def _read(doc: str) -> str:
     """The document, whitespace-collapsed the way the claims are matched."""
-    return re.sub(r"\s+", " ", (REPO / doc).read_text(encoding="utf-8"))
+    return re.sub(r"\s+", " ", _raw(doc))
+
+
+def _raw(doc: str) -> str:
+    """The document as written. Headings are line-anchored, so the section
+    walk below needs the newlines the claim matcher throws away."""
+    return (REPO / doc).read_text(encoding="utf-8")
+
+
+def _sections(text: str) -> list[tuple[list[str], str]]:
+    """The document as (enclosing headings, body) pairs.
+
+    A `###` inside a dated `##` inherits the date, so the enclosing headings
+    are carried rather than only the nearest one.
+    """
+    out: list[tuple[list[str], str]] = []
+    stack: list[tuple[int, str]] = []
+    body: list[str] = []
+    for line in text.splitlines():
+        heading = re.match(r"^(#{1,6})\s+(.*)$", line)
+        if not heading:
+            body.append(line)
+            continue
+        out.append(([h for _, h in stack], "\n".join(body)))
+        body = []
+        level = len(heading.group(1))
+        stack = [(lvl, h) for lvl, h in stack if lvl < level]
+        stack.append((level, heading.group(2)))
+    out.append(([h for _, h in stack], "\n".join(body)))
+    return out
+
+
+def live_prose(doc: str, text: str | None = None) -> str:
+    """The document minus every section under a heading that dates itself."""
+    if text is None:
+        text = _raw(doc)
+    return "\n".join(
+        body for headings, body in _sections(text)
+        if not any(DATED_RECORD_HEADING.search(h) for h in headings))
+
+
+def restated_bundle_size(
+    texts: dict[str, str] | None = None,
+    size: int | None = None,
+) -> tuple[int, int, int]:
+    """Hold every live `N items` in the gated documents to the real bundle.
+
+    Returns (checked, dated, exempt) so the gate can print what it looked at
+    instead of only that it was happy.
+    """
+    if size is None:
+        size = len(_jsonl(BUNDLE / "items.jsonl"))
+    # The exemption list describes the *shipped* prose. Tests hand this
+    # function one synthetic document at a time to prove the failure modes,
+    # and "the exemptions appear nowhere" is true of every such call and means
+    # nothing about the repository -- the same reason the four universe
+    # refusals apply only to `CLAIMS`.
+    shipped = texts is None
+    if shipped:
+        texts = {doc: _raw(doc) for doc in GATED_DOCUMENTS}
+
+    seen_phrases: set[str] = set()
+    checked = dated = 0
+    problems: list[str] = []
+    for doc, text in sorted(texts.items()):
+        live = live_prose(doc, text)
+        dated += (len(ITEM_COUNT.findall(text))
+                  - len(ITEM_COUNT.findall(live)))
+        exempt_spans = []
+        for phrase, _reason in EXEMPT_ITEM_PHRASES:
+            for found in re.finditer(re.escape(phrase), live):
+                seen_phrases.add(phrase)
+                exempt_spans.append(found.span())
+        for match in ITEM_COUNT.finditer(live):
+            if any(lo <= match.start() and match.end() <= hi
+                   for lo, hi in exempt_spans):
+                continue
+            checked += 1
+            if int(match.group(1)) != size:
+                problems.append(
+                    f"{doc}: {match.group(0)!r} — the committed bundle holds "
+                    f"{size}. If this sentence is about a different "
+                    f"population, name it in EXEMPT_ITEM_PHRASES with the "
+                    f"reason; if it is history, put it under a dated heading")
+    unobserved = sorted({p for p, _ in EXEMPT_ITEM_PHRASES} - seen_phrases)
+    if shipped and unobserved:
+        raise Stale(
+            f"{unobserved} are exempted from the bundle-size check and appear "
+            f"nowhere in the live prose. An exemption nobody's sentence needs "
+            f"is an exemption covering the next one that does: delete it")
+    if checked == 0:
+        raise Stale(
+            "the bundle-size scan read no `N items` at all in the live prose "
+            "of the gated documents, which cannot be right — the anchored "
+            "sentence in DESIGN.md is one. The reader has stopped matching")
+    if problems:
+        raise Stale("; ".join(problems))
+    exempt = sum(1 for _ in EXEMPT_ITEM_PHRASES)
+    return checked, dated, exempt
+
+
+def suites_missing_from_the_inventory(
+    text: str | None = None,
+    names: list[str] | None = None,
+) -> tuple[list[str], int]:
+    """Suite ids the committed report carries that DESIGN.md does not name."""
+    doc, heading = SUITE_INVENTORY
+    if names is None:
+        names = [s["suite"] for s in _committed_report()["suites"]]
+    if not names:
+        raise Stale("the committed report lists no suites, so this check "
+                    "would pass over anything")
+    if text is None:
+        text = _raw(doc)
+    # Membership, not position: this document opens with an H1, so every `##`
+    # is nested under it and `headings[0]` is the title. Asking whether the
+    # inventory heading is anywhere in the enclosing stack also picks up its
+    # sub-sections, which is where most of the suites are described.
+    wanted = heading.lstrip("# ").strip()
+    section = [body for headings, body in _sections(text)
+               if wanted in headings]
+    if not section:
+        raise Stale(
+            f"{doc} has no {heading!r} section any more, so the suite "
+            f"inventory this checks is not where SUITE_INVENTORY says it is")
+    inventory = "\n".join(section)
+    return [n for n in names if f"`{n}`" not in inventory], len(names)
 
 
 def coverage(
@@ -346,6 +516,18 @@ def refuse_a_universe_that_cannot_fail(
                 f"{doc} reports {bound} bound figures out of {total} present, "
                 f"which means the two are not counting the same thing")
 
+    # The two restatement refusals run last: the four above are about this
+    # file's own universe, and these two are about the documents.
+    missing, total_suites = suites_missing_from_the_inventory()
+    if missing:
+        doc, heading = SUITE_INVENTORY
+        raise Stale(
+            f"the committed report scores {total_suites} suites and "
+            f"{doc} {heading!r} names {total_suites - len(missing)} of them: "
+            f"{missing} is not in the inventory. A design record missing a "
+            f"suite is how that section came to say `fourteen`")
+    restated_bundle_size(None)
+
 
 def check(claims: tuple[Claim, ...] = CLAIMS) -> list[str]:
     """Return one line per claim that does not match the evidence."""
@@ -410,6 +592,14 @@ def main(argv: list[str] | None = None) -> int:
           f"anchored to it ({per_doc})")
     print(f"        the rest are unchecked prose: this gate is evidence about "
           f"{bound} figures, not about either document")
+    checked, dated, exempt = restated_bundle_size()
+    missing, suites = suites_missing_from_the_inventory()
+    doc, heading = SUITE_INVENTORY
+    print(f"restated: {checked} live `N items` mentions hold to the committed "
+          f"bundle ({dated} more sit under dated headings and are left as "
+          f"written; {exempt} phrase(s) exempt with a reason)")
+    print(f"          all {suites} scored suites are named in {doc} "
+          f"{heading!r}")
     return 0
 
 
