@@ -87,7 +87,7 @@ jobs:
           persist-credentials: false
       # LANE 1 -- every result tier, with the two fixture-matching detectors off.
       - name: TruffleHog (full history, all result tiers)
-        uses: trufflesecurity/trufflehog@20652fbbdefffcdaa493a5bf57ab2ac6b1db715b # v3.97.1
+        uses: trufflesecurity/trufflehog@cc1fe982afc515d2991365ce8d4d0dd07170fcad # v3.97.2
         with:
           path: ./
           # Pinned, and it must equal the version comment on the pinned ref
@@ -97,7 +97,7 @@ jobs:
           # this input the sweep silently tracked whatever upstream published
           # last, and every Dependabot bump of the ref was a no-op because
           # Dependabot never edits a `with:` input.
-          version: "3.97.1"
+          version: "3.97.2"
           # The action's baked-in command already passes --fail; repeating it
           # is a CLI error.
           #
@@ -143,10 +143,10 @@ jobs:
       # verdict, while a cancelled run still stops both.
       - name: TruffleHog (full history, verified results, URI still armed)
         if: ${{ !cancelled() }}
-        uses: trufflesecurity/trufflehog@20652fbbdefffcdaa493a5bf57ab2ac6b1db715b # v3.97.1
+        uses: trufflesecurity/trufflehog@cc1fe982afc515d2991365ce8d4d0dd07170fcad # v3.97.2
         with:
           path: ./
-          version: "3.97.1"
+          version: "3.97.2"
           extra_args: --results=verified --exclude-detectors=Lob
 
   # A second engine on the same history, matching on pattern rather than on
