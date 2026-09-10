@@ -200,5 +200,84 @@ class TheUniverseCannotShrinkInSilence(unittest.TestCase):
         check_claims.refuse_a_universe_that_cannot_fail()
 
 
+class ARestatementIsHeldToTheSameEvidence(unittest.TestCase):
+    """A claim anchors one sentence. These two hold every other mention.
+
+    Both were written because both were live on 2026-09-08: `DESIGN.md` said
+    `174 items` six times against a 178-item bundle, and its suite inventory
+    named fourteen of the fifteen suites the report scores. Neither carries a
+    number a human maintains -- the bundle size and the suite ids are read
+    from the committed artifacts -- which is the reason they are not six more
+    `Claim` rows.
+    """
+
+    def test_a_stale_restatement_is_caught(self):
+        texts = {"DESIGN.md": "## Demo dataset\n\nAt 174 items the suites agree.\n",
+                 "README.md": "## Releases\n\nThe bundle holds 178 items.\n"}
+        with self.assertRaises(check_claims.Stale) as caught:
+            check_claims.restated_bundle_size(texts, size=178)
+        self.assertIn("174 items", str(caught.exception))
+
+    def test_a_figure_under_a_dated_heading_is_left_alone(self):
+        texts = {"DESIGN.md": ("## Acceptance record (verified at M9)\n\n"
+                               "Scored 174 items and exited 0.\n"),
+                 "README.md": "## Releases\n\nThe bundle holds 178 items.\n"}
+        checked, dated, _exempt = check_claims.restated_bundle_size(
+            texts, size=178)
+        self.assertEqual((checked, dated), (1, 1))
+
+    def test_a_scan_that_reads_nothing_is_refused(self):
+        # The floor. A reader that stopped matching reports the same clean
+        # line as one that read every document.
+        texts = {"DESIGN.md": "## Suites\n\nno figures here\n",
+                 "README.md": "## Releases\n\nnone here either\n"}
+        with self.assertRaises(check_claims.Stale) as caught:
+            check_claims.restated_bundle_size(texts, size=178)
+        self.assertIn("stopped matching", str(caught.exception))
+
+    def test_an_exemption_nobody_needs_is_refused(self):
+        # Self-limiting, and scoped to the shipped documents. A synthetic call
+        # never contains the exemptions, so enforcing it there would make
+        # every other test in this class fail for the wrong reason -- the same
+        # `claims is CLAIMS` distinction the four universe refusals draw.
+        original = check_claims.EXEMPT_ITEM_PHRASES
+        check_claims.EXEMPT_ITEM_PHRASES = original + (
+            ("a sentence this repository does not contain", "invented"),)
+        try:
+            with self.assertRaises(check_claims.Stale) as caught:
+                check_claims.restated_bundle_size()
+            self.assertIn("appear", str(caught.exception))
+        finally:
+            check_claims.EXEMPT_ITEM_PHRASES = original
+        check_claims.restated_bundle_size()
+
+    def test_a_suite_missing_from_the_inventory_is_named(self):
+        text = "# Title\n\n## Suites\n\n`smoke` and `accuracy`.\n"
+        missing, total = check_claims.suites_missing_from_the_inventory(
+            text, names=["smoke", "accuracy", "refusal"])
+        self.assertEqual((missing, total), (["refusal"], 3))
+
+    def test_naming_a_suite_outside_the_inventory_does_not_count(self):
+        # The reason this is scoped to a section and not to the file: the
+        # roadmap table names every suite in passing, so a whole-document
+        # membership test passes over an inventory missing one.
+        text = ("# Title\n\n## Suites\n\n`smoke`.\n\n"
+                "## Roadmap\n\n`refusal` shipped at M2.\n")
+        missing, _total = check_claims.suites_missing_from_the_inventory(
+            text, names=["smoke", "refusal"])
+        self.assertEqual(missing, ["refusal"])
+
+    def test_an_empty_suite_list_is_refused(self):
+        with self.assertRaises(check_claims.Stale):
+            check_claims.suites_missing_from_the_inventory(
+                "# T\n\n## Suites\n\nx\n", names=[])
+
+    def test_the_shipped_tree_passes_both(self):
+        check_claims.restated_bundle_size()
+        missing, total = check_claims.suites_missing_from_the_inventory()
+        self.assertEqual(missing, [])
+        self.assertGreaterEqual(total, 15)
+
+
 if __name__ == "__main__":
     unittest.main()
