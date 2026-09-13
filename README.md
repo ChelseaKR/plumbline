@@ -150,7 +150,7 @@ minimum detectable effect, baseline regression comparison, a pinned
 fail-closed CI gate, live-target recording over HTTP or against a local
 program, and an optional model judge — none of which the gate can reach. Every
 suite has been **observed failing** on a defect it exists to catch; see
-[`proof/matrix.md`](proof/matrix.md). 874 tests, standard library only,
+[`proof/matrix.md`](proof/matrix.md). 882 tests, standard library only,
 offline.
 
 The fourteenth and fifteenth suites are beyond the specification. The
@@ -290,8 +290,9 @@ python3 tools/defect_matrix.py --check   # verify the committed proof is current
 ```
 
 Read the result in [`proof/matrix.md`](proof/matrix.md) rather than taking
-this paragraph's word for it. Twenty-one cases, all fifteen suites covered,
-plus an integrity refusal and two empty-population configuration errors. The
+this paragraph's word for it. Twenty-three cases, all fifteen suites covered,
+including one integrity refusal and two empty-population configuration
+errors. The
 matrix is regenerated and checked on every test run, so it cannot go stale
 while the code moves under it.
 

@@ -362,3 +362,84 @@ class ATolerancveIsDerivedNotWrittenDown(unittest.TestCase):
         # a suite that scored nothing tolerates nothing, not everything.
         with self.assertRaises(check_claims.Stale):
             check_claims._tolerated(0, 0.90)
+
+
+class SpelledFiguresAreHeldToo(unittest.TestCase):
+    """`NUMERAL` cannot see a figure written as a word, and two went stale there.
+
+    On 2026-09-13 the README said `Twenty-one cases` of a 23-case matrix and
+    `DESIGN.md` said `Thirteen suites reporting PASS` of a fifteen-suite report,
+    while `29 of 319 numerals` printed green above both.
+    """
+
+    def test_compound_figures_are_spelled_and_seen_as_one(self):
+        self.assertEqual(check_claims._spell(23), "twenty-three")
+        self.assertEqual(check_claims._spell(40), "forty")
+        self.assertEqual(check_claims._spell(19), "nineteen")
+        with self.assertRaises(check_claims.Stale):
+            check_claims._spell(100)
+        words = check_claims.NUMBER_WORD.findall(
+            "Twenty-three cases, all fifteen suites, one refusal, twenty-three")
+        self.assertEqual(words, ["Twenty-three", "fifteen", "one", "twenty-three"])
+
+    def test_the_census_partitions_each_document(self):
+        for doc, (bound, live, dated) in check_claims.spelled_coverage().items():
+            whole = len(check_claims.NUMBER_WORD.findall(check_claims._read(doc)))
+            self.assertEqual(live + dated, whole, doc)
+            self.assertLessEqual(bound, live, doc)
+        self.assertGreater(
+            sum(b for b, _, _ in check_claims.spelled_coverage().values()), 0)
+
+    def test_the_command_prints_the_spelled_share(self):
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            self.assertEqual(check_claims.main([]), 0)
+        spelled = check_claims.spelled_coverage()
+        bound = sum(b for b, _, _ in spelled.values())
+        live = sum(lt for _, lt, _ in spelled.values())
+        self.assertIn(f"spelled: {bound} of {live} number-words in the live prose",
+                      out.getvalue())
+
+    def test_a_stale_spelled_figure_is_caught(self):
+        claim = next(c for c in check_claims.CLAIMS
+                     if c.what == "what the defect-injection matrix contains")
+        wrong = check_claims.Claim(
+            doc=claim.doc, what=claim.what, pattern=claim.pattern,
+            expect=lambda facts: {**claim.expect(facts), "cases": "Twenty-one"})
+        problems = check_claims.check((wrong,))
+        self.assertEqual(len(problems), 1, problems)
+        self.assertIn("'Twenty-one'", problems[0])
+
+
+class TheMatrixFiguresRefuseASentenceTheyCannotFill(unittest.TestCase):
+    MATRIX = {"cases": [{"expect": "suite_failure"}, {"expect": "integrity_refusal"},
+                        {"expect": "configuration_error"}],
+              "suites_with_a_defect_case": ["a", "b"],
+              "suites_without_a_defect_case": []}
+    REPORT = {"suites": [{"suite": "a", "verdict": "PASS"},
+                         {"suite": "b", "verdict": "PASS"}]}
+
+    def test_the_figures_come_from_the_rows(self):
+        figures = check_claims._matrix_figures(self.MATRIX, self.REPORT)
+        self.assertEqual(figures["matrix_cases_sentence_start"], "Three")
+        self.assertEqual(figures["matrix_suites_proved"], "two")
+        self.assertEqual(figures["matrix_integrity_refusals"], "one")
+        self.assertEqual(figures["matrix_configuration_errors"], "one")
+        self.assertEqual(figures["suites_passing_sentence_start"], "Two")
+
+    def test_an_uncovered_suite_is_not_all_suites_covered(self):
+        matrix = {**self.MATRIX, "suites_without_a_defect_case": ["c"]}
+        with self.assertRaises(check_claims.Stale):
+            check_claims._matrix_figures(matrix, self.REPORT)
+
+    def test_a_failing_suite_is_not_a_clean_bundle(self):
+        report = {"suites": [{"suite": "a", "verdict": "PASS"},
+                             {"suite": "b", "verdict": "FAIL"}]}
+        with self.assertRaises(check_claims.Stale):
+            check_claims._matrix_figures(self.MATRIX, report)
+
+    def test_an_empty_matrix_or_report_counts_nothing(self):
+        with self.assertRaises(check_claims.Stale):
+            check_claims._matrix_figures({**self.MATRIX, "cases": []}, self.REPORT)
+        with self.assertRaises(check_claims.Stale):
+            check_claims._matrix_figures(self.MATRIX, {"suites": []})

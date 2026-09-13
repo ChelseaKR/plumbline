@@ -1075,7 +1075,7 @@ What is still not held to the standard, stated rather than hidden:
 ## Proving the gate bites: the defect-injection matrix
 
 Everything else in this document argues that Plumbline fails closed. None of
-it is evidence. Thirteen suites reporting PASS on a clean bundle says nothing
+it is evidence. Fifteen suites reporting PASS on a clean bundle says nothing
 about whether any of them is *able* to report FAIL, and a suite nobody has
 watched fail is indistinguishable from a suite that cannot.
 

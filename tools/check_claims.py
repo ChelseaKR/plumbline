@@ -69,10 +69,71 @@ class Stale(Exception):
     """A published figure and the evidence behind it disagree."""
 
 
+TENS = ("twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty",
+        "ninety")
+
+#: A spelled figure, as this repository writes one: `fifteen`, `Twenty-three`.
+#: `NUMERAL` is blind to every one of them, and that is where drift hid: on
+#: 2026-09-13 `Twenty-one cases` sat beside a 23-case matrix and `Thirteen
+#: suites` beside a fifteen-suite report while `29 of 319 numerals` printed
+#: green. Built from the same words `_spell` writes, so the gate can see
+#: exactly what it can assert. A compound is one figure: the lookbehind stops
+#: `three` in `twenty-three` being counted a second time.
+NUMBER_WORD = re.compile(
+    r"(?<![\w-])(?:(?:" + "|".join(TENS) + r")(?:-(?:"
+    + "|".join(WORDS[1:10]) + r"))?|"
+    + "|".join(sorted(WORDS[:20], key=len, reverse=True)) + r")(?!\w)",
+    re.IGNORECASE)
+
+
 def _spell(n: int) -> str:
-    if not 0 <= n < len(WORDS):
-        raise Stale(f"no spelling for {n}; the claim needs rewriting by hand")
-    return WORDS[n]
+    """`n` as this repository's prose spells it: 0-99, hyphenated above 20."""
+    if 0 <= n < 20:
+        return WORDS[n]
+    if 20 <= n < 100:
+        tens, unit = divmod(n, 10)
+        word = TENS[tens - 2]
+        return f"{word}-{WORDS[unit]}" if unit else word
+    raise Stale(f"no spelling for {n}; the claim needs rewriting by hand")
+
+
+def _matrix_figures(matrix: dict, report: dict) -> dict[str, str]:
+    """The spelled figures the prose states about the matrix and a clean run.
+
+    Each one is refused rather than published when the sentence it fills
+    would stop being true of the evidence: a matrix with a suite left
+    uncovered cannot be `all N suites covered`, and a report with a suite
+    that does not PASS is not `N suites reporting PASS on a clean bundle`.
+    """
+    cases = matrix.get("cases") or []
+    covered = matrix.get("suites_with_a_defect_case") or []
+    uncovered = matrix.get("suites_without_a_defect_case") or []
+    suites = report.get("suites") or []
+    if not cases or not covered:
+        raise Stale("the defect matrix records no cases, or no covered suite, "
+                    "so a count taken from it would be a count of nothing")
+    if uncovered:
+        raise Stale(f"the defect matrix leaves {sorted(uncovered)} with no "
+                    f"case, so `all N suites covered` is no longer true of it")
+    if not suites:
+        raise Stale("the committed report scores no suites, so `N suites "
+                    "reporting PASS` would count nothing")
+    failing = sorted(s["suite"] for s in suites if s.get("verdict") != "PASS")
+    if failing:
+        raise Stale(f"the committed report does not PASS {failing}, so `N "
+                    f"suites reporting PASS on a clean bundle` is not a "
+                    f"sentence about it")
+
+    def of_kind(kind: str) -> int:
+        return sum(1 for case in cases if case.get("expect") == kind)
+
+    return {
+        "matrix_suites_proved": _spell(len(covered)),
+        "matrix_cases_sentence_start": _spell(len(cases)).capitalize(),
+        "matrix_integrity_refusals": _spell(of_kind("integrity_refusal")),
+        "matrix_configuration_errors": _spell(of_kind("configuration_error")),
+        "suites_passing_sentence_start": _spell(len(suites)).capitalize(),
+    }
 
 
 def _tolerated(n: int, floor: float) -> int:
@@ -203,7 +264,7 @@ def facts() -> dict[str, str]:
         "attribution_unverifiable": str(unverifiable["count"]),
         "refusal_floor": f"{refusal['floor']:.2f}",
         "refusal_tolerated": _spell(_tolerated(refusal["n"], refusal["floor"])),
-        "matrix_suites_proved": _spell(len(matrix["suites_with_a_defect_case"])),
+        **_matrix_figures(matrix, report),
         "seed": str(matrix["seed"]),
     }
 
@@ -336,6 +397,35 @@ CLAIMS: tuple[Claim, ...] = (
         what="how many declines the bundle carries",
         pattern=r"Writing (?P<refusals>[0-9]+) refusals for this bundle",
         expect=lambda f: {"refusals": f["bundle_refusals"]},
+    ),
+    # Spelled figures. The numeral census cannot see them, and both of the
+    # stale ones below sat under a green numeral line: `Twenty-one cases` of a
+    # 23-case matrix and `Thirteen suites` of a fifteen-suite report.
+    Claim(
+        doc="README.md",
+        what="what the defect-injection matrix contains",
+        pattern=(r"(?P<cases>[A-Z][a-z]+(?:-[a-z]+)?) cases, all "
+                 r"(?P<suites>[a-z]+(?:-[a-z]+)?) suites covered, including "
+                 r"(?P<integrity>[a-z]+) integrity refusal and "
+                 r"(?P<config>[a-z]+) empty-population configuration errors"),
+        expect=lambda f: {"cases": f["matrix_cases_sentence_start"],
+                          "suites": f["matrix_suites_proved"],
+                          "integrity": f["matrix_integrity_refusals"],
+                          "config": f["matrix_configuration_errors"]},
+    ),
+    Claim(
+        doc="README.md",
+        what="how many suites a clean run reports PASS for",
+        pattern=(r"(?P<suites>[A-Z][a-z]+(?:-[a-z]+)?) suites reporting PASS "
+                 r"proves nothing"),
+        expect=lambda f: {"suites": f["suites_passing_sentence_start"]},
+    ),
+    Claim(
+        doc="DESIGN.md",
+        what="how many suites a clean bundle reports PASS for",
+        pattern=(r"(?P<suites>[A-Z][a-z]+(?:-[a-z]+)?) suites reporting PASS "
+                 r"on a clean bundle"),
+        expect=lambda f: {"suites": f["suites_passing_sentence_start"]},
     ),
 )
 
@@ -597,6 +687,35 @@ def live_coverage(
     return out
 
 
+def spelled_coverage(
+    claims: tuple[Claim, ...] = CLAIMS,
+) -> dict[str, tuple[int, int, int]]:
+    """Per gated document: number-words bound, in live prose, under dated headings.
+
+    The same three numbers `live_coverage` reports, over the population
+    `NUMERAL` cannot see. Kept as its own census rather than added into the
+    numeral one because the two are different token sets, and one share over
+    both would hide which of them is unchecked.
+    """
+    out: dict[str, tuple[int, int, int]] = {}
+    for doc in GATED_DOCUMENTS:
+        whole = _read(doc)
+        live = re.sub(r"\s+", " ", live_prose(doc))
+        bound = 0
+        for claim in claims:
+            if claim.doc != doc:
+                continue
+            found = list(re.finditer(claim.pattern, whole))
+            if len(found) != 1:
+                continue  # `check` reports this; a census cannot also fail on it.
+            bound += sum(1 for value in found[0].groupdict().values()
+                         if value is not None and NUMBER_WORD.fullmatch(value))
+        total = len(NUMBER_WORD.findall(whole))
+        live_total = len(NUMBER_WORD.findall(live))
+        out[doc] = (bound, live_total, total - live_total)
+    return out
+
+
 def claims_anchored_only_in_history(
     claims: tuple[Claim, ...] = CLAIMS,
 ) -> list[str]:
@@ -642,7 +761,7 @@ def refuse_a_universe_that_cannot_fail(
             continue
         if not any(value is not None and NUMERAL.fullmatch(value)
                    for value in found[0].groupdict().values()):
-            if not any(value in WORDS
+            if not any(value is not None and NUMBER_WORD.fullmatch(value)
                        for value in found[0].groupdict().values()):
                 raise Stale(
                     f"the claim about {claim.what} captures no figure, so it "
@@ -670,6 +789,20 @@ def refuse_a_universe_that_cannot_fail(
             f"heading dating itself. A dated record says what was observed "
             f"then; holding it to today's evidence would rewrite the archive "
             f"every time a number moved. Anchor the live sentence instead")
+
+    spelled = spelled_coverage(claims)
+    for doc, (bound, live_total, _dated) in spelled.items():
+        if bound > live_total:
+            raise Stale(
+                f"{doc} reports {bound} bound number-words out of {live_total} "
+                f"in its live prose, which means the two are not counting the "
+                f"same thing")
+    if claims is CLAIMS and sum(b for b, _, _ in spelled.values()) == 0:
+        raise Stale(
+            "no claim binds a spelled figure in any gated document, so the "
+            "spelled census is a denominator with no numerator -- the state "
+            "this file was in while `Twenty-one cases` and `Thirteen suites` "
+            "were wrong under a green numeral line")
 
     # The two restatement refusals run last: the four above are about this
     # file's own universe, and these two are about the documents.
@@ -754,6 +887,15 @@ def main(argv: list[str] | None = None) -> int:
           f"{total} numerals in all")
     print(f"        the rest are unchecked prose: this gate is evidence about "
           f"{bound} figures, not about either document")
+    spelled = spelled_coverage()
+    s_bound = sum(b for b, _, _ in spelled.values())
+    s_live = sum(lt for _, lt, _ in spelled.values())
+    s_dated = sum(d for _, _, d in spelled.values())
+    s_per_doc = "; ".join(f"{doc} {b} of {lt} live, {d} dated"
+                          for doc, (b, lt, d) in sorted(spelled.items()))
+    print(f"spelled: {s_bound} of {s_live} number-words in the live prose are "
+          f"anchored to it ({s_per_doc}); {s_dated} more sit under dated "
+          f"headings and are records")
     checked, dated, exempt = restated_bundle_size()
     missing, suites = suites_missing_from_the_inventory()
     doc, heading = SUITE_INVENTORY
