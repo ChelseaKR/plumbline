@@ -11,6 +11,36 @@ may break the interface.
 
 ### Fixed
 
+- **Two spelled figures went stale where the numeral census could not see
+  them.** `tools/check_claims.py` counted `29 of 319 numerals` green while the
+  README said *"Twenty-one cases"* of a defect matrix that holds **twenty-three**,
+  and `DESIGN.md` said *"Thirteen suites reporting PASS on a clean bundle"* of a
+  report that scores **fifteen**. `NUMERAL` matches digits, so every figure this
+  repository writes as a word sat outside both of its numbers.
+
+  - The README sentence now reads *"Twenty-three cases, all fifteen suites
+    covered, including one integrity refusal and two empty-population
+    configuration errors."* The old *"plus"* was wrong as well as the count: the
+    integrity refusal and the two configuration errors are cases in the matrix,
+    not additions to it.
+  - Both sentences are bound, and so is the README's *"Fifteen suites reporting
+    PASS proves nothing"*, which was right. Every figure is read from
+    `proof/matrix.json` or the committed report by `_matrix_figures`, which
+    refuses rather than fills a sentence that would stop being true: a matrix
+    with a suite left uncovered is not *"all N suites covered"*, and a report
+    with a suite that does not PASS is not *"N suites reporting PASS on a clean
+    bundle"*.
+  - `_spell` now writes 0–99, hyphenated above twenty, and `NUMBER_WORD` reads
+    the same words back, so the gate can see exactly what it can assert.
+
+- **The gate states its spelled coverage beside its numeral coverage.** A new
+  `spelled:` line reports number-words bound of number-words in live prose, per
+  document, with those under dated headings named beside it rather than counted
+  in — the same *bound of live* rule the numeral census follows. It is a
+  separate census because the two are different token sets, and one share over
+  both would hide which is unchecked. A shipped claim set that binds no spelled
+  figure at all is refused.
+
 - **Two live figures in `DESIGN.md`, and a denominator that counted 171
   sentences no gate is allowed to touch.** Six new `Claim` rows take the gate
   from **15 of 490 numerals** to **29**, and two of the six were stale the moment
