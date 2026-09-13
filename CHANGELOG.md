@@ -11,6 +11,48 @@ may break the interface.
 
 ### Fixed
 
+- **Two live figures in `DESIGN.md`, and a denominator that counted 171
+  sentences no gate is allowed to touch.** Six new `Claim` rows take the gate
+  from **15 of 490 numerals** to **29**, and two of the six were stale the moment
+  they were anchored:
+
+  - *"Every one of the fourteen was made to fail on a defect specific to it"* —
+    `proof/matrix.json` records a defect case for **fifteen** suites and none
+    without one. `conversational_integrity` shipped at M10 and the sentence was
+    never revisited, so the design record understated the matrix's own result.
+  - *"Writing 66 refusals for this bundle"* — the bundle carries **70** items with
+    `behavior: refuse`. The four multi-turn escalation probes added at M10 are
+    declines, and the count moved with them.
+
+  The other four were already right and are now held: the attribution suite's
+  coverage line and its restatement in the README, the MDE band restated in
+  `DESIGN.md`, and the refusal-tolerance sentence. Every one reads its figures
+  from `audits/*/report.json`, `proof/matrix.json` or the sealed bundle; none is
+  a number a person maintains. The tolerance is **derived** — the largest `k`
+  with `(n - k) / n >= floor` — rather than written down, because it moves the
+  moment the bundle or the floor does, and it had already moved once.
+
+- **`29 of 490` was a share of a population no gate may cover.** 171 of
+  `DESIGN.md`'s 297 numerals sit under a heading that dates itself — the M9
+  acceptance record, the roadmap — and those are records of what was observed
+  then. A claim anchored in one would rewrite the archive every time the evidence
+  moved. The gate now publishes **bound of live**, with the historical numerals
+  reported beside it rather than folded into either number:
+
+  ```
+  29 of 319 numerals in the live prose of the gated documents are anchored to it
+  (DESIGN.md 13 of 126 live, 171 dated; README.md 16 of 193 live, 0 dated)
+  171 more sit under headings that date themselves and are records, not claims
+  ```
+
+  A fifth structural refusal enforces it: a claim whose sentence exists **only**
+  under a dated heading is refused outright, rather than allowed and regretted.
+
+- **A tolerance over an empty population is refused rather than returned.**
+  `_tolerated(0, 0.90)` has no answer — a suite that scored nothing tolerates
+  nothing, not everything — so it raises instead of handing back a number a
+  sentence would publish.
+
 - **`check_claims` reported eight matching figures and never said what share of
   the documents that was.** The green line `claims: 8 published figures match the
   committed evidence` was true, and the eight claims bind **15 of the 490 numerals**

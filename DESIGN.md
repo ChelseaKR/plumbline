@@ -1007,7 +1007,7 @@ a number rather than asserted.
 
 ### What the refusal marker list cannot do
 
-Writing 66 refusals for this bundle surfaced a limitation worth stating
+Writing 70 refusals for this bundle surfaced a limitation worth stating
 plainly. Refusal detection is a substring match against a marker list, and the
 shipped list covers six English verbs and five Spanish ones. Perfectly
 ordinary declines — "I can't store personal identifiers", "No puedo adivinar
@@ -1139,7 +1139,7 @@ it exists to prevent.
   item's own source (so grounding has nothing to catch). Those constructions
   are documented per case in `proof/matrix.md`, and they are themselves a
   description of what each suite uniquely measures.
-- **No suite resisted.** Every one of the fourteen was made to fail on a
+- **No suite resisted.** Every one of the fifteen was made to fail on a
   defect specific to it. `accessibility` was the easiest (five structural
   checks, a census, no floor arithmetic to fight); `fairness` the hardest, for
   the reason above.
