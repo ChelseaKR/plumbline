@@ -16,9 +16,9 @@
 # `tests/test_ci_parity.py` holds that open: every `run:` step in tests.yml
 # must be a make target, and `verify` must reach it.
 
-.PHONY: verify lint test test-bare coverage site-check claims-check clean reproduce tamper-drill sast
+.PHONY: verify lint test test-bare coverage site-check claims-check expansion-check clean reproduce tamper-drill sast
 
-verify: lint test site-check claims-check reproduce tamper-drill
+verify: lint test site-check claims-check expansion-check reproduce tamper-drill
 	@echo "make verify: all local gates passed."
 
 # Ruff's default rules. The narrow select set is a recorded gap, not an
@@ -67,6 +67,16 @@ site-check:
 # own the argument in it too.
 claims-check:
 	PYTHONPATH=src uv run python3 tools/check_claims.py
+
+# The same standard again, applied to the one document that states what has
+# and has not been built. `docs/feature-expansion-ideas.md` said "None of this
+# is implemented" for twenty-two days after all six of its proposals shipped,
+# because nothing read the sentence. This declares the paths that decide each
+# proposal's status and fails in both directions: a proposal published as
+# shipped whose module is gone, and one published as open whose module is
+# there.
+expansion-check:
+	uv run python3 tools/check_expansion_status.py
 
 clean:
 	rm -rf .coverage htmlcov .ruff_cache

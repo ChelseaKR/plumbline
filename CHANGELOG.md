@@ -11,6 +11,90 @@ may break the interface.
 
 ### Fixed
 
+- **`docs/feature-expansion-ideas.md` declared all six of its proposals unbuilt,
+  and all six had shipped.** The page opened: "None of this is implemented,
+  scheduled, or promised -- it is ideation, dated and attributed like everything
+  else here, so a reader can tell a considered-but-not-built idea from a
+  considered-and-built one." Every one of the six landed in `v0.2.0` on
+  2026-08-22 as #8-#13, so the sentence was false on the day it was published and
+  stayed false for twenty-two days. Not a stale figure: a claim about the system
+  with nothing holding it to being true, on the one page whose whole job is to
+  tell a reader which claims are which.
+
+  Each of the six was verified against the tree rather than read off the roadmap:
+
+  | # | Proposal | Where it actually lives |
+  |---|---|---|
+  | 1 | Detached report signatures | `src/plumbline/signing.py`, `plumbline sign` / `verify --key-file` |
+  | 2 | Multi-turn conversation items | `Item.turns` and `src/plumbline/suites/conversational_integrity.py` |
+  | 3 | Machine-readable findings | `src/plumbline/sarif.py`, `--sarif` on `audit`/`gate` |
+  | 4 | Supply-chain closure | `sbom.cdx.json`, `tools/build_sbom.py`, `release.yml`, `scorecard.yml`, `publish-pypi.yml` |
+  | 5 | Retention and redaction | `src/plumbline/retention.py`, `plumbline retire`, `docs/recordings-data-card.md` |
+  | 6 | Longitudinal run history | `src/plumbline/history.py`, `plumbline history append`/`check` |
+
+  The page's own closing paragraph set the terms any picked-up idea was to be
+  held to -- a roadmap row, a defect-injection case before it is trusted, and an
+  ADR if it would be expensive to reverse -- and those were audited too, because
+  a page that is now right about *what* shipped and silent about *how* would be
+  half the correction. **Roadmap row: six of six**, all in `DESIGN.md`'s M10 row.
+  **Defect-injection case: one of six** -- only idea 2, which is the only one of
+  the six that is a scoring suite and therefore the only one `proof/matrix.md`
+  can speak about at all. Idea 5 is the exception that is not structural: it
+  promised its own defect-injection cases in writing and has fourteen
+  planted-defect tests in `tests/test_retention.py` instead, which is a real bar
+  and not the one it named. **ADR: three of six** (`0002`, `0003`, `0001`). Ideas
+  3 and 4 are cheap to reverse and the absence is defensible; idea 5 is not
+  obviously so, because `plumbline retire --redact` rewrites `responses.jsonl`
+  in place and re-seals, moving the dataset hash and breaking every baseline
+  against that recording. All of that is now on the page, next to the proposal
+  it is about.
+
+  **The page is rewritten, and it is no longer the only thing holding itself
+  up.** Correcting the prose alone resets the clock; the same sentence would go
+  stale the next time somebody built something. `tools/check_expansion_status.py`
+  declares, per proposal, the paths that decide its status, and fails in both
+  directions: a proposal published as shipped whose module is not in the tree,
+  and -- the failure that actually happened -- a proposal published as open whose
+  module is. It also fails when a section is renamed out from under its entry,
+  when a section states a status twice or not at all, when the page never names a
+  path its status is measured on, and when the page's own count of itself
+  disagrees with the declarations. Five structural refusals sit under that, each
+  naming a way the gate could report green over something it never read: a
+  proposal binding no path at all, a status the file does not understand, one
+  path standing as evidence for two proposals, a numbered proposal on the page
+  that no entry declares, and -- the one specific to this subject -- a page on
+  which everything has shipped, which exercises one direction of the existence
+  check and reports clean about the other.
+
+  Built on `tools/check_claims.py`'s pattern rather than a new one, wired into
+  `make verify` as `expansion-check`, and proved rather than assumed:
+  `tests/test_expansion_status.py` is 21 tests, of which 15 plant a defect and
+  assert the gate goes red on it. Both real-tree directions were exercised by
+  hand before the tests were written -- creating `.github/required-checks.json`
+  (idea 7, published as open) and moving `src/plumbline/sarif.py` aside (idea 3,
+  published as shipped) each produce exit 1 and name the proposal.
+
+  **The six spent proposals are replaced, not deleted.** Each keeps its original
+  argument word for word and gains an outcome: what shipped, where it lives, what
+  it cost, and what it promised that is still outstanding -- including the two
+  substitutions the implementations made without the page recording them
+  (signatures are shared-secret HMAC, not the ed25519 the idea asked for; the
+  history reports a decline streak, not the trend statistic the idea worried
+  about). Three new proposals replace them, anchored the same way the originals
+  were: a committed required-checks contract (CI/CD's "no ruleset file is
+  committed ... a renamed job would silently stop being required"), a
+  human-adjudicated sample for the model judge (AI Evaluation's "nothing measures
+  how often the model judge agrees with a human rater"), and a staleness gate for
+  the metrics ledger and the definition of done (Quality & Metrics' "nothing
+  enforces that either document actually gets kept up to date"). The Non-goals
+  line still excludes a benchmark, a leaderboard and a red-team service, and the
+  judge-agreement proposal argues in place why measuring this harness's own
+  instrument is not the first of the three.
+
+  Documentation and tests only; no `src/plumbline` file changed, so no committed
+  derived artifact moved. The README's test count goes 866 to 887 and its
+  Documentation row stops saying the ADR log has four entries when it has six.
+
 - **`check_claims` reported eight matching figures and never said what share of
   the documents that was.** The green line `claims: 8 published figures match the
   committed evidence` was true, and the eight claims bind **15 of the 490 numerals**
