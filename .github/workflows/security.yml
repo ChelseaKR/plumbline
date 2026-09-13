@@ -83,13 +83,37 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          fetch-depth: 0 # whole history, not a diff
+          # Necessary, and on its own not sufficient. This decides how much
+          # history lands on disk; `base:`/`head:` on each lane below decide how
+          # much of it TruffleHog is asked to read. Both lanes were checked out
+          # at full depth while scanning a two-commit range on every push, so a
+          # full-depth checkout is no evidence of a full-history scan.
+          fetch-depth: 0
           persist-credentials: false
       # LANE 1 -- every result tier, with the two fixture-matching detectors off.
       - name: TruffleHog (full history, all result tiers)
         uses: trufflesecurity/trufflehog@cc1fe982afc515d2991365ce8d4d0dd07170fcad # v3.97.2
         with:
           path: ./
+          # What actually makes this a full-history scan, and what was missing
+          # until 2026-09-13. The action derives its own range when `base` and
+          # `head` are both unset:
+          #
+          #   push        --since-commit <event.before> --branch <event.after>
+          #   pull_request--since-commit <pr.base.sha>  --branch <pr.head.sha>
+          #   schedule    --since-commit ""             --branch ""
+          #
+          # This workflow runs on push and pull_request as well as on the
+          # Sunday cron -- deliberately, see the header -- so for six days a
+          # week a job named "full-history secret scan" scanned a diff. Setting
+          # `head` non-empty takes the action's explicit-range branch, which
+          # runs `--since-commit "" --branch HEAD`: every commit reachable from
+          # HEAD, on every event. `base: ''` alone does nothing; with both
+          # empty the action falls straight back to the event logic. `HEAD`
+          # rather than a branch name because a pull_request checkout is a
+          # detached merge ref where no branch name resolves.
+          base: ''
+          head: HEAD
           # Pinned, and it must equal the version comment on the pinned ref
           # above. The action's `version:` input defaults to "latest" and it
           # runs `ghcr.io/trufflesecurity/trufflehog:${VERSION}`, so the SHA
@@ -146,6 +170,9 @@ jobs:
         uses: trufflesecurity/trufflehog@cc1fe982afc515d2991365ce8d4d0dd07170fcad # v3.97.2
         with:
           path: ./
+          # Same reason as lane 1: without these the lane scans the event's diff.
+          base: ''
+          head: HEAD
           version: "3.97.2"
           extra_args: --results=verified --exclude-detectors=Lob
 
@@ -177,7 +204,10 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          fetch-depth: 0 # whole history, not a diff
+          # Necessary, not sufficient. `gitleaks git .` below carries no
+          # `--log-opts`, and that is what makes it walk the history; this line
+          # only guarantees the history is there to walk.
+          fetch-depth: 0
           persist-credentials: false
       - name: Secret scan (gitleaks, full history)
         # A checksum-verified, version-pinned binary rather than a third-party

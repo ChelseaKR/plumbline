@@ -34,6 +34,7 @@ So the invariants held here are:
 * every detector a widened lane switches off must stay armed in some other lane, Lob aside --
   Lob matches this repository's own test names under every tier and has no lane;
 * the scanning binary is pinned by the `version:` input, not only by the action SHA;
+* every history scan is INVOKED over the whole history, not merely checked out at full depth;
 * every history scan checks out the whole history and walks the whole tree.
 
 The `secrets` job's NAME is deliberately left saying "verified only" even though it no longer
@@ -228,13 +229,53 @@ class SecretScanningTests(unittest.TestCase):
             "printed into the log and the job would still go green"
         )
 
+    def test_no_lane_takes_its_scan_range_from_the_triggering_event(self) -> None:
+        """This, not `fetch-depth: 0`, is what makes the TruffleHog lanes history scans.
+
+        With `base` and `head` both unset the action derives its own range from the event:
+        `--since-commit <event.before> --branch <event.after>` on a push, the pull request's
+        `base..head` on a pull_request, and the empty range that means "everything" only on
+        `schedule`/`workflow_dispatch`. This workflow runs on push and pull_request too, so
+        until 2026-09-13 a job named "full-history secret scan" scanned a two-commit diff six
+        days a week -- with `fetch-depth: 0` on its checkout the entire time. Setting `head`
+        non-empty takes the action's explicit-range branch and scans `--since-commit "" --branch
+        HEAD` on every event. `base: ''` on its own does not: with both values empty the action
+        falls straight back to the event logic.
+        """
+        secrets_job = job("secrets")
+        lanes = len(re.findall(r"uses:\s*trufflesecurity/trufflehog@", secrets_job))
+        assert lanes >= 2, f"expected both TruffleHog lanes in the secrets job, found {lanes}"
+        assert len(re.findall(r"^\s*base:\s*''\s*$", secrets_job, re.M)) == lanes, (
+            "not every TruffleHog lane sets `base: ''`; a lane without it derives its range "
+            "from the triggering event and scans a diff on push and pull_request"
+        )
+        assert len(re.findall(r"^\s*head:\s*HEAD\s*$", secrets_job, re.M)) == lanes, (
+            "not every TruffleHog lane sets `head: HEAD`. `base: ''` alone leaves both values "
+            "empty, which does NOT select the explicit-range branch -- the lane falls back to "
+            "the event range. `HEAD` is also the only value that resolves in a pull_request's "
+            "detached merge-ref checkout."
+        )
+        # Comments stripped: the note on that job's checkout names the very flag this
+        # forbids, and an assertion a comment can satisfy is not an assertion.
+        gitleaks_code = re.sub(r"(?m)^\s*#.*$|\s+#.*$", "", job("gitleaks"))
+        assert "--log-opts" not in gitleaks_code, (
+            "the gitleaks lane was given a `--log-opts` range; `gitleaks git .` without one is "
+            "what makes it walk every commit reachable from HEAD"
+        )
+
     def test_every_history_scan_checks_out_the_whole_history(self) -> None:
-        """A diff-scoped scan cannot see a secret added and removed within one branch, which is
-        the shape this job exists for. Both scanning jobs must fetch the full history."""
+        """The precondition, not the cause.
+
+        `fetch-depth: 0` decides how much history `actions/checkout` puts on disk. It does not
+        decide how much of it the scanner reads -- both jobs carried it while the TruffleHog
+        lanes were scanning a diff. Keep it, because without it there is nothing to walk, and
+        read `test_no_lane_takes_its_scan_range_from_the_triggering_event` above for the
+        assertion that makes these history scans.
+        """
         for name in ("secrets", "gitleaks"):
             assert "fetch-depth: 0" in job(name), (
-                f"the `{name}` job does not check out the full history, so it is a diff scan "
-                f"wearing a history scan's name"
+                f"the `{name}` job does not check out the full history, so the history-walking "
+                f"invocation it runs would have a single commit to walk"
             )
 
     def test_the_required_check_keeps_the_name_branch_protection_knows(self) -> None:
