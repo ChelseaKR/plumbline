@@ -137,12 +137,12 @@ class TheGateStatesItsOwnCoverage(unittest.TestCase):
         with contextlib.redirect_stdout(out):
             self.assertEqual(check_claims.main([]), 0)
         printed = out.getvalue()
-        census = check_claims.coverage()
-        bound = sum(b for b, _ in census.values())
-        total = sum(t for _, t in census.values())
-        self.assertIn(f"{bound} of {total} numerals", printed)
-        for doc, (b, t) in census.items():
-            self.assertIn(f"{doc} {b} of {t}", printed)
+        live = check_claims.live_coverage()
+        bound = sum(b for b, _, _ in live.values())
+        live_total = sum(lt for _, lt, _ in live.values())
+        self.assertIn(f"{bound} of {live_total} numerals", printed)
+        for doc, (b, lt, d) in live.items():
+            self.assertIn(f"{doc} {b} of {lt} live, {d} dated", printed)
 
     def test_the_share_is_not_the_whole_document(self):
         # If this ever stops being true the sentence about unchecked prose is
@@ -281,3 +281,84 @@ class ARestatementIsHeldToTheSameEvidence(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TheDenominatorIsTheOneAGateCouldReach(unittest.TestCase):
+    """`29 of 490` is a share of a number no gate is allowed to cover.
+
+    171 of `DESIGN.md`'s 297 numerals sit under a heading that dates itself.
+    Those are records of what was observed then, and a claim anchored in one
+    would rewrite the archive every time the evidence moved. Publishing them
+    inside the denominator makes the gate look four times more absent than it
+    is, and hides which numerals are actually unchecked.
+    """
+
+    def test_the_three_numbers_partition_the_document(self):
+        whole = check_claims.coverage()
+        live = check_claims.live_coverage()
+        self.assertEqual(set(live), set(check_claims.GATED_DOCUMENTS))
+        for doc, (bound, live_total, dated) in live.items():
+            self.assertEqual(live_total + dated, whole[doc][1], doc)
+            self.assertEqual(bound, whole[doc][0], doc)
+            self.assertLessEqual(bound, live_total, doc)
+
+    def test_a_document_with_history_in_it_reports_some(self):
+        # If this ever reads zero the distinction has stopped being measured
+        # and the honest line above is decoration.
+        _, live_total, dated = check_claims.live_coverage()["DESIGN.md"]
+        self.assertGreater(dated, 0)
+        self.assertGreater(live_total, 0)
+
+    def test_the_command_prints_both_denominators(self):
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            self.assertEqual(check_claims.main([]), 0)
+        printed = out.getvalue()
+        live = check_claims.live_coverage()
+        bound = sum(b for b, _, _ in live.values())
+        live_total = sum(lt for _, lt, _ in live.values())
+        dated = sum(d for _, _, d in live.values())
+        self.assertIn(f"{bound} of {live_total} numerals in the live prose",
+                      printed)
+        self.assertIn(f"{dated} more sit under headings that date themselves",
+                      printed)
+        self.assertIn(f"{live_total + dated} numerals in all", printed)
+
+
+class AClaimMayNotBeAnchoredInHistory(unittest.TestCase):
+    """The refusal that keeps the archive an archive."""
+
+    def test_a_claim_pinned_to_a_dated_sentence_is_refused(self):
+        # `## Acceptance record (verified at M9, clean checkout)` really does
+        # say `174 items`, and it must go on saying it.
+        historical = check_claims.Claim(
+            doc="DESIGN.md",
+            what="a figure inside the acceptance record",
+            pattern=r"Across (?P<items>174) items the planted fabrication",
+            expect=lambda facts: {"items": facts["items"]})
+        self.assertEqual(
+            check_claims.claims_anchored_only_in_history((historical,)),
+            ["a figure inside the acceptance record"])
+        # Paired with a live README claim so the refusal under test is the one
+        # that fires, rather than the earlier "nothing anchored here" floor.
+        universe = (check_claims.CLAIMS[0], historical)
+        with self.assertRaises(check_claims.Stale) as caught:
+            check_claims.refuse_a_universe_that_cannot_fail(universe)
+        self.assertIn("date", str(caught.exception))
+
+    def test_no_shipped_claim_is_anchored_in_history(self):
+        self.assertEqual(check_claims.claims_anchored_only_in_history(), [])
+
+
+class ATolerancveIsDerivedNotWrittenDown(unittest.TestCase):
+    def test_the_tolerance_is_the_floor_over_the_population(self):
+        # 178 items at a floor of 0.90: 161 successes score 0.9045 and pass,
+        # 160 score 0.8989 and do not, so seventeen may be wrong.
+        self.assertEqual(check_claims._tolerated(178, 0.90), 17)
+        self.assertEqual(check_claims._tolerated(178, 1.00), 0)
+
+    def test_a_tolerance_over_an_empty_population_is_refused(self):
+        # The whole defect class in one line: `(0 - 0) / 0` has no answer, and
+        # a suite that scored nothing tolerates nothing, not everything.
+        with self.assertRaises(check_claims.Stale):
+            check_claims._tolerated(0, 0.90)
