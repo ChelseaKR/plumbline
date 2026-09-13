@@ -75,10 +75,47 @@ class ThePublishedPageIsCurrent(unittest.TestCase):
     def test_it_is_self_contained(self):
         # A strict reader with no network gets the same page: no external
         # stylesheet, script, font or image.
-        for external in ("http://", "src=", "<script", "@import", "//cdn"):
+        for external in ("http://", "src=", "@import", "//cdn"):
             with self.subTest(external=external):
                 self.assertNotIn(external, self.page.replace(
                     'href="https://github.com', ""))
+
+        # `<script` used to be a fifth entry in that list, and it was a
+        # substring standing in for the property actually promised. The page
+        # now carries a `application/ld+json` block, which fetches nothing and
+        # executes nothing -- a browser treats it as data and hands it to no
+        # interpreter -- so the promise is unchanged and the check has to stop
+        # being a string match to say so. It is narrower in what it forbids
+        # and stricter in how it looks: `< script`, `<SCRIPT` and
+        # `type = 'text/javascript'` all slipped past the substring and none
+        # of them slips past a parser.
+        #
+        # `tests/test_site_structured_data.py` holds the same line over the
+        # committed file, and holds every value in that block to the tag or
+        # file it was read from.
+        from html.parser import HTMLParser
+
+        class _Scripts(HTMLParser):
+            def __init__(self):
+                super().__init__(convert_charrefs=True)
+                self.found = []
+
+            def handle_starttag(self, tag, attrs):
+                if tag == "script":
+                    self.found.append(
+                        {k.lower(): (v or "") for k, v in attrs})
+
+        scripts = _Scripts()
+        scripts.feed(self.page)
+        scripts.close()
+        for element in scripts.found:
+            with self.subTest(script=element):
+                self.assertEqual(
+                    element.get("type", "").strip(), "application/ld+json",
+                    "an executable script; the page promises none")
+                self.assertNotIn("src", element,
+                                 "a script that fetches; the page promises "
+                                 "a reader with no network the same document")
 
     def test_the_head_names_this_page_and_not_the_shared_origin(self):
         # This page is served under a project PATH on `chelseakr.github.io`, an
