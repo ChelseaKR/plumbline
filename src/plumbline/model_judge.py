@@ -49,7 +49,7 @@ import json
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from . import network
+from . import lexicons, network
 from .errors import OutboundError
 from .hashing import canonical_json, config_digest, sha256_text
 from .judges import LexicalJudge, language_rules, strip_citations
@@ -440,6 +440,12 @@ class ModelJudge:
 
     def supported_languages(self) -> tuple[str, ...]:
         return self._lexical.supported_languages()
+
+    def language_rules(self) -> lexicons.LanguageRules:
+        # The model judge does not detect refusals itself; it delegates to
+        # the lexical judge, so the lexicons in force are that judge's and
+        # the coverage requirement applies to a model run identically.
+        return self._lexical.language_rules()
 
     def detect_language(self, text: str) -> str | None:
         return self._lexical.detect_language(text)
