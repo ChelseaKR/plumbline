@@ -49,7 +49,7 @@ other copy never reports to the property), when the browser sends Global
 Privacy Control or Do Not Track, or after the visitor opts out in the footer.
 Otherwise it sets Consent Mode v2 defaults (the three advertising signals
 denied everywhere, analytics storage denied in the EEA, the UK and
-Switzerland), configures gtag with Google signals and ad personalisation off,
+Switzerland), configures gtag with Google signals and ad personalization off,
 and appends gtag.js as an async script.
 """
 
@@ -99,7 +99,7 @@ PAGE_URL = "https://chelseakr.github.io/plumbline/"
 # `semgrep scan --config r/html.security.audit.missing-integrity`: 1 finding before, 0 after.
 #
 # Two details this cost a round trip to learn, so they are written down. The comment must sit
-# on the SAME line as the tag: on the preceding line it is not honoured for this rule, and the
+# on the SAME line as the tag: on the preceding line it is not honored for this rule, and the
 # scan still reported the finding. And the id must be the full, doubled
 # `html.security.audit.missing-integrity.missing-integrity`; the shorter path prefix is not a
 # match, and semgrep does not warn -- it simply does not suppress.
@@ -821,8 +821,8 @@ each page.</p>
 
 <h2>Advertising features are off</h2>
 
-<p>Google signals and ad personalisation are both turned off, and the
-advertising storage, ad user data and ad personalisation consent signals are
+<p>Google signals and ad personalization are both turned off, and the
+advertising storage, ad user data and ad personalization consent signals are
 denied everywhere. Google keeps the event data for
 {esc(GA4_DATA_RETENTION)}. See
 <a href="https://policies.google.com/privacy">Google's privacy policy</a>.</p>

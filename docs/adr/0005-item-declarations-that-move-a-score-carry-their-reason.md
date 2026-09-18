@@ -5,14 +5,14 @@
 
 ## Context
 
-Two consumer findings arrived with the same shape: a correct behaviour and an
+Two consumer findings arrived with the same shape: a correct behavior and an
 incorrect one were coming out of this harness as the same number, so the score
 could not tell them apart and the item could not ship.
 
 **Cross-language answering.** A consumer's corpus for one jurisdiction is
 English-only. Their product answers an Arabic question by quoting the English
 passage verbatim under an Arabic notice saying that is what it did. That is the
-right behaviour for that corpus, and `multilingual` scored it `0.0000` — the
+right behavior for that corpus, and `multilingual` scored it `0.0000` — the
 same number a system that simply ignored the question's language gets. Their
 evidence set has a one-item ceiling for that reason: a second such item turns
 the gate red.
@@ -67,7 +67,7 @@ added together.
 Two refusals follow from the same principle. `expected_response_lang.lang ==
 item.lang` is a bundle error rather than a no-op: it declares nothing, changes
 no score, and would read to anyone auditing the bundle as a reviewed decision
-about a cross-language answer that nobody took. An unrecognised key inside the
+about a cross-language answer that nobody took. An unrecognized key inside the
 declaration is refused rather than ignored, because a misspelt field that was
 silently dropped leaves the bundle saying on its face that it declared
 something it did not.

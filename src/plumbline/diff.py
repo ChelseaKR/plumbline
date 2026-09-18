@@ -82,12 +82,12 @@ def _compare_records(
 def _response_change(before: str, after: str) -> dict[str, Any]:
     """What moved in one recorded answer.
 
-    `normalize` is the harness's own normalisation — the one the judges score
+    `normalize` is the harness's own normalization — the one the judges score
     through — so "text unchanged" here means unchanged in the only sense any
-    suite would have noticed. A response that differs only in capitalisation or
+    suite would have noticed. A response that differs only in capitalization or
     punctuation is reported as a formatting change and not as a new answer.
 
-    The numbers are extracted with `extract_numbers`, the same canonicalisation
+    The numbers are extracted with `extract_numbers`, the same canonicalization
     the load-bearing-fact check uses, so `$125.00` becoming `$125` is not a
     changed number and `850` becoming `900` is.
     """
@@ -240,7 +240,7 @@ def summarize_for_terminal(diff: dict[str, Any]) -> list[str]:
                 f"  response changed: {entry['id']}: wording changed, no "
                 f"number moved")
         else:
-            # Normalisation-only: neither a judge nor a reader would see a
+            # Normalization-only: neither a judge nor a reader would see a
             # different answer, and saying "changed" without saying that would
             # send someone hunting for a difference that is not there.
             lines.append(

@@ -98,7 +98,7 @@ may break the interface.
   becomes a hand-maintained number that jams a queue.
 
   The numerator is not a second tally that could drift from the claims: it counts
-  the groups the claims actually captured, tokenised by the same pattern the
+  the groups the claims actually captured, tokenized by the same pattern the
   denominator uses, so a capture that is not a numeral is left out rather than
   inflating the share.
 
@@ -352,11 +352,11 @@ may break the interface.
   wholesale would blind semgrep to the entire published page.
   Measured: 1 finding before, 0 after.
 
-- **The published page's contrast check could not see a colour nobody had
+- **The published page's contrast check could not see a color nobody had
   listed.** `tools/check_site_a11y.py` proves that nine hand-written
   `CONTRAST_PAIRS` meet WCAG AA in both palettes. It said nothing about a
-  colour added to `:root` later and never added to that list: the page would
-  grow a colour, the check would go on reporting "all 9 declared pairs meet
+  color added to `:root` later and never added to that list: the page would
+  grow a color, the check would go on reporting "all 9 declared pairs meet
   WCAG AA", and nothing would say the ninth was not the last one.
 
   That is the same shape this repository refuses one level down. `plumbline
@@ -368,14 +368,14 @@ may break the interface.
   thing a harness holds targets to and never checks about itself is a standard
   that only ever points outward."
 
-  An eighth check, `palette_coverage`, closes it. Every colour the page
+  An eighth check, `palette_coverage`, closes it. Every color the page
   declares is either in a checked pair or in `UNCHECKED_PALETTE_VARS` with a
-  written reason; a colour that is neither fails the gate. It also refuses a
-  stale exemption for a colour the page no longer declares, and palettes whose
-  light and dark halves declare different colours, which would leave one theme
+  written reason; a color that is neither fails the gate. It also refuses a
+  stale exemption for a color the page no longer declares, and palettes whose
+  light and dark halves declare different colors, which would leave one theme
   silently inheriting the other's value.
 
-  Today exactly one colour is exempt: `--rule`, a 1px border never used for
+  Today exactly one color is exempt: `--rule`, a 1px border never used for
   text, whose bar is WCAG 1.4.11's 3:1 for non-text rather than the 4.5:1 this
   check measures. It was already outside the list; the difference is that the
   omission is now a decision on the record instead of a gap.
@@ -466,7 +466,7 @@ may break the interface.
   `action.yml` against a stubbed gate, and all six fail on the previous
   version.
 
-- **An unlabelled `<button>` was invisible to the `accessibility` suite.**
+- **An unlabeled `<button>` was invisible to the `accessibility` suite.**
   `CONTROL_TAGS` held `{"input", "select", "textarea"}`, so `<button>`
   never reached `snapshot.controls` and never reached the
   `control_labels` check. An interface whose only send control was an
@@ -536,7 +536,7 @@ may break the interface.
   (`G-0QFVRX8YYH`); `""` removes all of it. The loader does nothing off
   `chelseakr.github.io` under `/plumbline/`, under Global Privacy Control or Do
   Not Track, or after an opt-out (localStorage `plumbline:analytics-opt-out`).
-  Google signals and ad personalisation are off; Consent Mode v2 denies the
+  Google signals and ad personalization are off; Consent Mode v2 denies the
   advertising signals everywhere and analytics storage in the EEA, the UK and
   Switzerland. `tests/test_site.py`'s self-containment check now removes that
   one loader by exact text before scanning, and `tests/test_site_analytics.py`
@@ -606,7 +606,7 @@ may break the interface.
   suite's whole reason for existing, and until now nothing in the repository
   could produce a live recording that demonstrated it.
 
-- **Two opt-in item declarations, so a correct behaviour and a wrong one stop
+- **Two opt-in item declarations, so a correct behavior and a wrong one stop
   being the same number** (#71, [ADR 0005](docs/adr/0005-item-declarations-that-move-a-score-carry-their-reason.md)).
   Both came from a consumer, and both had the same shape: the harness had no
   way to tell which of two opposite things it was looking at, so their evidence
@@ -687,7 +687,7 @@ may break the interface.
   `prompt` -- and `audit`, `gate` and `record` now **refuse** any bundle that
   still holds one, naming the item ids. The exemption therefore exists only in
   a state that cannot be scored and cannot be recorded against. Without the
-  second half it would be the defect this project catalogues everywhere else:
+  second half it would be the defect this project catalogs everywhere else:
   a blank reference answer scored as though it were content makes an empty
   response look like a perfect match, and a blank prompt sent to a live target
   files whatever comes back as the answer to a question nobody asked.
@@ -903,7 +903,7 @@ may break the interface.
   configuration does not state anywhere. `enabled = 0` switched a suite off
   without a word; `enabled = "false"` is a non-empty string, so it read as
   "off" to a person and left the suite on. Both are refused now, each with
-  a message saying what the silent behaviour was. This will reject
+  a message saying what the silent behavior was. This will reject
   configurations that load today; that is the point, since those
   configurations are not running the gate they appear to describe. Six
   tests in `tests/test_fail_closed.py`, all observed failing on the
@@ -1298,7 +1298,7 @@ underneath them.
   - Nothing bound provenance to the report body, so a FAIL could be edited into
     a PASS with the run id, dataset hash and judge hash all still valid.
     Reports now carry `report_sha256` over their own canonical JSON;
-    `plumbline verify` checks it, and `plumbline baseline` refuses to distil a
+    `plumbline verify` checks it, and `plumbline baseline` refuses to distill a
     report that fails it.
 
 ### Added

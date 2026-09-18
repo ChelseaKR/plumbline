@@ -13,7 +13,7 @@ from plumbline.stats import KIND_CENSUS
 from plumbline.suites import FAIL, PASS, EmptyPopulationError, get as get_suite
 from plumbline.suites.accessibility import (
     contrast_ratio,
-    normalise_text,
+    normalize_text,
     relative_luminance,
 )
 
@@ -30,10 +30,10 @@ BAD_CONTRAST = """[
 
 
 def interface(*, lang='lang="en"', contrast=GOOD_CONTRAST, live=True,
-              labelled=True, headings="<h1>Navigator</h1><h2>Ask</h2>",
+              labeled=True, headings="<h1>Navigator</h1><h2>Ask</h2>",
               extra="", trailing="", computed=None):
     live_attrs = ' role="log" aria-live="polite"' if live else ""
-    label = '<label for="q">Your question</label>' if labelled else ""
+    label = '<label for="q">Your question</label>' if labeled else ""
     contrast_block = (
         f'<script type="application/json" id="plumbline-contrast">{contrast}'
         f'</script>' if contrast is not None else ""
@@ -61,14 +61,14 @@ def interface(*, lang='lang="en"', contrast=GOOD_CONTRAST, live=True,
 
 
 #: The text runs `interface()` renders, in document order, as the suite
-#: normalises them. A computed block has to account for every one of them.
+#: normalizes them. A computed block has to account for every one of them.
 DEFAULT_RUNS = ("Navigator", "Ask", "Your question")
 
 
 def computed_block(runs=DEFAULT_RUNS, *, foreground="#1a1c1e",
                    background="#ffffff", source="computed", skipped=(),
                    extra_pairs=()):
-    """A capture block covering `runs`, all at a passing colour by default."""
+    """A capture block covering `runs`, all at a passing color by default."""
     pairs = [
         {"name": f"run-{i}", "text": text, "foreground": foreground,
          "background": background, "size": "normal"}
@@ -99,7 +99,7 @@ class ColorMathTests(unittest.TestCase):
         self.assertAlmostEqual(contrast_ratio("#0b5d3b", "#ffffff"),
                                contrast_ratio("#ffffff", "#0b5d3b"))
 
-    def test_bad_colour_rejected(self):
+    def test_bad_color_rejected(self):
         with self.assertRaises(ValueError):
             relative_luminance("teal")
 
@@ -135,12 +135,12 @@ class AccessibilitySuiteTests(unittest.TestCase):
         self.assertEqual(result.verdict, FAIL)
         self.assertIn("language_declaration", result.details["failed_checks"])
 
-    def test_unlabelled_control_fails_and_names_it(self):
-        result = self._evaluate(interface(labelled=False))
+    def test_unlabeled_control_fails_and_names_it(self):
+        result = self._evaluate(interface(labeled=False))
         self.assertIn("control_labels", result.details["failed_checks"])
         self.assertIn("q", self._detail(result, "control_labels")["detail"])
 
-    def test_an_unlabelled_button_fails_and_names_it(self):
+    def test_an_unlabeled_button_fails_and_names_it(self):
         result = self._evaluate(interface(extra='<button id="send"></button>'))
         self.assertIn("control_labels", result.details["failed_checks"])
         self.assertIn("send", self._detail(result, "control_labels")["detail"])
@@ -152,8 +152,8 @@ class AccessibilitySuiteTests(unittest.TestCase):
 
     def test_an_unclosed_button_does_not_take_the_page_as_its_name(self):
         # A `<button>` with no end tag collects every word after it. Reading
-        # that as the button's accessible name reports an unlabelled control
-        # as labelled, which is the false pass this check exists to prevent.
+        # that as the button's accessible name reports an unlabeled control
+        # as labeled, which is the false pass this check exists to prevent.
         result = self._evaluate(interface(
             extra='<button id="send">',
             trailing="<p>Riverbend County accepts walk-ins Monday to Friday.</p>",
@@ -202,7 +202,7 @@ class AccessibilitySuiteTests(unittest.TestCase):
             interface(extra='<button id="send" aria-label=" "></button>'))
         self.assertIn("control_labels", result.details["failed_checks"])
 
-    def test_a_button_labelled_the_ordinary_ways_passes(self):
+    def test_a_button_labeled_the_ordinary_ways_passes(self):
         for markup in (
             '<button id="send" aria-label="Send question"></button>',
             '<button id="send" title="Send question"></button>',
@@ -281,9 +281,9 @@ class AccessibilitySuiteTests(unittest.TestCase):
     def test_the_capture_finds_the_failing_pair_the_declaration_left_out(self):
         """#70's fixture: the same page passes declared and fails captured.
 
-        The declared block lists only the colours that pass. The capture has to
+        The declared block lists only the colors that pass. The capture has to
         account for every text run in the markup, so the hint text it left out
-        arrives with its real colour and its real ratio.
+        arrives with its real color and its real ratio.
         """
         page = interface(
             trailing='<p id="hint">Answers may take a moment.</p>',
@@ -328,7 +328,7 @@ class AccessibilitySuiteTests(unittest.TestCase):
         self.assertIn("Your question", detail)
 
     def test_a_repeated_text_run_needs_a_pair_each_time(self):
-        """A multiset, not a set: the same sentence twice in two colours.
+        """A multiset, not a set: the same sentence twice in two colors.
 
         With a set comparison the second, failing occurrence could be dropped
         and the first would cover for it.
@@ -461,7 +461,7 @@ class TheCaptureToolIsOutsideTheGate(unittest.TestCase):
                                  "playwright is imported at module scope, so "
                                  "`--help` would need a browser installed")
 
-    def test_the_capture_normalises_text_the_way_the_suite_does(self):
+    def test_the_capture_normalizes_text_the_way_the_suite_does(self):
         """Both sides of the completeness check must agree on whitespace.
 
         They are written in different languages, so nothing but a test holds
@@ -472,7 +472,12 @@ class TheCaptureToolIsOutsideTheGate(unittest.TestCase):
                   / "tools" / "capture_interface.py").read_text(encoding="utf-8")
         self.assertIn('s.split(/\\s+/).filter(Boolean).join(" ")', source)
         for raw in ("  Ask   a\n question ", "Ask a question", "\tAsk a question\n"):
-            self.assertEqual(normalise_text(raw), " ".join(raw.split()))
+            self.assertEqual(normalize_text(raw), " ".join(raw.split()))
+
+    def test_the_released_british_spelled_name_still_resolves(self):
+        """v0.2.0 shipped `normalise_text`; the alias keeps that import working."""
+        from plumbline.suites import accessibility
+        self.assertIs(accessibility.normalise_text, normalize_text)
 
     def test_the_block_a_recapture_writes_replaces_the_previous_one(self):
         from importlib.util import module_from_spec, spec_from_file_location

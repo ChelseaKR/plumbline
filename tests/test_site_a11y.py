@@ -46,10 +46,10 @@ class TheCommittedPagePassesEveryCheck(unittest.TestCase):
         self.assertEqual(len({name for name, *_ in site_a11y.run()}), 8)
 
 
-class PaletteCoverageCatchesAnUncheckedColour(unittest.TestCase):
+class PaletteCoverageCatchesAnUncheckedColor(unittest.TestCase):
     """`CONTRAST_PAIRS` is written by hand, so it can only ever prove that the
     pairs somebody remembered are sound. This is the check that the list was
-    asked about every colour the page actually declares -- the same reason
+    asked about every color the page actually declares -- the same reason
     `plumbline validate` treats a file present but not listed as an integrity
     refusal rather than a pass."""
 
@@ -65,8 +65,8 @@ class PaletteCoverageCatchesAnUncheckedColour(unittest.TestCase):
         ok, detail = site_a11y._check_palette_coverage(self._snapshot())
         self.assertTrue(ok, detail)
 
-    def test_a_colour_added_and_never_listed_fails(self):
-        """The defect this check exists for: a new colour slips into the
+    def test_a_color_added_and_never_listed_fails(self):
+        """The defect this check exists for: a new color slips into the
         palette, `contrast` goes on reporting its nine pairs clean, and
         nothing says the new one was never held to any bar."""
         ok, detail = site_a11y._check_palette_coverage(
@@ -76,8 +76,8 @@ class PaletteCoverageCatchesAnUncheckedColour(unittest.TestCase):
         self.assertIn("warn", detail)
 
     def test_a_stale_exemption_fails(self):
-        """An exemption for a colour the page dropped is a reason nobody has
-        re-read, and it would silently cover a future colour of that name."""
+        """An exemption for a color the page dropped is a reason nobody has
+        re-read, and it would silently cover a future color of that name."""
         original = dict(site_a11y.UNCHECKED_PALETTE_VARS)
         site_a11y.UNCHECKED_PALETTE_VARS["gone"] = "no longer declared"
         try:
@@ -88,8 +88,8 @@ class PaletteCoverageCatchesAnUncheckedColour(unittest.TestCase):
             site_a11y.UNCHECKED_PALETTE_VARS.clear()
             site_a11y.UNCHECKED_PALETTE_VARS.update(original)
 
-    def test_palettes_declaring_different_colours_fail(self):
-        """A colour in one theme and not the other means one theme silently
+    def test_palettes_declaring_different_colors_fail(self):
+        """A color in one theme and not the other means one theme silently
         inherits the other's value, which no contrast pair would notice."""
         ok, detail = site_a11y._check_palette_coverage(
             self._snapshot(extra_light="--warn:#ffcc00;"))

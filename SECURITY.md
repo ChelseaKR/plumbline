@@ -25,8 +25,8 @@ a public issue. If that is unavailable, email the maintainer named in
 
 | Stage | Target |
 |---|---|
-| Acknowledgement | within 7 days of receipt |
-| Assessment shared with you | with the acknowledgement or shortly after |
+| Acknowledgment | within 7 days of receipt |
+| Assessment shared with you | with the acknowledgment or shortly after |
 | Fix or documented mitigation | within 90 days of confirmation, sooner for severity |
 | Coordinated disclosure | by mutual agreement |
 | Credit | named in the advisory and the CHANGELOG, unless you prefer otherwise |

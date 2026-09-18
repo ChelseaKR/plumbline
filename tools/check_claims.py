@@ -475,7 +475,7 @@ SUITE_INVENTORY = ("DESIGN.md", "## Suites")
 #: A heading that dates itself is a record of what was observed then, not a
 #: claim about now. Rewriting `## Acceptance record (verified at M9, clean
 #: checkout)` so its figures read true today destroys the thing it is for.
-#: Recognised structurally -- a year, or a heading that names itself a record
+#: Recognized structurally -- a year, or a heading that names itself a record
 #: -- rather than by listing line numbers, which move on every edit.
 DATED_RECORD_HEADING = re.compile(r"\b20\d\d\b|acceptance record|roadmap",
                                   re.IGNORECASE)

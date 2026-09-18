@@ -6,7 +6,7 @@ exemption is only safe if every path that could score a draft or send one to
 a live target refuses it first. So the tests come in pairs — the exemption
 exists, and the refusal that makes it safe fires.
 
-The failure this guards against is the one this repository catalogues
+The failure this guards against is the one this repository catalogs
 everywhere else: a blank reference answer scored as though it were content
 makes an empty response look like a perfect match, and a blank prompt sent to
 a live target files the answer to a question nobody asked.
@@ -49,7 +49,7 @@ floor = 1.0
 
 CORPUS = [
     {"id": "src-a", "title": "Payment cap", "url": "https://x.example/a",
-     "text": "The programme pays a maximum of 850 dollars per month toward "
+     "text": "The program pays a maximum of 850 dollars per month toward "
              "rent for an eligible household."},
     {"id": "src-b", "title": "Office hours",
      "text": "The benefits office is open Monday through Friday from nine "
@@ -267,7 +267,7 @@ class DraftsAreExemptAndThenRefused(TempCase):
         for line in items_path.read_text(encoding="utf-8").splitlines():
             raw = json.loads(line)
             raw["prompt"] = f"question about {raw['sources'][0]}"
-            raw["expected"] = "the programme pays 850 dollars"
+            raw["expected"] = "the program pays 850 dollars"
             del raw["review"]
             filled.append(raw)
         items_path.write_text(
@@ -293,7 +293,7 @@ class SuggestDeclarations(TempCase):
 
     def test_a_clear_winner_is_named(self):
         item = answer_item(
-            "a1", "the programme pays a maximum of 850 dollars per month "
+            "a1", "the program pays a maximum of 850 dollars per month "
                   "toward rent for an eligible household",
             sources=["src-a", "src-b"])
         bundle = load_questions(self._bundle([item]))
@@ -330,7 +330,7 @@ class SuggestDeclarations(TempCase):
 
     def test_every_undeclared_item_gets_a_row_even_when_nothing_is_comparable(self):
         items = [
-            answer_item("a1", "the programme pays 850 dollars",
+            answer_item("a1", "the program pays 850 dollars",
                         sources=["src-a"]),                    # one candidate
             answer_item("a2", "offices open monday",
                         sources=["src-a", "src-b"]),           # comparable
@@ -342,7 +342,7 @@ class SuggestDeclarations(TempCase):
         self.assertIsNone(rows[0].margin)
 
     def test_a_row_that_compared_nothing_does_not_publish_a_margin_of_zero(self):
-        item = answer_item("a1", "the programme pays 850 dollars",
+        item = answer_item("a1", "the program pays 850 dollars",
                            sources=["src-a"])
         bundle = load_questions(self._bundle([item]))
         sheet = render_sheet(bundle, suggestions_for(bundle, self.judge))
@@ -356,7 +356,7 @@ class SuggestDeclarations(TempCase):
         self.assertNotIn("0.0000", rows[0])
 
     def test_an_item_that_already_declares_is_not_listed(self):
-        item = answer_item("a1", "the programme pays 850 dollars",
+        item = answer_item("a1", "the program pays 850 dollars",
                            sources=["src-a", "src-b"],
                            answering_sources=["src-a"])
         bundle = load_questions(self._bundle([item]))
@@ -365,7 +365,7 @@ class SuggestDeclarations(TempCase):
         self.assertIn("There is nothing to review", sheet)
 
     def test_the_sheet_is_byte_identical_across_runs(self):
-        items = [answer_item("a1", "the programme pays 850 dollars",
+        items = [answer_item("a1", "the program pays 850 dollars",
                              sources=["src-a", "src-b"]),
                  answer_item("a2", "offices open monday to friday",
                              sources=["src-a", "src-b"])]
@@ -375,7 +375,7 @@ class SuggestDeclarations(TempCase):
         self.assertEqual(first, second)
 
     def test_the_cli_writes_the_sheet_and_leaves_the_bundle_alone(self):
-        item = answer_item("a1", "the programme pays 850 dollars",
+        item = answer_item("a1", "the program pays 850 dollars",
                            sources=["src-a", "src-b"])
         bundle_dir = self._bundle([item])
         before = (bundle_dir / "items.jsonl").read_bytes()

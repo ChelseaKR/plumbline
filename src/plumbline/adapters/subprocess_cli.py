@@ -44,7 +44,7 @@ item is refused rather than recorded one turn deep — see `conversation.py`.
 string is refused with an explanation rather than split or handed to `sh`.
 Interpolation happens element by element, so a prompt containing `;`, `$(…)`
 or a newline is one argument and stays one argument. There is no `shell` key
-to set, and an unrecognised key is refused, so there is no way to ask for one.
+to set, and an unrecognized key is refused, so there is no way to ask for one.
 
 **It is not a sandbox, and this file will not pretend otherwise.** The program
 runs with the privileges of whoever ran `plumbline record`. What the adapter

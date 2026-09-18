@@ -117,7 +117,7 @@ class TheGateStatesItsOwnCoverage(unittest.TestCase):
 
     def test_the_numerator_counts_what_the_claims_actually_capture(self):
         # Not a separate count that could drift from the claims: every bound
-        # figure is a group some claim matched, tokenised the same way the
+        # figure is a group some claim matched, tokenized the same way the
         # denominator is.
         texts = {doc: check_claims._read(doc)
                  for doc in check_claims.GATED_DOCUMENTS}

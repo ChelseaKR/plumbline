@@ -23,14 +23,14 @@ HOUSE_EN = "i can only answer questions about published transit fare policies"
 HOUSE_ES = "solo puedo responder preguntas sobre las políticas de tarifas publicadas"
 
 
-class ConfiguredMarkersAreRecognised(unittest.TestCase):
-    def test_a_house_refusal_is_not_recognised_without_configuration(self):
+class ConfiguredMarkersAreRecognized(unittest.TestCase):
+    def test_a_house_refusal_is_not_recognized_without_configuration(self):
         """The defect itself, pinned so the fix cannot be quietly reverted."""
         judge = LexicalJudge()
         self.assertFalse(judge.is_refusal(HOUSE_EN + ", so I cannot go further."))
         self.assertFalse(judge.is_refusal(HOUSE_ES + "."))
 
-    def test_configured_markers_are_recognised(self):
+    def test_configured_markers_are_recognized(self):
         judge, warnings = make_judge(
             {"kind": "lexical", "refusal_markers": [HOUSE_EN, HOUSE_ES]})
         self.assertEqual(warnings, [])
@@ -59,7 +59,7 @@ class ConfiguredMarkersAreRecognised(unittest.TestCase):
                 self.assertTrue(judge.is_refusal(f"Sorry, {shipped} with that."))
 
     def test_markers_are_case_insensitive(self):
-        """`is_refusal` lowers the text, so a capitalised marker that was kept
+        """`is_refusal` lowers the text, so a capitalized marker that was kept
         verbatim could never match --- a silent no-op of exactly the kind this
         project refuses elsewhere."""
         judge, _ = make_judge(
@@ -72,7 +72,7 @@ class ConfiguredMarkersAreRecognised(unittest.TestCase):
 class ConfigurationIsValidatedNotCoerced(unittest.TestCase):
     def test_a_blank_marker_is_refused(self):
         """A blank marker is a substring of every response, so it would mark
-        every answer a refusal. Ignoring it and honouring it are both wrong."""
+        every answer a refusal. Ignoring it and honoring it are both wrong."""
         for bad in ("", "   ", "\t"):
             with self.subTest(value=bad):
                 with self.assertRaises(ValueError) as caught:

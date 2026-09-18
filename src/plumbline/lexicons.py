@@ -112,7 +112,7 @@ usted ustedes yo mi mis tu tus nos nuestro nuestra
 """.split())
 
 # --- Language identification ------------------------------------------------
-# Two ways to recognise a language, because the two questions are different.
+# Two ways to recognize a language, because the two questions are different.
 #
 # **Vocabulary** separates languages that share a script. `en` and `es` are
 # both Latin, so nothing but the words tells them apart, and the profiles below

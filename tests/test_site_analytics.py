@@ -15,7 +15,7 @@ run in Node against a stubbed `window`, `navigator`, `document` and
 Global Privacy Control, under any Do Not Track spelling, or after the footer
 opt-out, it creates no `dataLayer` and requests nothing. Otherwise it sets both
 Consent Mode defaults before `config`, turns Google signals and ad
-personalisation off, and appends gtag.js once.
+personalization off, and appends gtag.js once.
 
 **Negative controls.** Each guard is deleted from the script in turn. Every
 control first asserts that the deletion landed (the guard occurred exactly once
@@ -248,7 +248,7 @@ class TheBuild(unittest.TestCase):
             "Google Analytics 4", "Google LLC", "<code>_ga</code>",
             "European Economic Area, the United Kingdom and Switzerland",
             "cookieless ping",
-            "Google signals and ad personalisation are both turned off",
+            "Google signals and ad personalization are both turned off",
             "14 months", "Global Privacy Control", "Do Not Track",
             "&ldquo;Opt out of analytics&rdquo;", "&ldquo;Opt\nback in&rdquo;",
             f"<code>{KEY}</code>", "https://tools.google.com/dlpage/gaoptout",

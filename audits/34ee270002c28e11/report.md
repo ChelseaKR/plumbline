@@ -6,10 +6,10 @@ Plumbline audit of target `riverbend-demo`.
 
 | Field | Value |
 |---|---|
-| Run id | `d50ad60c3c1712b9` |
+| Run id | `34ee270002c28e11` |
 | Harness version | `0.2.0` |
-| Harness source | `07d76b8b42a47f92f5807b371d96b619fcac3ba2b73ed5ecc3ff4d475c3eb7c5` |
-| Report seal | `5fbcef433cea3cce17078a8809fc43f49f0da97cb16b3709e2072c11b9de140b` (sha256 of this report's own body; check it with `plumbline verify`) |
+| Harness source | `e2363e4195e06d697c6f6b2b668e32b0d2a129bf877fedcdb524870dad913fed` |
+| Report seal | `66cbb407f74cb296fd9f72434cae762f3e384e56c8599653513541a9c3801dfc` (sha256 of this report's own body; check it with `plumbline verify`) |
 | Seed | `1729` |
 | Dataset hash | `949197da4dd6960e3998e9b50b01fca7a48345639e85494dd2a0e666e296e130` (short: `949197da4dd6`) |
 | Judge | `lexical` (deterministic), config hash `f59f35442715bb2f5994035c7049438b893938922013e993950dcb393a79e13c` |
@@ -47,8 +47,8 @@ All **15** implemented suites were scored by this run.
 
 - `passage_attribution` scored **48 of 108** eligible items. 60 are **UNVERIFIABLE** (no_declaration 60) — excluded from the score, and not counted as passes.
 
-- `accessibility` measured contrast for `interface.html` from **declared** colour pairs.
-  - self-declared pairs: the colour pairs came from a block the snapshot writes about itself, so the ratios are measured but the population is not verified — a pair that fails can be left out of the list.
+- `accessibility` measured contrast for `interface.html` from **declared** color pairs.
+  - self-declared pairs: the color pairs came from a block the snapshot writes about itself, so the ratios are measured but the population is not verified — a pair that fails can be left out of the list.
 
 - `accessibility` reports no interval: the checks are an exhaustive census, not a sample: there is no sampling error to report, and a wider checklist would not narrow one.
 
@@ -63,7 +63,7 @@ Two red rows are not always two problems. Where enabled suites read the same evi
 
 ## Regression against baseline
 
-Baseline run `1a5f94b8befa84c7`, dataset `949197da4dd6`, harness `0.2.0`, judge `lexical`.
+Baseline run `d50ad60c3c1712b9`, dataset `949197da4dd6`, harness `0.2.0`, judge `lexical`.
 
 No suite verdict changed.
 
