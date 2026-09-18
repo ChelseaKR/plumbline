@@ -152,9 +152,9 @@ class ExplainTests(unittest.TestCase):
             self.assertIn("Not shown: no bundle given", out)
             self.assertNotIn("Numbers the answer states", out)
 
-    def test_the_diff_is_tokenised_the_way_the_score_is(self) -> None:
+    def test_the_diff_is_tokenized_the_way_the_score_is(self) -> None:
         """`answer_score` strips citation markers from the answer and keeps function words. A
-        diff tokenised any other way is a second opinion: an earlier draft dropped stopwords
+        diff tokenized any other way is a second opinion: an earlier draft dropped stopwords
         and kept citations, and reported `src` as a word the answer had added."""
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

@@ -30,7 +30,7 @@ A target is suitable only if **all** of these hold. Any one failing is a stop.
   stricter one governs. Silence in the terms is not permission; it is a
   question to ask.
 - **There is somebody to tell.** A named contact, a vulnerability disclosure
-  policy, a security.txt, or a general enquiries address that reaches a human.
+  policy, a security.txt, or a general inquiries address that reaches a human.
   A system with no route to a maintainer cannot be responsibly reported on,
   because a finding would have nowhere to go before it went public.
 - **The subject matter is one where being wrong hurts.** Benefits, housing,
@@ -42,7 +42,7 @@ A target is suitable only if **all** of these hold. Any one failing is a stop.
 
 Two targets that look suitable and are not: a service in active incident
 response (the evidence would be about the incident), and a pilot or beta
-explicitly labelled as such (holding a system to a production bar before its
+explicitly labeled as such (holding a system to a production bar before its
 owners claim it is one is not a finding, it is a gotcha).
 
 ## 2. Getting permission, or deciding it is not needed
@@ -141,7 +141,7 @@ as sensitive until it has been read:
 ### Capturing the interface, and what its contrast score is worth
 
 The `accessibility` suite checks a committed HTML snapshot, and its contrast
-check reads colour pairs from one of two blocks in that snapshot. The
+check reads color pairs from one of two blocks in that snapshot. The
 difference matters more than the score does.
 
 A **declared** block (`plumbline-contrast`) is a list the page writes about
@@ -149,7 +149,7 @@ itself. Plumbline computes the ratios rather than accepting a claim of
 conformance, so those ratios are real — but the *population* is whatever the
 page chose to list. A target whose hint text fails AA can list its passing
 pairs and pass, and no markup-only check can see that, because deciding what
-colour a paragraph is means running the cascade. Every report says so on the
+color a paragraph is means running the cascade. Every report says so on the
 suite's line, so a declared pass is never quoted as if it covered the page.
 
 A **computed** block (`plumbline-computed-contrast`) comes from a renderer:
@@ -179,7 +179,7 @@ Two practical notes. Capture the interface **as a user of it sees it**, in the
 state the recorded conversation happened in; a captured login page is not the
 assistant. And re-seal the bundle afterwards — the interface is hashed with the
 rest of the evidence, so a capture that is not re-sealed will be refused, which
-is the correct behaviour and a confusing one to hit cold.
+is the correct behavior and a confusing one to hit cold.
 
 ## 6. Disclosure, before publication
 
@@ -192,7 +192,7 @@ interface, a disparity between languages or registers.
 
 1. Send the full report — machine-readable and human-readable — the question
    set, the harness commit, and the exact command, to the named contact.
-2. Ask for acknowledgement within **5 business days**, and offer a call.
+2. Ask for acknowledgment within **5 business days**, and offer a call.
 3. Give **45 calendar days** before publishing, extendable if they are
    working on it and asking.
 4. Offer to re-run after a fix, for free, and publish the second result
@@ -239,7 +239,7 @@ correction as prominently as the original, and say so.
   The floors are demonstration defaults; the question sets differ; and a
   league table converts a diagnostic instrument into a reputational weapon,
   which is the fastest way to make agencies stop answering the phone.
-- A characterisation of the *system* as unsafe, biased or discriminatory on
+- A characterization of the *system* as unsafe, biased or discriminatory on
   the strength of these suites. They are deterministic screens over a lexicon.
   A clean privacy pass means "no shipped pattern matched"; a harms pass means
   "none of the listed phrases appeared". Report what was measured.
@@ -308,4 +308,4 @@ Not handled, and not the harness's job:
 - Reading anybody's terms of use.
 - Deciding whether a question set is fair to the service.
 - Knowing whether a response contains personal data that no pattern matches.
-- Any of §6 or §7. Those are judgement, and they belong to a person.
+- Any of §6 or §7. Those are judgment, and they belong to a person.

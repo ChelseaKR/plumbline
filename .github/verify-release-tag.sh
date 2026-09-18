@@ -19,7 +19,7 @@
 #      allowed-signers file. The file is read at the verified ref, so trusting
 #      it is the same trust decision as running this script at all.
 #   5. The commit the tag selects is the commit being built (EXPECT_COMMIT).
-#      Without this the signature check is theatre: it would prove some tag was
+#      Without this the signature check is theater: it would prove some tag was
 #      signed while the build ran from something else.
 #
 # Grandfathering. Tags cut before this control existed cannot be re-signed --

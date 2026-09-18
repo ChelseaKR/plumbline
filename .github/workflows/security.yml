@@ -23,7 +23,7 @@ permissions:
 
 # CI-CD-STANDARD.md 11c: cancel superseded runs on the same ref -- but two commits pushed to
 # `main` share one ref and are not supersessions of each other. Keyed on the ref alone, the
-# second push cancelled the run checking the first, and a cancelled run is not a failure:
+# second push canceled the run checking the first, and a canceled run is not a failure:
 # nothing goes red and the commit sits on `main` with no verdict at all. The SHA separates
 # them; a pull request keeps one group per PR, so a force-push still cancels its predecessor.
 concurrency:
@@ -164,7 +164,7 @@ jobs:
       # and the `--only-verified` it replaces are the same selection; the flag is
       # spelled this way so that no lane of this job can be read as the setting
       # that could not fail. `!cancelled()` so lane 1 failing does not hide this
-      # verdict, while a cancelled run still stops both.
+      # verdict, while a canceled run still stops both.
       - name: TruffleHog (full history, verified results, URI still armed)
         if: ${{ !cancelled() }}
         uses: trufflesecurity/trufflehog@363923b901c911a9164f50b6c423f47c15372b1c # v3.97.4

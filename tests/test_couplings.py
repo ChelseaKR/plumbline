@@ -85,7 +85,7 @@ class OneLeakIsThreeFailures(CouplingTestCase):
         self.assertEqual(len(lines), 1)
         self.assertIn("ONE finding", lines[0])
 
-    def test_the_markdown_section_is_emphasised(self):
+    def test_the_markdown_section_is_emphasized(self):
         markdown = "\n".join(render_markdown(self.analysis))
         self.assertIn("## Suite independence", markdown)
         self.assertIn("**In this run:", markdown)

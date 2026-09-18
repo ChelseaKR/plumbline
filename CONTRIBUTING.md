@@ -44,7 +44,7 @@ the same commit:
 PYTHONPATH=src python3 -m plumbline gate --config examples/riverbend.toml --out audits
 ```
 
-Regenerate it because the behaviour genuinely changed and you can say why in
+Regenerate it because the behavior genuinely changed and you can say why in
 the pull request. Regenerating it to make a red step go green is the failure
 mode this repository is about.
 
