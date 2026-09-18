@@ -121,7 +121,7 @@ jobs:
           # this input the sweep silently tracked whatever upstream published
           # last, and every Dependabot bump of the ref was a no-op because
           # Dependabot never edits a `with:` input.
-          version: "3.97.2"
+          version: "3.97.4"
           # The action's baked-in command already passes --fail; repeating it
           # is a CLI error.
           #
@@ -173,7 +173,7 @@ jobs:
           # Same reason as lane 1: without these the lane scans the event's diff.
           base: ''
           head: HEAD
-          version: "3.97.2"
+          version: "3.97.4"
           extra_args: --results=verified --exclude-detectors=Lob
 
   # A second engine on the same history, matching on pattern rather than on
