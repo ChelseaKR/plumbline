@@ -12,11 +12,17 @@ Different questions are not compared. If the targets' question sets or judge con
 hashes differ, this refuses and names the hashes, exactly as `baseline.compare` refuses. Two
 scores produced from different question sets are not two readings of one instrument.
 
-What is required to match is the QUESTION SET, not the bundle. A bundle's `dataset_sha256`
-covers its recorded responses, so two targets answering one question set never share it, and
-refusing on it would refuse every comparison this verb exists to make. See
-`question_set_digest`; this reading is recorded in the pull request for #64 and is the one
-open question in this module.
+What is required to match is the QUESTION SET, not the bundle: the items AND the sources.
+A bundle's `dataset_sha256` covers its recorded responses, so two targets answering one
+question set never share it, and refusing on it would refuse every comparison this verb
+exists to make. See `question_set_digest`. The owner settled this reading on 2026-09-18, in
+the pull request for #64: compare only targets that share both items and sources.
+
+A delta is `distinguishable` only when its magnitude is ABOVE the combined two-run threshold,
+the root mean square of the two published MDEs (see `_governing_mde`). A delta equal to the
+threshold is `inside noise`: the threshold is the smallest difference the two samples could
+detect, and a difference that only reaches it has not cleared it. Also settled by the owner
+on 2026-09-18.
 
 A suite one target ran and another did not is not a delta of zero. It is named as not scored
 by that target, and no pair is emitted for it. A missing measurement compared against a
@@ -314,13 +320,13 @@ def _pairs(runs: list[TargetRun], suites: dict[str, dict[str, Any]]) -> list[dic
                     "at least one of these runs reports no minimum detectable effect for this "
                     "suite, so nothing here can say whether this difference is real"
                 )
-            elif abs(delta) >= mde:
+            elif abs(delta) > mde:
                 entry["label"] = DISTINGUISHABLE
                 entry["governing_mde_from"] = (
                     left.label if governed_by == "left" else right.label
                 )
                 entry["note"] = (
-                    f"the difference is at least the threshold these two samples can "
+                    f"the difference is above the threshold these two samples can "
                     f"distinguish ({mde})"
                 )
             else:
@@ -329,7 +335,7 @@ def _pairs(runs: list[TargetRun], suites: dict[str, dict[str, Any]]) -> list[dic
                     left.label if governed_by == "left" else right.label
                 )
                 entry["note"] = (
-                    f"the difference is smaller than the threshold these two samples can "
+                    f"the difference is not above the threshold these two samples can "
                     f"distinguish ({mde}); these are the same score at this sample size"
                 )
             out.append(entry)
@@ -459,8 +465,9 @@ def compare_runs(runs: list[TargetRun]) -> dict[str, Any]:
         # records, and two targets can have different suites failing together.
         "couplings": {run.label: run.report.get("couplings") for run in runs},
         "notes": {
-            "mde": "a delta smaller than the suite's minimum detectable effect is the same "
-                   "score at this sample size, not a smaller difference",
+            "mde": "a delta that is not above the combined two-run threshold, the root mean "
+                   "square of the two runs' minimum detectable effects, is the same score at "
+                   "this sample size, not a smaller difference",
             "not_qualifiable": "a suite reporting no minimum detectable effect cannot say "
                                "whether a difference is real; that is not the same as saying "
                                "the difference is inside noise",

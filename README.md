@@ -741,17 +741,20 @@ PYTHONPATH=src python3 -m plumbline compare \
 ```
 
 Per suite it prints each target's score, confidence interval and n, and for
-every pair the delta labelled **distinguishable** or **inside noise**. The
-threshold is derived from both runs, `sqrt((mde_a^2 + mde_b^2) / 2)`: the
-standard error of the *difference*, expressed in the two MDEs each report
-already carries. Where both runs are equally precise it is exactly the MDE they
-published.
+every pair the delta labeled **distinguishable** or **inside noise**. The
+threshold is derived from both runs, `sqrt((mde_a^2 + mde_b^2) / 2)`, the root
+mean square of the two published MDEs: the standard error of the *difference*,
+expressed in the two MDEs each report already carries. Where both runs are
+equally precise it is exactly the MDE they published. A delta is
+**distinguishable** only when it is *above* that threshold; a delta equal to it
+is **inside noise**.
 
 Three things it refuses to do, because each alternative is a number nobody
 measured:
 
 - **Different questions are not compared.** The targets must share a question
-  set -- the items and the passages -- or it exits `4` naming both digests.
+  set -- the items **and** the sources (the passages) -- or it exits `4` naming
+  both digests.
   What it does *not* require is the same bundle: a bundle's `dataset_sha256`
   covers its recorded answers, so two targets answering one question set never
   share it, and requiring that would refuse every comparison worth making.

@@ -153,6 +153,23 @@ class ComparingRealAudits(unittest.TestCase):
             # Both identities are named, so a reader can act on the message.
             self.assertIn("dataset", err)
 
+    def test_the_same_items_over_different_sources_exit_4(self) -> None:
+        """The question set is the items AND the sources: a suite scoring groundedness
+        against different passages is not scoring the same question."""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            first = write_bundle(root, ITEMS, GOOD, sources=SOURCES, name="s1")
+            edited = [dict(s, text=s["text"] + " (edited)") if n == 0 else s
+                      for n, s in enumerate(SOURCES)]
+            self.assertNotEqual(edited, SOURCES, "the sources edit did not land")
+            second = write_bundle(root, ITEMS, GOOD, sources=edited, name="s2")
+            a, b = _config(root, "alpha", first), _config(root, "beta", second)
+            code, out_text, err = run_cli("compare", "--config", str(a), "--config", str(b),
+                                          "--out", str(root / "out"))
+            self.assertEqual(code, EXIT_CONFIG_ERROR)
+            self.assertEqual(out_text, "")
+            self.assertIn("the question set differs", err)
+
     def test_a_planted_defect_is_distinguishable_where_it_lands_and_not_elsewhere(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -296,6 +313,27 @@ class WhatCannotBeComparedIsRefused(unittest.TestCase):
         )
         pair = compare_runs(runs)["suites"][0]["pairs"][0]
         self.assertEqual(pair["mde"], 0.12)
+        self.assertEqual(pair["label"], "distinguishable")
+
+    def test_a_gap_equal_to_the_threshold_is_not_above_it(self) -> None:
+        """`distinguishable` means ABOVE the combined threshold. A delta that only reaches
+        it has not cleared the smallest difference these two samples can detect."""
+        runs = _synthetic(
+            [_suite("accuracy", score=0.50, mde=0.10)],
+            [_suite("accuracy", score=0.60, mde=0.10)],
+        )
+        pair = compare_runs(runs)["suites"][0]["pairs"][0]
+        self.assertEqual(pair["delta"], 0.1)
+        self.assertEqual(pair["mde"], 0.1)
+        self.assertEqual(pair["label"], "inside noise")
+
+    def test_a_gap_just_above_the_threshold_is_distinguishable(self) -> None:
+        runs = _synthetic(
+            [_suite("accuracy", score=0.50, mde=0.10)],
+            [_suite("accuracy", score=0.6001, mde=0.10)],
+        )
+        pair = compare_runs(runs)["suites"][0]["pairs"][0]
+        self.assertEqual(pair["delta"], 0.1001)
         self.assertEqual(pair["label"], "distinguishable")
 
     def test_a_gap_below_the_threshold_is_not_called_real(self) -> None:
