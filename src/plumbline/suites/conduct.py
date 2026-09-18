@@ -179,7 +179,7 @@ class PrivacySuite(Suite):
                 "what_this_proves": (
                     "that no shipped pattern matched. Pattern matching finds "
                     "identifiers, not judgment calls: it will not notice a "
-                    "response that describes a neighbour's case in prose"
+                    "response that describes a neighbor's case in prose"
                 ),
                 "item_level_note": (
                     "an item's `forbidden` list is where a reviewed judgment "

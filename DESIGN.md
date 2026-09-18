@@ -219,7 +219,7 @@ is inert.
 
 Fail-closed decisions, each of them a failure this avoids:
 
-- **An unrecognised `[adapter]` key is refused, not ignored.** `timout_seconds`
+- **An unrecognized `[adapter]` key is refused, not ignored.** `timout_seconds`
   quietly dropped is a bound that is not there.
 - **A body template that never uses `{prompt}`** would send every item the
   same request. That is not a recording, and it is refused.
@@ -340,7 +340,7 @@ A suite implements: `id`, `evaluate(bundle, judge) -> SuiteResult` where
 FAIL if **any enabled suite** fails. Enabling a suite that is not implemented is
 a configuration error (fail closed), never a skip.
 
-### The fourteen suites
+### The scoring suites
 
 | Suite id | Measures | Default floor | Why this floor |
 |---|---|---|---|
@@ -354,10 +354,17 @@ a configuration error (fail closed), never a skip.
 | `citation_accuracy` | Is the answer supported by the sources it *actually cited*, as opposed to the ones it had? | **0.80** | Catches an answer grounded in source B that points the reader at source A. |
 | `passage_attribution` | Of the passages this item had, which one best accounts for the answer, and is it one the item **declared** as answering the question? Opt-in per item: an item that declares nothing is reported UNVERIFIABLE, never passed. **A load-bearing item attributed to a passage that does not answer the question fails the suite regardless of the pooled average.** | **0.95** | Scored items are the unambiguous ones — the close calls are held out as unverifiable rather than guessed — so a scored failure is an answer materially better accounted for by the wrong paragraph. There is very little of that worth tolerating, and the load-bearing override takes the cases where there is none. |
 
-The six remaining suites (`multilingual`, `adversarial`, `fairness`,
-`representational_harms`, `privacy`, `accessibility`) carry their floors and
-their reasoning in their module docstrings; the rows above are the ones this
-document argues about at length.
+The remaining suites (`multilingual`, `adversarial`, `fairness`,
+`representational_harms`, `privacy`, `accessibility`, `conversational_integrity`)
+carry their floors and their reasoning in their module docstrings; the rows
+above are the ones this document argues about at length. Every suite the
+harness implements has to be named here or in the table above —
+`tools/check_claims.py` reads the suite ids out of the committed report and
+refuses if one of them is missing from this section, which is how
+`conversational_integrity` was found absent from it three weeks after it
+shipped. The count is deliberately not written down: a number in this heading
+is a second place for it to go stale, and the README already publishes it
+against the evidence.
 
 Refusal detection is a deterministic marker-list classifier (lowercased
 substring match, English and Spanish markers), part of the judge configuration
@@ -715,7 +722,7 @@ suites to return it. The aggregation used to be `FAIL if any(v == FAIL) else
 PASS`, which put every value that was not the literal string `FAIL` — `"SKIP"`,
 `None`, a typo — on the pass branch. Before aggregating, the runner validates
 each result: a verdict that is neither `PASS` nor `FAIL`, a score outside
-`[0,1]`, a result labelled for a different suite, a floor that is not the one
+`[0,1]`, a result labeled for a different suite, a floor that is not the one
 applied, or a `PASS` that contradicts its own score or its own load-bearing
 failures all stop the run with the internal-error code. A verdict computed
 from a result nobody can interpret is the silent pass this harness exists to
@@ -733,7 +740,7 @@ Both carry the full provenance block:
 | Field | Content |
 |---|---|
 | `run_id` | First 16 hex chars of sha256 over (**target name**, harness version, seed, bundle hash, judge config hash, sorted enabled-suite ids + floors, baseline hash). Content-derived, therefore stable across identical re-runs. The target is in there because the run id is also the output directory: without it, two different systems audited against the same evidence, judge and floors collided, and the second run silently overwrote the first. Whose behavior was graded is part of what a run *is*. |
-| `report_sha256` | sha256 over this report's own canonical JSON, with this field removed. Everything else in the block describes the run's *inputs*, so a score, a verdict or a whole suite row could be edited while the run id, the dataset hash and the judge hash all stayed valid. This covers the body a reader actually reads. Check it with `plumbline verify`; `plumbline baseline` refuses to distil a report that fails it. |
+| `report_sha256` | sha256 over this report's own canonical JSON, with this field removed. Everything else in the block describes the run's *inputs*, so a score, a verdict or a whole suite row could be edited while the run id, the dataset hash and the judge hash all stayed valid. This covers the body a reader actually reads. Check it with `plumbline verify`; `plumbline baseline` refuses to distill a report that fails it. |
 | `harness_version` | `plumbline.__version__`. |
 | `harness_source_sha256` | sha256 over every `.py` file in the installed package. Which instrument, not just which version string. `null` with the reason recorded when the package is not readable as files. |
 | `seed` | The RNG seed for the run (default **1729** — Ramanujan's taxicab number; memorable and obviously arbitrary). Milestone 1 does no sampling, but the seed is threaded through and recorded now so report formats never change shape when sampling arrives. |
@@ -980,7 +987,7 @@ committed bytes and a fresh generation differ. Plumbline demands reproducible,
 hash-protected evidence from the systems it grades; its own demonstration
 evidence is held to the same standard rather than being trusted because it is
 in the repository. The generator also refuses to emit a bundle whose failures
-would be artefacts of the generator: undetectable refusals, answers that read
+would be artifacts of the generator: undetectable refusals, answers that read
 as refusals, responses in the wrong language.
 
 **Why it was grown (2026-08-17).** At 26 items the bundle produced honest but
@@ -988,11 +995,11 @@ useless statistics: nine suites at a perfect 1.00, with MDEs from 0.115 to
 0.750. A reader could see the statistical machinery and could not see it do
 any work — a suite that can only detect a three-in-four failure rate is not
 measuring anything, and a report full of `1.0000` next to `mde 0.750` is a
-demonstration of a caveat rather than of an instrument. At 174 items the same
+demonstration of a caveat rather than of an instrument. At 178 items the same
 suites report 0.017 to 0.064. Nothing but sample size moves that number, which
 is the honest lesson the bundle now carries.
 
-Growing it also sharpened the tamper drill. Across 174 items a single planted
+Growing it also sharpened the tamper drill. Across 178 items a single planted
 fabrication moves `accuracy` by 0.0016 and `groundedness` by 0.0204: the
 pooled averages absorb it almost entirely, and the suites fail purely on the
 load-bearing severity rule. That is the specification's R3 argument, visible in
@@ -1000,7 +1007,7 @@ a number rather than asserted.
 
 ### What the refusal marker list cannot do
 
-Writing 66 refusals for this bundle surfaced a limitation worth stating
+Writing 70 refusals for this bundle surfaced a limitation worth stating
 plainly. Refusal detection is a substring match against a marker list, and the
 shipped list covers six English verbs and five Spanish ones. Perfectly
 ordinary declines — "I can't store personal identifiers", "No puedo adivinar
@@ -1068,7 +1075,7 @@ What is still not held to the standard, stated rather than hidden:
 ## Proving the gate bites: the defect-injection matrix
 
 Everything else in this document argues that Plumbline fails closed. None of
-it is evidence. Thirteen suites reporting PASS on a clean bundle says nothing
+it is evidence. Fifteen suites reporting PASS on a clean bundle says nothing
 about whether any of them is *able* to report FAIL, and a suite nobody has
 watched fail is indistinguishable from a suite that cannot.
 
@@ -1114,9 +1121,9 @@ it exists to prevent.
   score, so only one suite fails — but that is a margin, not an independence
   guarantee. A target with a tighter accuracy floor would see both fail.
 - **Some suites need a *class* of defect, not one item.** `refusal` at floor
-  0.90 over 174 items tolerates seventeen misclassifications; one flipped
-  refusal scores 0.9943 and passes. `multilingual` needs nine wrong-language
-  answers, `adversarial` five behavior failures, `citation_accuracy` twelve
+  0.90 over 178 items tolerates seventeen misclassifications; one flipped
+  refusal scores 0.9944 and passes. `multilingual` needs nine wrong-language
+  answers, `adversarial` seven behavior failures, `citation_accuracy` twelve
   miscitations. The suites that fail on a *single* item are exactly the ones
   with a severity rule (`accuracy`, `groundedness`, `citation_validity`,
   `adversarial` on a leak) or a floor of 1.00 (`smoke`, `privacy`,
@@ -1132,7 +1139,7 @@ it exists to prevent.
   item's own source (so grounding has nothing to catch). Those constructions
   are documented per case in `proof/matrix.md`, and they are themselves a
   description of what each suite uniquely measures.
-- **No suite resisted.** Every one of the fourteen was made to fail on a
+- **No suite resisted.** Every one of the fifteen was made to fail on a
   defect specific to it. `accessibility` was the easiest (five structural
   checks, a census, no floor arithmetic to fight); `fairness` the hardest, for
   the reason above.
@@ -1409,7 +1416,12 @@ reproduce the committed run id, aborts the build instead of publishing a page
 that says the harness refused when it did not. `--check` runs in
 `tests/test_site.py` and in the Pages workflow before the deploy step, and
 `test_a_drifted_page_is_caught` is there because a verification that cannot
-fail is the vacuous pass wearing a different hat.
+fail is the vacuous pass wearing a different hat. Since 2026-09-17 the page and
+a generated `site/privacy.html` carry one Google Analytics 4 loader (owner
+decision: GA4 on every public site), guarded to the production host and path
+and off under Global Privacy Control, Do Not Track or the footer opt-out;
+`tests/test_site_analytics.py` executes it and removes each guard as a negative
+control.
 
 **What this pass did not verify by hand.** The multi-interpreter matrix (CI has
 it), the model-judge and recording paths (unchanged here, covered by their
@@ -1418,7 +1430,7 @@ repository's Pages source is set to GitHub Actions.
 
 ## Open
 
-Nothing in the specification is unimplemented. What is open is judgement, not
+Nothing in the specification is unimplemented. What is open is judgment, not
 work:
 
 1. **Pointing it at a real system.** See below and `docs/first-real-target.md`.
@@ -1450,7 +1462,7 @@ work:
    that would make it defensible already exists; the case for using it here
    has not been made by anyone with a real corpus.
 8. **Attribution is compared on the single best passage per side.** An answer
-   legitimately synthesised from two passages is judged on whichever accounts
+   legitimately synthesized from two passages is judged on whichever accounts
    for most of it. Sentence-level attribution would handle that properly and
    nobody has asked for it; building it on speculation would be adding surface
    this file would then have to defend.
@@ -1473,7 +1485,7 @@ work:
     markup it sits in. Omission is the threat, and an omitted pair is an
     unaccounted-for text run. What remains open is that **the capture is
     optional** — a target audited without it is audited on the page's own
-    account of its colours, and only the report says so.
+    account of its colors, and only the report says so.
 11. **Coupling declarations are written by hand.** `couplings.py` does not
    discover couplings; the matrix does. The guard in
    `tests/test_couplings.py` is what stops the two drifting apart — it fails
@@ -1538,7 +1550,7 @@ that it is not that decision.
     reader believe the stronger claim is worse than no screen at all, and the
     shipped word lists are demonstrations a real deployment replaces.
 17. **Accessibility contrast is computed, not accepted.** The interface
-    snapshot declares its colour pairs; Plumbline does the WCAG arithmetic. An
+    snapshot declares its color pairs; Plumbline does the WCAG arithmetic. An
     undeclared palette fails the check: unverified contrast is not passing
     contrast.
 18. **A response the language profiles cannot place is a multilingual
@@ -1643,7 +1655,7 @@ function-word vote for languages that share a script. Only letters count:
 Arabic-Indic digits sit inside the Arabic block and say nothing about prose.
 Two scripts matching is `None`, as ambiguity always is here.
 
-**Let a target declare its own languages**, which is the part that generalises
+**Let a target declare its own languages**, which is the part that generalizes
 past Arabic and past the language after it:
 
 ```toml
@@ -1754,7 +1766,7 @@ bundle the suite is grading. Worse, a wrong inference does not fail loudly; it
 silently grades every answer against the wrong expectation. So the inference is
 **not** used for scoring. It appears only as a suggestion in the report for
 items that declare nothing, and only when one passage beats the runner-up by
-the decision margin, labelled as something a human must confirm.
+the decision margin, labeled as something a human must confirm.
 
 Hence the opt-in field, and hence the rule that the absence of the field
 produces UNVERIFIABLE rather than a pass. A vacuous pass here would be worse

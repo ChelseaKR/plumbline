@@ -414,7 +414,7 @@ def cmd_history_check(args: argparse.Namespace) -> int:
 
 
 def cmd_baseline(args: argparse.Namespace) -> int:
-    """Distil a finished report into the record a repository commits as its
+    """Distill a finished report into the record a repository commits as its
     bar for future runs."""
     source = Path(args.source)
     report = _read_report(source)

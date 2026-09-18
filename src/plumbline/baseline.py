@@ -45,7 +45,7 @@ class BaselineError(Exception):
 
 
 def build_baseline(report: dict[str, Any]) -> dict[str, Any]:
-    """Distil a report into the record a repository commits as its bar."""
+    """Distill a report into the record a repository commits as its bar."""
     provenance = report["provenance"]
     return {
         "format": BASELINE_FORMAT,

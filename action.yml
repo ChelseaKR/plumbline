@@ -123,9 +123,33 @@ runs:
         # stdout is teed rather than swallowed, so the build log still shows
         # the gate's own output as it happens, and ${PIPESTATUS[0]} keeps the
         # gate's exit code rather than tee's.
+        #
+        # The gate's non-zero exit is this step's measurement, not an error in
+        # it, and `shell: bash` means `bash --noprofile --norc -eo pipefail`.
+        # Run bare, the pipeline below therefore terminated the whole script on
+        # every gate exit but 0, before `code` was read and before a single line
+        # reached $GITHUB_OUTPUT. Measured against this file's own step body:
+        #
+        #   gate exit 0 -> outputs: exit-code, verdict, report-json, report-md
+        #   gate exit 1 -> outputs: (none)
+        #   gate exit 3 -> outputs: (none)
+        #   gate exit 4 -> outputs: (none)
+        #   gate exit 5 -> outputs: (none)
+        #
+        # So `verdict` and `report-json` were empty on exactly the runs a
+        # consuming workflow branches on, and `exit-code`, documented as
+        # 0/1/3/4/5, could only ever be 0. The step's own exit code was right
+        # throughout, so the job went red and nothing pointed at the gap.
+        #
+        # A pipeline in an `if` condition is exempt from errexit by rule rather
+        # than by turning a shell option off and hoping it goes back on, and
+        # PIPESTATUS still describes that pipeline in the branch taken.
         captured=$(mktemp)
-        PYTHONPATH="$PLUMBLINE_ACTION_PATH/src" "$INPUT_PYTHON" -m plumbline "${args[@]}" | tee "$captured"
-        code=${PIPESTATUS[0]}
+        if PYTHONPATH="$PLUMBLINE_ACTION_PATH/src" "$INPUT_PYTHON" -m plumbline "${args[@]}" | tee "$captured"; then
+          code=0
+        else
+          code=${PIPESTATUS[0]}
+        fi
 
         # Which report this run wrote is read back from what the run itself
         # printed, never guessed from the output directory.

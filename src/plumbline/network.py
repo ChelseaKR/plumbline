@@ -359,7 +359,7 @@ class CallShape:
 
     Header *names* are recorded; header values never are. The digest of this
     object goes into recorded provenance so two recordings made with the same
-    call shape can be recognised as such.
+    call shape can be recognized as such.
     """
 
     url: str

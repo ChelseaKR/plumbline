@@ -366,12 +366,29 @@ def action_step_script() -> str:
     return "\n".join(body) + "\n"
 
 
+#: How GitHub invokes a step that declares `shell: bash`, which action.yml does.
+#: Running the script under a plain `bash` instead is not a smaller version of
+#: the same test, it is a different program: errexit terminates the script at
+#: the gate pipeline on every non-zero exit, so the outputs these tests assert
+#: on were written locally and never on a runner. The whole point of lifting the
+#: real step body out of action.yml is that the thing executed is the thing that
+#: ships, and the shell is part of what ships.
+GITHUB_SHELL_BASH = ["bash", "--noprofile", "--norc", "-eo", "pipefail"]
+
+
 class GitHubActionStepTests(unittest.TestCase):
-    """The composite action's step, executed.
+    """The composite action's step, executed the way GitHub executes it.
 
     The gate itself is stubbed: what is under test is the step's own
     bookkeeping -- which report it names, which verdict it publishes, and
     which exit code it passes through -- not the harness it invokes.
+
+    Every case below runs under `GITHUB_SHELL_BASH`. Until 2026-09-08 they
+    ran under a plain `bash`, and that is why the class was green over a step
+    that produced no outputs at all on a runner for any gate exit but 0: with
+    errexit and pipefail on, the script died at the gate pipeline, and every
+    assertion here about `exit-code`, `verdict` and `report-json` for exits
+    1 and 3 was an assertion about a shell nothing runs.
     """
 
     def setUp(self):
@@ -427,7 +444,7 @@ class GitHubActionStepTests(unittest.TestCase):
             "INPUT_PYTHON": str(self.stub_python(stdout, code)),
             "GITHUB_OUTPUT": str(self.github_output),
         })
-        result = subprocess.run(["bash", str(script)], env=env,
+        result = subprocess.run([*GITHUB_SHELL_BASH, str(script)], env=env,
                                 capture_output=True, text=True)
         outputs = {}
         for line in self.github_output.read_text(encoding="utf-8").splitlines():

@@ -66,7 +66,7 @@ select = ["E4", "E7", "E9", "F"]
 # file for any reason invalidates the committed audit under `audits/`, the
 # committed baseline, `proof/matrix.md` and the published page, and the suite
 # fails until all four are regenerated. Regenerating this repository's own
-# evidence is something to do when its behaviour changed and you can say why,
+# evidence is something to do when its behavior changed and you can say why,
 # not to remove seven redundant prefixes. Every other pyflakes rule stays on
 # and stays blocking, including F401, which is what caught the four unused
 # test imports removed alongside this config.

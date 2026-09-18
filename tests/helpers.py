@@ -22,7 +22,7 @@ class LocalJSONServer:
 
     `handler(request) -> (status, payload)` receives a dict with `path`,
     `method`, `headers` and the decoded JSON `body`, and returns an HTTP
-    status and an object to serialise (or raw bytes, to test malformed
+    status and an object to serialize (or raw bytes, to test malformed
     responses).
     """
 
@@ -68,7 +68,7 @@ class LocalJSONServer:
             daemon_threads = True
 
             def handle_error(self, request, client_address):
-                # A client that timed out and hung up is the behaviour under
+                # A client that timed out and hung up is the behavior under
                 # test, not a test failure worth a traceback.
                 pass
 

@@ -57,7 +57,7 @@ MODE_LINES = "lines"
 
 #: Keys each mode understands. Anything else is refused rather than ignored,
 #: the same rule the adapter tables follow: a misspelled key is a setting that
-#: is not there, and here that means turns travelling in a shape nobody chose.
+#: is not there, and here that means turns traveling in a shape nobody chose.
 _KEYS_BY_MODE: dict[str, frozenset[str]] = {
     MODE_HISTORY: frozenset({
         "mode", "history_pointer", "role_key", "content_key", "user_role",
@@ -84,7 +84,7 @@ class ConversationConfig:
     session_body_pointer: str = ""
 
     def describe(self) -> dict[str, Any]:
-        """What the recorded manifest says about how the turns travelled.
+        """What the recorded manifest says about how the turns traveled.
 
         Recorded in full, not as the bare mode: a reader asking why turn two
         looked the way it did needs the envelope, and the envelope is exactly
@@ -164,7 +164,7 @@ def parse(raw: object, *, allowed_modes: tuple[str, ...],
         raise AdapterError(
             f"[adapter.conversation] has key(s) mode = {mode!r} does not "
             f"understand: {', '.join(unknown)}. Refused rather than ignored — "
-            f"a misspelled pointer is turns travelling somewhere nobody chose."
+            f"a misspelled pointer is turns traveling somewhere nobody chose."
         )
 
     if mode == MODE_HISTORY:

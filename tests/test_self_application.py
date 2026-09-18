@@ -141,7 +141,7 @@ class TheCommittedBaselineIsCurrent(unittest.TestCase):
         self.assertEqual(
             BASELINE.read_text(encoding="utf-8"), rendered,
             "baselines/riverbend-demo.json is not what the committed report "
-            "distils to; regenerate it per docs/operations-runbook.md rather "
+            "distills to; regenerate it per docs/operations-runbook.md rather "
             "than editing it")
 
     def test_it_describes_the_evidence_that_is_actually_committed(self):

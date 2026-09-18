@@ -178,7 +178,7 @@ def _recording_lines(recording: dict[str, Any] | None) -> list[str]:
 
 
 def _contrast_source_lines(report: dict[str, Any]) -> list[str]:
-    """Say where the accessibility suite's colour pairs came from.
+    """Say where the accessibility suite's color pairs came from.
 
     A contrast score means two different things depending on its source, and a
     reader of the report cannot tell them apart from the number. Pairs a
@@ -197,7 +197,7 @@ def _contrast_source_lines(report: dict[str, Any]) -> list[str]:
         interface = details.get("interface") or "the captured interface"
         lines.append(
             f"- `{suite['suite']}` measured contrast for `{interface}` from "
-            f"**{source}** colour pairs."
+            f"**{source}** color pairs."
         )
         caveat = details.get("contrast_caveat")
         if caveat:

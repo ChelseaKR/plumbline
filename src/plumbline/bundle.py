@@ -253,9 +253,9 @@ def check_hashable_name(name: str) -> str:
     """Refuse a bundle-relative path the combined bundle hash cannot represent
     unambiguously. Returns the name.
 
-    `bundle_digest` serialises the manifest as one `"<name>=<64 hex>\\n"` line
+    `bundle_digest` serializes the manifest as one `"<name>=<64 hex>\\n"` line
     per file. A name containing a newline could therefore forge a line break
-    and make one file serialise exactly like two, so two different sets of
+    and make one file serialize exactly like two, so two different sets of
     evidence would share a bundle hash. POSIX permits newlines in filenames,
     so this is a real construction and not a theoretical one; the digest stays
     injective only because such names are refused at both ends — when a bundle

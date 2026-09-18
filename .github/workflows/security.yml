@@ -23,7 +23,7 @@ permissions:
 
 # CI-CD-STANDARD.md 11c: cancel superseded runs on the same ref -- but two commits pushed to
 # `main` share one ref and are not supersessions of each other. Keyed on the ref alone, the
-# second push cancelled the run checking the first, and a cancelled run is not a failure:
+# second push canceled the run checking the first, and a canceled run is not a failure:
 # nothing goes red and the commit sits on `main` with no verdict at all. The SHA separates
 # them; a pull request keeps one group per PR, so a force-push still cancels its predecessor.
 concurrency:
@@ -83,13 +83,37 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          fetch-depth: 0 # whole history, not a diff
+          # Necessary, and on its own not sufficient. This decides how much
+          # history lands on disk; `base:`/`head:` on each lane below decide how
+          # much of it TruffleHog is asked to read. Both lanes were checked out
+          # at full depth while scanning a two-commit range on every push, so a
+          # full-depth checkout is no evidence of a full-history scan.
+          fetch-depth: 0
           persist-credentials: false
       # LANE 1 -- every result tier, with the two fixture-matching detectors off.
       - name: TruffleHog (full history, all result tiers)
-        uses: trufflesecurity/trufflehog@20652fbbdefffcdaa493a5bf57ab2ac6b1db715b # v3.97.1
+        uses: trufflesecurity/trufflehog@363923b901c911a9164f50b6c423f47c15372b1c # v3.97.4
         with:
           path: ./
+          # What actually makes this a full-history scan, and what was missing
+          # until 2026-09-13. The action derives its own range when `base` and
+          # `head` are both unset:
+          #
+          #   push        --since-commit <event.before> --branch <event.after>
+          #   pull_request--since-commit <pr.base.sha>  --branch <pr.head.sha>
+          #   schedule    --since-commit ""             --branch ""
+          #
+          # This workflow runs on push and pull_request as well as on the
+          # Sunday cron -- deliberately, see the header -- so for six days a
+          # week a job named "full-history secret scan" scanned a diff. Setting
+          # `head` non-empty takes the action's explicit-range branch, which
+          # runs `--since-commit "" --branch HEAD`: every commit reachable from
+          # HEAD, on every event. `base: ''` alone does nothing; with both
+          # empty the action falls straight back to the event logic. `HEAD`
+          # rather than a branch name because a pull_request checkout is a
+          # detached merge ref where no branch name resolves.
+          base: ''
+          head: HEAD
           # Pinned, and it must equal the version comment on the pinned ref
           # above. The action's `version:` input defaults to "latest" and it
           # runs `ghcr.io/trufflesecurity/trufflehog:${VERSION}`, so the SHA
@@ -97,7 +121,7 @@ jobs:
           # this input the sweep silently tracked whatever upstream published
           # last, and every Dependabot bump of the ref was a no-op because
           # Dependabot never edits a `with:` input.
-          version: "3.97.1"
+          version: "3.97.4"
           # The action's baked-in command already passes --fail; repeating it
           # is a CLI error.
           #
@@ -140,13 +164,16 @@ jobs:
       # and the `--only-verified` it replaces are the same selection; the flag is
       # spelled this way so that no lane of this job can be read as the setting
       # that could not fail. `!cancelled()` so lane 1 failing does not hide this
-      # verdict, while a cancelled run still stops both.
+      # verdict, while a canceled run still stops both.
       - name: TruffleHog (full history, verified results, URI still armed)
         if: ${{ !cancelled() }}
-        uses: trufflesecurity/trufflehog@20652fbbdefffcdaa493a5bf57ab2ac6b1db715b # v3.97.1
+        uses: trufflesecurity/trufflehog@363923b901c911a9164f50b6c423f47c15372b1c # v3.97.4
         with:
           path: ./
-          version: "3.97.1"
+          # Same reason as lane 1: without these the lane scans the event's diff.
+          base: ''
+          head: HEAD
+          version: "3.97.4"
           extra_args: --results=verified --exclude-detectors=Lob
 
   # A second engine on the same history, matching on pattern rather than on
@@ -177,7 +204,10 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          fetch-depth: 0 # whole history, not a diff
+          # Necessary, not sufficient. `gitleaks git .` below carries no
+          # `--log-opts`, and that is what makes it walk the history; this line
+          # only guarantees the history is there to walk.
+          fetch-depth: 0
           persist-credentials: false
       - name: Secret scan (gitleaks, full history)
         # A checksum-verified, version-pinned binary rather than a third-party

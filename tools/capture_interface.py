@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Capture an interface snapshot with the colours a renderer actually computed.
+"""Capture an interface snapshot with the colors a renderer actually computed.
 
 The `accessibility` suite computes WCAG contrast ratios itself, but until now
-the colour pairs came from a JSON block the snapshot wrote **about itself**.
+the color pairs came from a JSON block the snapshot wrote **about itself**.
 The ratios were real; the population was not. A page whose hint text fails AA
 could list its five passing pairs and score a clean pass, and nothing in a
-markup-only check could notice, because deciding what colour a paragraph is
+markup-only check could notice, because deciding what color a paragraph is
 means running the cascade -- and shipping a cascade implementation inside a
 stdlib-only gate was never going to happen.
 
@@ -59,10 +59,10 @@ import sys
 from pathlib import Path
 
 # The JavaScript is the other half of the completeness check, so its text
-# normalisation has to be the same rule as `normalise_text` in
+# normalization has to be the same rule as `normalize_text` in
 # `src/plumbline/suites/accessibility.py`: collapse whitespace runs to one
 # space, strip the ends. `tests/test_accessibility.py` holds the two to the
-# same fixture -- a check whose two sides normalise differently reports every
+# same fixture -- a check whose two sides normalize differently reports every
 # honest snapshot as incomplete, and a check that fails correct input is a
 # check somebody switches off.
 _MEASURE_JS = r"""
@@ -111,7 +111,7 @@ _MEASURE_JS = r"""
     if (!fg || !bg) {
       skipped.push({
         text,
-        reason: "foreground or background is not an opaque colour this capture can resolve",
+        reason: "foreground or background is not an opaque color this capture can resolve",
       });
       continue;
     }

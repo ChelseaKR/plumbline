@@ -27,13 +27,13 @@ Five checks, all structural, all decidable from markup:
 
 Contrast is computed, not taken on trust, because a self-reported "we meet AA"
 is not evidence. The arithmetic is always this module's; what differs is where
-the colour pairs came from, and that difference is worth stating plainly because
+the color pairs came from, and that difference is worth stating plainly because
 one of the two sources cannot be complete.
 
 **Declared pairs** (`plumbline-contrast`) are a list the snapshot writes about
 itself. The ratios are real, but the *population* is not: a page whose hint text
 fails AA can simply leave that pair out and pass, and nothing in a markup-only
-check can notice, because reading colours out of the page's CSS would mean
+check can notice, because reading colors out of the page's CSS would mean
 shipping a cascade implementation. That is why this path now carries a caveat
 into every record and into the report rather than reading as a clean pass.
 
@@ -76,7 +76,7 @@ SOURCE_DECLARED = "declared"
 SOURCE_COMPUTED = "computed"
 #: What the report and every item record say when the pairs are the page's own.
 DECLARED_CAVEAT = (
-    "self-declared pairs: the colour pairs came from a block the snapshot "
+    "self-declared pairs: the color pairs came from a block the snapshot "
     "writes about itself, so the ratios are measured but the population is "
     "not verified — a pair that fails can be left out of the list"
 )
@@ -99,26 +99,30 @@ VOID_TAGS = {
 NON_RENDERED_TAGS = {"script", "style", "template", "noscript"}
 
 
-def normalise_text(text: str) -> str:
+def normalize_text(text: str) -> str:
     """One rendered text run, as both sides of the completeness check see it.
 
     Whitespace runs collapse to a single space and the ends are stripped,
     which is what a browser renders and what an HTML parser hands back. The
     capture tool applies the identical rule in JavaScript, and
     ``tests/test_accessibility.py`` holds the two to the same fixture, because
-    a completeness check whose two sides normalise differently reports every
+    a completeness check whose two sides normalize differently reports every
     snapshot as incomplete and gets switched off.
     """
     return " ".join(text.split())
 
 
+# Deprecated alias for the name released in v0.2.0; use `normalize_text`.
+normalise_text = normalize_text
+
+
 def relative_luminance(hex_color: str) -> float:
-    """WCAG 2.x relative luminance of an #rgb or #rrggbb colour."""
+    """WCAG 2.x relative luminance of an #rgb or #rrggbb color."""
     value = hex_color.strip().lstrip("#")
     if len(value) == 3:
         value = "".join(c * 2 for c in value)
     if len(value) != 6:
-        raise ValueError(f"not a hex colour: {hex_color!r}")
+        raise ValueError(f"not a hex color: {hex_color!r}")
     channels = []
     for i in (0, 2, 4):
         c = int(value[i:i + 2], 16) / 255.0
@@ -180,7 +184,7 @@ class _Snapshot(HTMLParser):
         self._in_computed_script = False
         self.computed_json: str | None = None
         self._in_head = False
-        # Every run of rendered text in the markup, normalised, in document
+        # Every run of rendered text in the markup, normalized, in document
         # order. This is the population a computed block has to account for.
         self.text_runs: list[str] = []
         self._open: list[_Element] = []
@@ -231,7 +235,7 @@ class _Snapshot(HTMLParser):
             self._in_computed_script = True
         elif tag == "head":
             # `<title>` is text and is never painted into the page, so a
-            # renderer records no colour pair for it. Counting it as a text run
+            # renderer records no color pair for it. Counting it as a text run
             # the capture had to account for would make every honest capture
             # look incomplete. A document with no `<head>` excludes nothing.
             self._in_head = True
@@ -241,7 +245,7 @@ class _Snapshot(HTMLParser):
                 attributes.get("id") or attributes.get("role") or tag)
         # An image inside a button contributes its alt text to the button's
         # name, exactly as the accessible name computation does. Without
-        # this, an icon button labelled the correct way would be reported
+        # this, an icon button labeled the correct way would be reported
         # unnamed, and a check that fails correct markup gets switched off.
         if tag == "img":
             self._offer_name_text(f" {attributes.get('alt', '')} ", hidden=hidden)
@@ -285,7 +289,7 @@ class _Snapshot(HTMLParser):
             self.computed_json = (self.computed_json or "") + data
         if self._open and self._open[-1].tag in NON_RENDERED_TAGS:
             return
-        run = normalise_text(data)
+        run = normalize_text(data)
         if run and not self._in_head:
             self.text_runs.append(run)
         self._offer_name_text(data, hidden=False)
@@ -372,12 +376,12 @@ def _ratio_failures(pairs: list[object], label: str) -> tuple[list[str], str]:
     failures = []
     for pair in pairs:
         if not isinstance(pair, dict):
-            return [], f"unreadable {label} colour pair {pair!r}: not an object"
+            return [], f"unreadable {label} color pair {pair!r}: not an object"
         try:
             required = AA_LARGE if pair.get("size") == "large" else AA_NORMAL
             ratio = contrast_ratio(pair["foreground"], pair["background"])
         except (KeyError, TypeError, ValueError) as e:
-            return [], f"unreadable {label} colour pair {pair!r}: {e}"
+            return [], f"unreadable {label} color pair {pair!r}: {e}"
         if ratio < required:
             failures.append(
                 f"{pair.get('name') or pair.get('text') or 'unnamed'} "
@@ -404,7 +408,7 @@ def _accounted_text(block: dict[str, object]) -> tuple[list[str], str]:
         if not isinstance(pair, dict) or not isinstance(pair.get("text"), str):
             return [], (f"computed pair {pair!r} carries no `text`, so it cannot be "
                         f"matched against the text the snapshot contains")
-        accounted.append(normalise_text(pair["text"]))
+        accounted.append(normalize_text(pair["text"]))
     skipped = block.get("skipped", [])
     if not isinstance(skipped, list):
         return [], "the computed block's `skipped` is not a list"
@@ -414,7 +418,7 @@ def _accounted_text(block: dict[str, object]) -> tuple[list[str], str]:
             return [], (f"skipped node {entry!r} needs both `text` and a non-empty "
                         f"`reason`; a node dropped without a stated reason is "
                         f"indistinguishable from one left out")
-        accounted.append(normalise_text(entry["text"]))
+        accounted.append(normalize_text(entry["text"]))
     return accounted, ""
 
 
@@ -439,7 +443,7 @@ def _check_computed_contrast(snapshot: _Snapshot) -> tuple[bool, str]:
                        f"{block.get('source')!r}, not {SOURCE_COMPUTED!r}")
     pairs = block.get("pairs")
     if not isinstance(pairs, list) or not pairs:
-        return False, ("the computed contrast block measured no colour pairs; a "
+        return False, ("the computed contrast block measured no color pairs; a "
                        "capture that recorded nothing is not a capture that found "
                        "nothing wrong")
 
@@ -463,7 +467,7 @@ def _check_computed_contrast(snapshot: _Snapshot) -> tuple[bool, str]:
         return False, "; ".join(failures)
     skipped = len(block.get("skipped", []) or [])
     skipped_note = f", {skipped} not painted by the renderer" if skipped else ""
-    return True, (f"all {len(pairs)} computed colour pairs meet WCAG AA "
+    return True, (f"all {len(pairs)} computed color pairs meet WCAG AA "
                   f"(every text run in the snapshot accounted for{skipped_note})")
 
 
@@ -471,7 +475,7 @@ def _missing_runs(present: list[str], accounted: list[str]) -> list[str]:
     """Text runs in the markup that the computed block does not account for.
 
     A multiset difference, not a set difference. The same sentence rendered
-    twice in two different colours is two text runs and needs two entries; a
+    twice in two different colors is two text runs and needs two entries; a
     set comparison would let the second, failing one be dropped.
     """
     remaining = Counter(accounted)
@@ -487,7 +491,7 @@ def _missing_runs(present: list[str], accounted: list[str]) -> list[str]:
 def _check_declared_contrast(snapshot: _Snapshot) -> tuple[bool, str]:
     if not snapshot.contrast_json or not snapshot.contrast_json.strip():
         return False, (f"no <script type=\"application/json\" "
-                       f"id=\"{CONTRAST_SCRIPT_ID}\"> declaring colour pairs and no "
+                       f"id=\"{CONTRAST_SCRIPT_ID}\"> declaring color pairs and no "
                        f"id=\"{COMPUTED_SCRIPT_ID}\" capture; "
                        f"unverified contrast is not passing contrast")
     try:
@@ -495,13 +499,13 @@ def _check_declared_contrast(snapshot: _Snapshot) -> tuple[bool, str]:
     except json.JSONDecodeError as e:
         return False, f"the contrast declaration is not valid JSON: {e}"
     if not isinstance(pairs, list) or not pairs:
-        return False, "the contrast declaration lists no colour pairs"
+        return False, "the contrast declaration lists no color pairs"
     failures, unreadable = _ratio_failures(pairs, SOURCE_DECLARED)
     if unreadable:
         return False, unreadable
     if failures:
         return False, "; ".join(failures)
-    return True, (f"all {len(pairs)} declared colour pairs meet WCAG AA "
+    return True, (f"all {len(pairs)} declared color pairs meet WCAG AA "
                   f"[{DECLARED_CAVEAT}]")
 
 
@@ -594,7 +598,7 @@ class AccessibilitySuite(Suite):
                 "failed_checks": failed,
                 "contrast_source": source,
                 "contrast_note": (
-                    "contrast ratios are computed here from the colour pairs "
+                    "contrast ratios are computed here from the color pairs "
                     "the snapshot declares, not taken from a self-reported "
                     "claim; an undeclared palette fails the check"
                 ) if source == SOURCE_DECLARED else (

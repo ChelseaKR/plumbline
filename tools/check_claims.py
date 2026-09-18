@@ -43,6 +43,7 @@ is the property the reports themselves have.
 from __future__ import annotations
 
 import json
+import math
 import re
 import sys
 import unittest
@@ -68,10 +69,88 @@ class Stale(Exception):
     """A published figure and the evidence behind it disagree."""
 
 
+TENS = ("twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty",
+        "ninety")
+
+#: A spelled figure, as this repository writes one: `fifteen`, `Twenty-three`.
+#: `NUMERAL` is blind to every one of them, and that is where drift hid: on
+#: 2026-09-13 `Twenty-one cases` sat beside a 23-case matrix and `Thirteen
+#: suites` beside a fifteen-suite report while `29 of 319 numerals` printed
+#: green. Built from the same words `_spell` writes, so the gate can see
+#: exactly what it can assert. A compound is one figure: the lookbehind stops
+#: `three` in `twenty-three` being counted a second time.
+NUMBER_WORD = re.compile(
+    r"(?<![\w-])(?:(?:" + "|".join(TENS) + r")(?:-(?:"
+    + "|".join(WORDS[1:10]) + r"))?|"
+    + "|".join(sorted(WORDS[:20], key=len, reverse=True)) + r")(?!\w)",
+    re.IGNORECASE)
+
+
 def _spell(n: int) -> str:
-    if not 0 <= n < len(WORDS):
-        raise Stale(f"no spelling for {n}; the claim needs rewriting by hand")
-    return WORDS[n]
+    """`n` as this repository's prose spells it: 0-99, hyphenated above 20."""
+    if 0 <= n < 20:
+        return WORDS[n]
+    if 20 <= n < 100:
+        tens, unit = divmod(n, 10)
+        word = TENS[tens - 2]
+        return f"{word}-{WORDS[unit]}" if unit else word
+    raise Stale(f"no spelling for {n}; the claim needs rewriting by hand")
+
+
+def _matrix_figures(matrix: dict, report: dict) -> dict[str, str]:
+    """The spelled figures the prose states about the matrix and a clean run.
+
+    Each one is refused rather than published when the sentence it fills
+    would stop being true of the evidence: a matrix with a suite left
+    uncovered cannot be `all N suites covered`, and a report with a suite
+    that does not PASS is not `N suites reporting PASS on a clean bundle`.
+    """
+    cases = matrix.get("cases") or []
+    covered = matrix.get("suites_with_a_defect_case") or []
+    uncovered = matrix.get("suites_without_a_defect_case") or []
+    suites = report.get("suites") or []
+    if not cases or not covered:
+        raise Stale("the defect matrix records no cases, or no covered suite, "
+                    "so a count taken from it would be a count of nothing")
+    if uncovered:
+        raise Stale(f"the defect matrix leaves {sorted(uncovered)} with no "
+                    f"case, so `all N suites covered` is no longer true of it")
+    if not suites:
+        raise Stale("the committed report scores no suites, so `N suites "
+                    "reporting PASS` would count nothing")
+    failing = sorted(s["suite"] for s in suites if s.get("verdict") != "PASS")
+    if failing:
+        raise Stale(f"the committed report does not PASS {failing}, so `N "
+                    f"suites reporting PASS on a clean bundle` is not a "
+                    f"sentence about it")
+
+    def of_kind(kind: str) -> int:
+        return sum(1 for case in cases if case.get("expect") == kind)
+
+    return {
+        "matrix_suites_proved": _spell(len(covered)),
+        "matrix_cases_sentence_start": _spell(len(cases)).capitalize(),
+        "matrix_integrity_refusals": _spell(of_kind("integrity_refusal")),
+        "matrix_configuration_errors": _spell(of_kind("configuration_error")),
+        "suites_passing_sentence_start": _spell(len(suites)).capitalize(),
+    }
+
+
+def _tolerated(n: int, floor: float) -> int:
+    """How many items a proportion suite may get wrong and still clear its floor.
+
+    The suites score `successes / n`, so the largest k with `(n - k) / n >= floor`.
+    Derived rather than written down: the tolerance sentence in `DESIGN.md` moves
+    the moment either the bundle or the floor does, and it moved once already --
+    the bundle grew from 174 to 178 and the sentence went on saying the old
+    figure.
+    """
+    if n <= 0:
+        raise Stale(
+            f"a floor of {floor} over {n} items tolerates nothing, because the "
+            f"suite scored nothing; a tolerance over an empty population is not "
+            f"a number")
+    return n - math.ceil(floor * n)
 
 
 def _jsonl(path: Path) -> list[dict]:
@@ -147,6 +226,20 @@ def facts() -> dict[str, str]:
     items = _jsonl(BUNDLE / "items.jsonl")
     sources = _jsonl(BUNDLE / "sources.jsonl")
 
+    attribution = suites.get("passage_attribution")
+    if attribution is None:
+        raise Stale("passage_attribution is not in the committed report")
+    unverifiable = attribution["details"]["unverifiable"]
+    for key in ("scored", "eligible", "count"):
+        if key not in unverifiable:
+            raise Stale(
+                f"passage_attribution's coverage block carries no {key!r}, so the "
+                f"coverage sentence cannot be held to it")
+
+    refusal = suites.get("refusal")
+    if refusal is None:
+        raise Stale("refusal is not in the committed report")
+
     return {
         "items": str(report["dataset"]["items"]),
         "suites": _spell(len(report["suites"])),
@@ -164,6 +257,15 @@ def facts() -> dict[str, str]:
         "bundle_facts": str(len({i["fact_id"] for i in items
                                  if i.get("fact_id")})),
         "bundle_adversarial": str(sum(1 for i in items if i.get("adversarial"))),
+        "bundle_refusals": str(sum(1 for i in items
+                                   if i.get("behavior") == "refuse")),
+        "attribution_scored": str(unverifiable["scored"]),
+        "attribution_eligible": str(unverifiable["eligible"]),
+        "attribution_unverifiable": str(unverifiable["count"]),
+        "refusal_floor": f"{refusal['floor']:.2f}",
+        "refusal_tolerated": _spell(_tolerated(refusal["n"], refusal["floor"])),
+        **_matrix_figures(matrix, report),
+        "seed": str(matrix["seed"]),
     }
 
 
@@ -238,15 +340,496 @@ CLAIMS: tuple[Claim, ...] = (
         pattern=r"load-bearing numeric facts, (?P<probes>[0-9]+) adversarial",
         expect=lambda f: {"probes": f["bundle_adversarial"]},
     ),
+    # Everything below anchors a sentence #86 measured as unchecked prose. Each
+    # is a figure the committed evidence already carries; none is a number a
+    # person maintains, so none of them is the hand-maintained counter that jams
+    # a queue. Two of the six were stale when they were anchored.
+    Claim(
+        doc="README.md",
+        what="the coverage line the attribution suite publishes",
+        pattern=(r"`passage_attribution` scored (?P<scored>[0-9]+) of "
+                 r"(?P<eligible>[0-9]+) eligible items\. "
+                 r"(?P<unverifiable>[0-9]+) are UNVERIFIABLE "
+                 r"\(no_declaration (?P<reason>[0-9]+)\)"),
+        expect=lambda f: {"scored": f["attribution_scored"],
+                          "eligible": f["attribution_eligible"],
+                          "unverifiable": f["attribution_unverifiable"],
+                          "reason": f["attribution_unverifiable"]},
+    ),
+    Claim(
+        doc="README.md",
+        what="the same coverage restated as a sentence about the demo",
+        pattern=(r"(?P<eligible>[0-9]+) answer items with passages, "
+                 r"(?P<scored>[0-9]+) declaring, (?P<unverifiable>[0-9]+) "
+                 r"listed for review"),
+        expect=lambda f: {"eligible": f["attribution_eligible"],
+                          "scored": f["attribution_scored"],
+                          "unverifiable": f["attribution_unverifiable"]},
+    ),
+    Claim(
+        doc="DESIGN.md",
+        what="the minimum detectable effect the grown bundle reports",
+        pattern=(r"At (?P<items>[0-9]+) items the same suites report "
+                 r"(?P<low>[0-9.]+) to (?P<high>[0-9.]+)\."),
+        expect=lambda f: {"items": f["items"], "low": f["mde_low"],
+                          "high": f["mde_high"]},
+    ),
+    Claim(
+        doc="DESIGN.md",
+        what="what a floor tolerates before a suite fails",
+        pattern=(r"`refusal` at floor (?P<floor>[0-9.]+) over "
+                 r"(?P<items>[0-9]+) items tolerates (?P<tolerated>[a-z]+) "
+                 r"misclassifications; one flipped refusal scores "
+                 r"(?P<score>[0-9.]+)"),
+        expect=lambda f: {"floor": f["refusal_floor"], "items": f["items"],
+                          "tolerated": f["refusal_tolerated"],
+                          "score": f["tolerated_score"]},
+    ),
+    Claim(
+        doc="DESIGN.md",
+        what="how many suites the defect matrix proved can fail",
+        pattern=(r"\*\*No suite resisted\.\*\* Every one of the "
+                 r"(?P<suites>[a-z]+) was made to fail"),
+        expect=lambda f: {"suites": f["matrix_suites_proved"]},
+    ),
+    Claim(
+        doc="DESIGN.md",
+        what="how many declines the bundle carries",
+        pattern=r"Writing (?P<refusals>[0-9]+) refusals for this bundle",
+        expect=lambda f: {"refusals": f["bundle_refusals"]},
+    ),
+    # Spelled figures. The numeral census cannot see them, and both of the
+    # stale ones below sat under a green numeral line: `Twenty-one cases` of a
+    # 23-case matrix and `Thirteen suites` of a fifteen-suite report.
+    Claim(
+        doc="README.md",
+        what="what the defect-injection matrix contains",
+        pattern=(r"(?P<cases>[A-Z][a-z]+(?:-[a-z]+)?) cases, all "
+                 r"(?P<suites>[a-z]+(?:-[a-z]+)?) suites covered, including "
+                 r"(?P<integrity>[a-z]+) integrity refusal and "
+                 r"(?P<config>[a-z]+) empty-population configuration errors"),
+        expect=lambda f: {"cases": f["matrix_cases_sentence_start"],
+                          "suites": f["matrix_suites_proved"],
+                          "integrity": f["matrix_integrity_refusals"],
+                          "config": f["matrix_configuration_errors"]},
+    ),
+    Claim(
+        doc="README.md",
+        what="how many suites a clean run reports PASS for",
+        pattern=(r"(?P<suites>[A-Z][a-z]+(?:-[a-z]+)?) suites reporting PASS "
+                 r"proves nothing"),
+        expect=lambda f: {"suites": f["suites_passing_sentence_start"]},
+    ),
+    Claim(
+        doc="DESIGN.md",
+        what="how many suites a clean bundle reports PASS for",
+        pattern=(r"(?P<suites>[A-Z][a-z]+(?:-[a-z]+)?) suites reporting PASS "
+                 r"on a clean bundle"),
+        expect=lambda f: {"suites": f["suites_passing_sentence_start"]},
+    ),
 )
+
+
+#: The documents a claim may be anchored in, each with the reason it is a
+#: claims surface rather than narration. The list is self-limiting in both
+#: directions: a claim naming a document that is not here is refused, and a
+#: document here that no claim binds a figure in is refused too, because a
+#: declared claims surface with nothing anchored in it is the whole subject of
+#: this file wearing a different hat.
+GATED_DOCUMENTS: dict[str, str] = {
+    "README.md": (
+        "the project's own account of what it measures, and where every "
+        "figure a reader meets first is published"),
+    "DESIGN.md": (
+        "the design record; the demonstration bundle's composition is stated "
+        "here and nowhere else"),
+}
+
+#: One published figure. `0.9944` is one figure and not two, so the decimal
+#: point is inside the token: a census whose tokens disagree with what a claim
+#: captures cannot be read as a share of anything.
+NUMERAL = re.compile(r"(?<![\w.])\d+(?:\.\d+)?(?![\w.])")
+
+
+#: A claim anchors ONE sentence. Every figure in this repository is restated
+#: two or three more times, and a restatement is exactly where the drift went:
+#: on 2026-09-08 `DESIGN.md` said `174 items` six times and `fourteen suites`
+#: three times while the evidence said 178 and fifteen, and the sentence the
+#: claims above do anchor -- `**178 items (89 en, 89 es)**`, in the same file --
+#: was right. So the gate held the one sentence it was pointed at and the
+#: document around it was wrong.
+#:
+#: The two checks below are the restatement half. Neither carries a number a
+#: human maintains: the suite ids and the bundle size are read from the same
+#: committed artifacts the claims are, so they move when the evidence moves.
+#: That is deliberate -- the alternative considered and rejected was six more
+#: `Claim` rows, which is the hand-maintained counter that jams a queue.
+
+#: Where DESIGN.md inventories the suites. Every suite id in the committed
+#: report has to be named inside it. Scoped to the section rather than to the
+#: file because the roadmap table names every suite in passing, so a
+#: whole-document membership test passes over an inventory missing one -- which
+#: is how `conversational_integrity` sat outside this section for three weeks.
+SUITE_INVENTORY = ("DESIGN.md", "## Suites")
+
+#: A heading that dates itself is a record of what was observed then, not a
+#: claim about now. Rewriting `## Acceptance record (verified at M9, clean
+#: checkout)` so its figures read true today destroys the thing it is for.
+#: Recognized structurally -- a year, or a heading that names itself a record
+#: -- rather than by listing line numbers, which move on every edit.
+DATED_RECORD_HEADING = re.compile(r"\b20\d\d\b|acceptance record|roadmap",
+                                  re.IGNORECASE)
+
+#: Live sentences that say `N items` about some population other than the
+#: bundle. Each entry must be observed in the live prose or this file fails:
+#: an exemption for a sentence nobody writes is an exemption that quietly
+#: covers the next one somebody does write. Same rule the claim patterns are
+#: held to.
+EXEMPT_ITEM_PHRASES: tuple[tuple[str, str], ...] = (
+    ("At 26 items",
+     "the bundle before it was grown, named so the comparison has two ends"),
+    ("96 items scored twice with the same number",
+     "the accuracy/fairness overlap the report counts, not the bundle"),
+)
+
+ITEM_COUNT = re.compile(r"\b(\d+) items\b")
+
+
+def _read(doc: str) -> str:
+    """The document, whitespace-collapsed the way the claims are matched."""
+    return re.sub(r"\s+", " ", _raw(doc))
+
+
+def _raw(doc: str) -> str:
+    """The document as written. Headings are line-anchored, so the section
+    walk below needs the newlines the claim matcher throws away."""
+    return (REPO / doc).read_text(encoding="utf-8")
+
+
+def _sections(text: str) -> list[tuple[list[str], str]]:
+    """The document as (enclosing headings, body) pairs.
+
+    A `###` inside a dated `##` inherits the date, so the enclosing headings
+    are carried rather than only the nearest one.
+    """
+    out: list[tuple[list[str], str]] = []
+    stack: list[tuple[int, str]] = []
+    body: list[str] = []
+    for line in text.splitlines():
+        heading = re.match(r"^(#{1,6})\s+(.*)$", line)
+        if not heading:
+            body.append(line)
+            continue
+        out.append(([h for _, h in stack], "\n".join(body)))
+        body = []
+        level = len(heading.group(1))
+        stack = [(lvl, h) for lvl, h in stack if lvl < level]
+        stack.append((level, heading.group(2)))
+    out.append(([h for _, h in stack], "\n".join(body)))
+    return out
+
+
+def live_prose(doc: str, text: str | None = None) -> str:
+    """The document minus every section under a heading that dates itself."""
+    if text is None:
+        text = _raw(doc)
+    return "\n".join(
+        body for headings, body in _sections(text)
+        if not any(DATED_RECORD_HEADING.search(h) for h in headings))
+
+
+def restated_bundle_size(
+    texts: dict[str, str] | None = None,
+    size: int | None = None,
+) -> tuple[int, int, int]:
+    """Hold every live `N items` in the gated documents to the real bundle.
+
+    Returns (checked, dated, exempt) so the gate can print what it looked at
+    instead of only that it was happy.
+    """
+    if size is None:
+        size = len(_jsonl(BUNDLE / "items.jsonl"))
+    # The exemption list describes the *shipped* prose. Tests hand this
+    # function one synthetic document at a time to prove the failure modes,
+    # and "the exemptions appear nowhere" is true of every such call and means
+    # nothing about the repository -- the same reason the four universe
+    # refusals apply only to `CLAIMS`.
+    shipped = texts is None
+    if shipped:
+        texts = {doc: _raw(doc) for doc in GATED_DOCUMENTS}
+
+    seen_phrases: set[str] = set()
+    checked = dated = 0
+    problems: list[str] = []
+    for doc, text in sorted(texts.items()):
+        live = live_prose(doc, text)
+        dated += (len(ITEM_COUNT.findall(text))
+                  - len(ITEM_COUNT.findall(live)))
+        exempt_spans = []
+        for phrase, _reason in EXEMPT_ITEM_PHRASES:
+            for found in re.finditer(re.escape(phrase), live):
+                seen_phrases.add(phrase)
+                exempt_spans.append(found.span())
+        for match in ITEM_COUNT.finditer(live):
+            if any(lo <= match.start() and match.end() <= hi
+                   for lo, hi in exempt_spans):
+                continue
+            checked += 1
+            if int(match.group(1)) != size:
+                problems.append(
+                    f"{doc}: {match.group(0)!r} — the committed bundle holds "
+                    f"{size}. If this sentence is about a different "
+                    f"population, name it in EXEMPT_ITEM_PHRASES with the "
+                    f"reason; if it is history, put it under a dated heading")
+    unobserved = sorted({p for p, _ in EXEMPT_ITEM_PHRASES} - seen_phrases)
+    if shipped and unobserved:
+        raise Stale(
+            f"{unobserved} are exempted from the bundle-size check and appear "
+            f"nowhere in the live prose. An exemption nobody's sentence needs "
+            f"is an exemption covering the next one that does: delete it")
+    if checked == 0:
+        raise Stale(
+            "the bundle-size scan read no `N items` at all in the live prose "
+            "of the gated documents, which cannot be right — the anchored "
+            "sentence in DESIGN.md is one. The reader has stopped matching")
+    if problems:
+        raise Stale("; ".join(problems))
+    exempt = sum(1 for _ in EXEMPT_ITEM_PHRASES)
+    return checked, dated, exempt
+
+
+def suites_missing_from_the_inventory(
+    text: str | None = None,
+    names: list[str] | None = None,
+) -> tuple[list[str], int]:
+    """Suite ids the committed report carries that DESIGN.md does not name."""
+    doc, heading = SUITE_INVENTORY
+    if names is None:
+        names = [s["suite"] for s in _committed_report()["suites"]]
+    if not names:
+        raise Stale("the committed report lists no suites, so this check "
+                    "would pass over anything")
+    if text is None:
+        text = _raw(doc)
+    # Membership, not position: this document opens with an H1, so every `##`
+    # is nested under it and `headings[0]` is the title. Asking whether the
+    # inventory heading is anywhere in the enclosing stack also picks up its
+    # sub-sections, which is where most of the suites are described.
+    wanted = heading.lstrip("# ").strip()
+    section = [body for headings, body in _sections(text)
+               if wanted in headings]
+    if not section:
+        raise Stale(
+            f"{doc} has no {heading!r} section any more, so the suite "
+            f"inventory this checks is not where SUITE_INVENTORY says it is")
+    inventory = "\n".join(section)
+    return [n for n in names if f"`{n}`" not in inventory], len(names)
+
+
+def coverage(
+    claims: tuple[Claim, ...] = CLAIMS,
+    texts: dict[str, str] | None = None,
+) -> dict[str, tuple[int, int]]:
+    """Per gated document: numerals bound to the evidence, and numerals present.
+
+    This is the number the green line was missing. `claims: 8 published
+    figures match the committed evidence` was true and said nothing about how
+    much of the two documents those eight figures covered -- and the answer
+    was 15 numerals out of 490. A gate that does not state its own denominator
+    reads exactly like one that examined everything.
+
+    A figure is counted as bound when a claim captures it *and* the captured
+    text is a numeral by the same tokenizer the denominator uses. A capture
+    that is not a numeral -- the spelled-out suite count -- is deliberately not
+    added to the numerator, because inflating it against a numeral denominator
+    would be the same defect one level in.
+    """
+    if texts is None:
+        texts = {doc: _read(doc) for doc in GATED_DOCUMENTS}
+    census = {doc: [0, len(NUMERAL.findall(text))]
+              for doc, text in texts.items()}
+    for claim in claims:
+        found = list(re.finditer(claim.pattern, texts[claim.doc]))
+        if len(found) != 1:
+            continue  # `check` reports this; a census cannot also fail on it.
+        for value in found[0].groupdict().values():
+            if value is not None and NUMERAL.fullmatch(value):
+                census[claim.doc][0] += 1
+    return {doc: (bound, total) for doc, (bound, total) in census.items()}
+
+
+def live_coverage(
+    claims: tuple[Claim, ...] = CLAIMS,
+) -> dict[str, tuple[int, int, int]]:
+    """Per gated document: numerals bound, numerals in live prose, numerals in history.
+
+    `coverage` counts every numeral in the file, and that denominator overstates
+    what any gate could ever reach. 171 of `DESIGN.md`'s 297 numerals sit under a
+    heading that dates itself -- `## Acceptance record (verified at M9, clean
+    checkout)`, the roadmap -- and those are records of what was observed then. A
+    claim anchored in one would force a gate to rewrite history every time the
+    evidence moved, which is the opposite of what the section is for.
+
+    So: **bound of live**, with the historical numerals reported beside it rather
+    than folded into either number. Reporting `29 of 490` reads as a gate that
+    covers 6% of its documents and is quietly measuring itself against 171
+    sentences it must never touch; reporting `29 of 319, and 171 more are dated
+    records` is the same two documents, said honestly.
+    """
+    out: dict[str, tuple[int, int, int]] = {}
+    for doc in GATED_DOCUMENTS:
+        whole = _read(doc)
+        live = re.sub(r"\s+", " ", live_prose(doc))
+        bound = coverage(claims, {doc: whole for doc in GATED_DOCUMENTS})[doc][0]
+        total = len(NUMERAL.findall(whole))
+        live_total = len(NUMERAL.findall(live))
+        out[doc] = (bound, live_total, total - live_total)
+    return out
+
+
+def spelled_coverage(
+    claims: tuple[Claim, ...] = CLAIMS,
+) -> dict[str, tuple[int, int, int]]:
+    """Per gated document: number-words bound, in live prose, under dated headings.
+
+    The same three numbers `live_coverage` reports, over the population
+    `NUMERAL` cannot see. Kept as its own census rather than added into the
+    numeral one because the two are different token sets, and one share over
+    both would hide which of them is unchecked.
+    """
+    out: dict[str, tuple[int, int, int]] = {}
+    for doc in GATED_DOCUMENTS:
+        whole = _read(doc)
+        live = re.sub(r"\s+", " ", live_prose(doc))
+        bound = 0
+        for claim in claims:
+            if claim.doc != doc:
+                continue
+            found = list(re.finditer(claim.pattern, whole))
+            if len(found) != 1:
+                continue  # `check` reports this; a census cannot also fail on it.
+            bound += sum(1 for value in found[0].groupdict().values()
+                         if value is not None and NUMBER_WORD.fullmatch(value))
+        total = len(NUMBER_WORD.findall(whole))
+        live_total = len(NUMBER_WORD.findall(live))
+        out[doc] = (bound, live_total, total - live_total)
+    return out
+
+
+def claims_anchored_only_in_history(
+    claims: tuple[Claim, ...] = CLAIMS,
+) -> list[str]:
+    """Claims whose sentence exists only under a heading that dates itself.
+
+    A dated record is what was true then, and a gate that recomputes its figures
+    turns every change in the evidence into an edit to the record. That is not a
+    stricter gate, it is a corrupted archive -- so anchoring one is refused
+    rather than allowed and regretted.
+    """
+    found: list[str] = []
+    for claim in claims:
+        whole = _read(claim.doc)
+        live = re.sub(r"\s+", " ", live_prose(claim.doc))
+        if re.search(claim.pattern, whole) and not re.search(claim.pattern, live):
+            found.append(claim.what)
+    return found
+
+
+def refuse_a_universe_that_cannot_fail(
+    claims: tuple[Claim, ...] = CLAIMS,
+    texts: dict[str, str] | None = None,
+) -> None:
+    """The floor. None of these is a counter, so none of them jams a queue.
+
+    Each refusal names a way this file could report green over a surface it
+    never looked at: a claim anchored in a document nobody declared, a
+    declared document with nothing anchored in it, a claim that captures no
+    figure at all, and a document the numeral scan reads as empty.
+    """
+    if texts is None:
+        texts = {doc: _read(doc)
+                 for doc in set(GATED_DOCUMENTS) | {c.doc for c in claims}}
+    undeclared = sorted({c.doc for c in claims} - set(GATED_DOCUMENTS))
+    if undeclared:
+        raise Stale(
+            f"{undeclared} are anchored by a claim and are not declared claims "
+            f"surfaces in GATED_DOCUMENTS, so nothing says why their prose is "
+            f"held to the evidence")
+    for claim in claims:
+        found = list(re.finditer(claim.pattern, texts[claim.doc]))
+        if len(found) != 1:
+            continue
+        if not any(value is not None and NUMERAL.fullmatch(value)
+                   for value in found[0].groupdict().values()):
+            if not any(value is not None and NUMBER_WORD.fullmatch(value)
+                       for value in found[0].groupdict().values()):
+                raise Stale(
+                    f"the claim about {claim.what} captures no figure, so it "
+                    f"holds nothing to the evidence")
+    for doc, (bound, total) in coverage(claims, texts).items():
+        if total == 0:
+            raise Stale(
+                f"{doc} is a declared claims surface and the numeral scan "
+                f"found nothing in it, so this file's coverage over it cannot "
+                f"be read")
+        if bound == 0:
+            raise Stale(
+                f"{doc} is declared a claims surface in GATED_DOCUMENTS and no "
+                f"claim binds a figure in it. Either anchor one, or say it is "
+                f"narration by removing it from GATED_DOCUMENTS")
+        if bound > total:
+            raise Stale(
+                f"{doc} reports {bound} bound figures out of {total} present, "
+                f"which means the two are not counting the same thing")
+
+    dated = claims_anchored_only_in_history(claims)
+    if dated:
+        raise Stale(
+            f"{dated} are anchored in a sentence that exists only under a "
+            f"heading dating itself. A dated record says what was observed "
+            f"then; holding it to today's evidence would rewrite the archive "
+            f"every time a number moved. Anchor the live sentence instead")
+
+    spelled = spelled_coverage(claims)
+    for doc, (bound, live_total, _dated) in spelled.items():
+        if bound > live_total:
+            raise Stale(
+                f"{doc} reports {bound} bound number-words out of {live_total} "
+                f"in its live prose, which means the two are not counting the "
+                f"same thing")
+    if claims is CLAIMS and sum(b for b, _, _ in spelled.values()) == 0:
+        raise Stale(
+            "no claim binds a spelled figure in any gated document, so the "
+            "spelled census is a denominator with no numerator -- the state "
+            "this file was in while `Twenty-one cases` and `Thirteen suites` "
+            "were wrong under a green numeral line")
+
+    # The two restatement refusals run last: the four above are about this
+    # file's own universe, and these two are about the documents.
+    missing, total_suites = suites_missing_from_the_inventory()
+    if missing:
+        doc, heading = SUITE_INVENTORY
+        raise Stale(
+            f"the committed report scores {total_suites} suites and "
+            f"{doc} {heading!r} names {total_suites - len(missing)} of them: "
+            f"{missing} is not in the inventory. A design record missing a "
+            f"suite is how that section came to say `fourteen`")
+    restated_bundle_size(None)
 
 
 def check(claims: tuple[Claim, ...] = CLAIMS) -> list[str]:
     """Return one line per claim that does not match the evidence."""
     known = facts()
-    texts = {doc: re.sub(r"\s+", " ",
-                         (REPO / doc).read_text(encoding="utf-8"))
-             for doc in {c.doc for c in claims}}
+    texts = {doc: _read(doc)
+             for doc in set(GATED_DOCUMENTS) | {c.doc for c in claims}}
+    # The universe refusals are about the *shipped* set of claims. Tests hand
+    # this function one deliberately broken claim at a time to prove the
+    # failure modes, and "the other declared document has nothing anchored in
+    # it" is true of every one of those calls and means nothing about the
+    # repository. So the floor applies to the real set, which is the set the
+    # gate runs.
+    if claims is CLAIMS:
+        refuse_a_universe_that_cannot_fail(claims, texts)
 
     problems: list[str] = []
     for claim in claims:
@@ -286,8 +869,41 @@ def main(argv: list[str] | None = None) -> int:
         print(f"\n{len(problems)} published claim(s) disagree with the "
               f"committed evidence.", file=sys.stderr)
         return 1
+    census = coverage()
+    live = live_coverage()
+    bound = sum(b for b, _ in census.values())
+    total = sum(t for _, t in census.values())
+    live_total = sum(lt for _, lt, _ in live.values())
+    historical = sum(d for _, _, d in live.values())
+    per_doc = "; ".join(f"{doc} {b} of {lt} live, {d} dated"
+                        for doc, (b, lt, d) in sorted(live.items()))
     print(f"claims: {len(CLAIMS)} published figures match the committed "
           f"evidence")
+    print(f"        {bound} of {live_total} numerals in the live prose of the "
+          f"gated documents are anchored to it ({per_doc})")
+    print(f"        {historical} more sit under headings that date themselves "
+          f"and are records, not claims: no gate may hold them to today's "
+          f"evidence, so they are not in the denominator above. "
+          f"{total} numerals in all")
+    print(f"        the rest are unchecked prose: this gate is evidence about "
+          f"{bound} figures, not about either document")
+    spelled = spelled_coverage()
+    s_bound = sum(b for b, _, _ in spelled.values())
+    s_live = sum(lt for _, lt, _ in spelled.values())
+    s_dated = sum(d for _, _, d in spelled.values())
+    s_per_doc = "; ".join(f"{doc} {b} of {lt} live, {d} dated"
+                          for doc, (b, lt, d) in sorted(spelled.items()))
+    print(f"spelled: {s_bound} of {s_live} number-words in the live prose are "
+          f"anchored to it ({s_per_doc}); {s_dated} more sit under dated "
+          f"headings and are records")
+    checked, dated, exempt = restated_bundle_size()
+    missing, suites = suites_missing_from_the_inventory()
+    doc, heading = SUITE_INVENTORY
+    print(f"restated: {checked} live `N items` mentions hold to the committed "
+          f"bundle ({dated} more sit under dated headings and are left as "
+          f"written; {exempt} phrase(s) exempt with a reason)")
+    print(f"          all {suites} scored suites are named in {doc} "
+          f"{heading!r}")
     return 0
 
 

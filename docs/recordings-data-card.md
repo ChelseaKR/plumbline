@@ -56,7 +56,7 @@ Screening here is the same pattern match `privacy.py` scores with, and it
 has the same limit: **pattern matching finds identifiers, not judgment
 calls**. A clean screen — before or after redaction — means no shipped
 pattern matched, not that no personal data remains. A response that
-describes a neighbour's case in prose, or a name and an address spelled out
+describes a neighbor's case in prose, or a name and an address spelled out
 with no digits or `@` in sight, is exactly the kind of disclosure this check
 was never built to catch. Treat a passing `retire` run as "the specific
 things this harness knows how to look for are gone," not as "this recording

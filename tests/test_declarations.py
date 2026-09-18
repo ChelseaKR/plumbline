@@ -2,7 +2,7 @@
 what nothing exempts.
 
 Both were reported by a consumer, and both have the same shape: a correct
-behaviour and an incorrect one were coming out as the same number, so the score
+behavior and an incorrect one were coming out as the same number, so the score
 could not tell them apart and the item could not ship.
 
 `expected_response_lang`
@@ -89,11 +89,11 @@ class ExpectedResponseLangTests(unittest.TestCase):
         )
         return load_bundle(path)
 
-    def test_the_declaration_is_what_separates_two_opposite_behaviours(self):
+    def test_the_declaration_is_what_separates_two_opposite_behaviors(self):
         """The acceptance criterion, both halves, on one response.
 
         The same recorded answer. With the declaration it is the correct
-        cross-language behaviour and scores 1.0; without it, it is a system
+        cross-language behavior and scores 1.0; without it, it is a system
         answering an Arabic speaker in English and scores 0.0. That the two
         were previously one number is the whole reason the field exists.
         """
@@ -316,7 +316,7 @@ class TargetVoiceTests(unittest.TestCase):
         }
         # A second, scorable item, because a bundle in which every declared
         # item is unverifiable is a configuration error and the suite refuses
-        # the whole run. That refusal is the right behaviour and it is not what
+        # the whole run. That refusal is the right behavior and it is not what
         # this test is about.
         items = [
             answer_item("a-1", "The rent cap is 3 percent.", **common),

@@ -25,7 +25,7 @@ permissions:
 
 # CI-CD-STANDARD.md 11c: cancel superseded runs on the same ref -- but two commits pushed to
 # `main` share one ref and are not supersessions of each other. Keyed on the ref alone, the
-# second push cancelled the run checking the first, and a cancelled run is not a failure:
+# second push canceled the run checking the first, and a canceled run is not a failure:
 # nothing goes red and the commit sits on `main` with no verdict at all. The SHA separates
 # them; a pull request keeps one group per PR, so a force-push still cancels its predecessor.
 concurrency:
@@ -62,6 +62,6 @@ jobs:
           if-no-files-found: error
 
       - name: Upload to code scanning
-        uses: github/codeql-action/upload-sarif@cdf488f595d80d6e07e03d4674febd5ab45fa938 # v4.37.9
+        uses: github/codeql-action/upload-sarif@b96794f015dfd88f77b49b1c93e0fa7110f94c63 # v4.38.0
         with:
           sarif_file: scorecard-results.sarif
