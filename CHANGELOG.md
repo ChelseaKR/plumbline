@@ -528,6 +528,21 @@ may break the interface.
 
 ### Added
 
+- **Google Analytics 4 on the published pages, and a privacy page.** Owner
+  decision 2026-09-17: GA4 on every public site, with privacy copy changed to
+  match. `tools/build_site.py` now writes `site/privacy.html` beside the
+  evidence page (both held to `--check`), and both carry one guarded loader and
+  a footer "Opt out of analytics" control. The ID is `GA4_MEASUREMENT_ID`
+  (`G-0QFVRX8YYH`); `""` removes all of it. The loader does nothing off
+  `chelseakr.github.io` under `/plumbline/`, under Global Privacy Control or Do
+  Not Track, or after an opt-out (localStorage `plumbline:analytics-opt-out`).
+  Google signals and ad personalisation are off; Consent Mode v2 denies the
+  advertising signals everywhere and analytics storage in the EEA, the UK and
+  Switzerland. `tests/test_site.py`'s self-containment check now removes that
+  one loader by exact text before scanning, and `tests/test_site_analytics.py`
+  executes it in Node and deletes each guard as a negative control. Nothing
+  under `src/plumbline/` changed, so the committed audit's run id is untouched.
+
 - **`docs/negative-controls.md`: the procedure behind `proof/matrix.md`, written
   so another project can adopt it.** The matrix has always demonstrated that
   every suite can fail; nothing here described how to establish that for a check

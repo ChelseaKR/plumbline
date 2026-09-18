@@ -74,10 +74,18 @@ class ThePublishedPageIsCurrent(unittest.TestCase):
 
     def test_it_is_self_contained(self):
         # A strict reader with no network gets the same page: no external
-        # stylesheet, script, font or image.
+        # stylesheet, script, font or image. The one script is the Google
+        # Analytics 4 loader (owner decision 2026-09-17), taken out whole and
+        # by exact text before the scan, so a second script, or the loader
+        # edited by one byte, is still caught. It fetches nothing to render;
+        # tests/test_site_analytics.py holds when it appends gtag.js.
+        loader = build_site.ga4_snippet(build_site.GA4_MEASUREMENT_ID)
+        self.assertTrue(loader)
+        self.assertEqual(self.page.count(loader), 1)
+        rest = self.page.replace(loader, "")
         for external in ("http://", "src=", "<script", "@import", "//cdn"):
             with self.subTest(external=external):
-                self.assertNotIn(external, self.page.replace(
+                self.assertNotIn(external, rest.replace(
                     'href="https://github.com', ""))
 
     def test_the_head_names_this_page_and_not_the_shared_origin(self):

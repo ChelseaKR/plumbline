@@ -1416,7 +1416,12 @@ reproduce the committed run id, aborts the build instead of publishing a page
 that says the harness refused when it did not. `--check` runs in
 `tests/test_site.py` and in the Pages workflow before the deploy step, and
 `test_a_drifted_page_is_caught` is there because a verification that cannot
-fail is the vacuous pass wearing a different hat.
+fail is the vacuous pass wearing a different hat. Since 2026-09-17 the page and
+a generated `site/privacy.html` carry one Google Analytics 4 loader (owner
+decision: GA4 on every public site), guarded to the production host and path
+and off under Global Privacy Control, Do Not Track or the footer opt-out;
+`tests/test_site_analytics.py` executes it and removes each guard as a negative
+control.
 
 **What this pass did not verify by hand.** The multi-interpreter matrix (CI has
 it), the model-judge and recording paths (unchanged here, covered by their
