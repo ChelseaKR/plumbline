@@ -1,28 +1,17 @@
 {
   "verdict": "PASS",
   "provenance": {
-<<<<<<<< HEAD:audits/3c2ab8d2405e7e51/report.json
-    "run_id": "3c2ab8d2405e7e51",
+    "run_id": "60257624d65bf6f5",
     "harness": "plumbline",
     "harness_version": "0.2.0",
-    "harness_source_sha256": "59d6d0052df7fa0b275bac2db342e9f3213b2f70e7c9c213e0de4a107210d1ac",
-========
-    "run_id": "34ee270002c28e11",
-    "harness": "plumbline",
-    "harness_version": "0.2.0",
-    "harness_source_sha256": "e2363e4195e06d697c6f6b2b668e32b0d2a129bf877fedcdb524870dad913fed",
->>>>>>>> origin/main:audits/34ee270002c28e11/report.json
+    "harness_source_sha256": "fcb8538222a6e534ee8e12749c86a0e953a84aa044bf26cc4e3d427c625f317d",
     "harness_source_note": "sha256 over every .py file in the installed plumbline package",
     "seed": 1729,
     "dataset_sha256": "949197da4dd6960e3998e9b50b01fca7a48345639e85494dd2a0e666e296e130",
     "dataset_id": "949197da4dd6",
     "judge_kind": "lexical",
     "judge_config_sha256": "f59f35442715bb2f5994035c7049438b893938922013e993950dcb393a79e13c",
-<<<<<<<< HEAD:audits/3c2ab8d2405e7e51/report.json
-    "report_sha256": "3bc9f77c544cabe6e62cf450476c77925bc7c8053cae43c353f5d94a4d5a0c54"
-========
-    "report_sha256": "66cbb407f74cb296fd9f72434cae762f3e384e56c8599653513541a9c3801dfc"
->>>>>>>> origin/main:audits/34ee270002c28e11/report.json
+    "report_sha256": "fac999b3cb6c28fe59a71ccd9592261809d850cce53d4346a0e158be224decef"
   },
   "judge": {
     "kind": "lexical",
@@ -12793,15 +12782,11 @@
     "comparable": true,
     "summary": "no verdict changed and no score moved",
     "against": {
-      "source_run_id": "d50ad60c3c1712b9",
+      "source_run_id": "34ee270002c28e11",
       "dataset_id": "949197da4dd6",
       "harness_version": "0.2.0",
       "judge_kind": "lexical",
-<<<<<<<< HEAD:audits/3c2ab8d2405e7e51/report.json
-      "baseline_sha256": "cb5708ff8c997a75f192a85c275944272bc99051249a4190f58805e3c0f94dae"
-========
-      "baseline_sha256": "41aa6a69e45b301a4b8a5b6974fbf13c107c345df362b9f42918d094a88be2c6"
->>>>>>>> origin/main:audits/34ee270002c28e11/report.json
+      "baseline_sha256": "296a0a2f87415cb5915eae5ed27f3f8342f38c4c1c9fc5eb4b48681f68364792"
     },
     "refusals": [],
     "caveats": [],

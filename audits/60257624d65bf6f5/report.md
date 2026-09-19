@@ -6,17 +6,10 @@ Plumbline audit of target `riverbend-demo`.
 
 | Field | Value |
 |---|---|
-<<<<<<<< HEAD:audits/3c2ab8d2405e7e51/report.md
-| Run id | `3c2ab8d2405e7e51` |
+| Run id | `60257624d65bf6f5` |
 | Harness version | `0.2.0` |
-| Harness source | `59d6d0052df7fa0b275bac2db342e9f3213b2f70e7c9c213e0de4a107210d1ac` |
-| Report seal | `3bc9f77c544cabe6e62cf450476c77925bc7c8053cae43c353f5d94a4d5a0c54` (sha256 of this report's own body; check it with `plumbline verify`) |
-========
-| Run id | `34ee270002c28e11` |
-| Harness version | `0.2.0` |
-| Harness source | `e2363e4195e06d697c6f6b2b668e32b0d2a129bf877fedcdb524870dad913fed` |
-| Report seal | `66cbb407f74cb296fd9f72434cae762f3e384e56c8599653513541a9c3801dfc` (sha256 of this report's own body; check it with `plumbline verify`) |
->>>>>>>> origin/main:audits/34ee270002c28e11/report.md
+| Harness source | `fcb8538222a6e534ee8e12749c86a0e953a84aa044bf26cc4e3d427c625f317d` |
+| Report seal | `fac999b3cb6c28fe59a71ccd9592261809d850cce53d4346a0e158be224decef` (sha256 of this report's own body; check it with `plumbline verify`) |
 | Seed | `1729` |
 | Dataset hash | `949197da4dd6960e3998e9b50b01fca7a48345639e85494dd2a0e666e296e130` (short: `949197da4dd6`) |
 | Judge | `lexical` (deterministic), config hash `f59f35442715bb2f5994035c7049438b893938922013e993950dcb393a79e13c` |
@@ -70,7 +63,7 @@ Two red rows are not always two problems. Where enabled suites read the same evi
 
 ## Regression against baseline
 
-Baseline run `d50ad60c3c1712b9`, dataset `949197da4dd6`, harness `0.2.0`, judge `lexical`.
+Baseline run `34ee270002c28e11`, dataset `949197da4dd6`, harness `0.2.0`, judge `lexical`.
 
 No suite verdict changed.
 

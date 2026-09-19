@@ -534,6 +534,40 @@ version has been bumped and nothing has been tagged for it.
 
 ### Added
 
+- **`plumbline compare --config a.toml --config b.toml`, for choosing between
+  targets.** One question set graded against several targets, with a table per
+  suite: each target's score, confidence interval and n, and for every pair the
+  delta labeled `distinguishable` or `inside noise`. Targets appear in the
+  order given; there is no ranking column and no composite score.
+
+  The pairwise threshold is derived from both runs rather than taken from one:
+  `sqrt((mde_a^2 + mde_b^2) / 2)`, the root mean square of the two published
+  MDEs, which is the standard error of the difference expressed in the MDEs the
+  reports already carry, and which returns exactly the published MDE when both
+  runs are equally precise. A delta is `distinguishable` only when its magnitude
+  is **above** that threshold; a delta equal to it or smaller is `inside noise`
+  (owner decision, 2026-09-18). The conservative alternative, taking the larger
+  of the two MDEs, was tried and rejected on measurement: a target answering half
+  of a twelve-question set wrong has bimodal per-item scores and so a large MDE of
+  its own, and the maximum rule reported that target as `inside noise` against a
+  perfect one.
+
+  What must match is the QUESTION SET -- the items **and** the sources (the
+  passages) -- not the bundle (owner decision, 2026-09-18). A bundle's
+  `dataset_sha256` covers its recorded responses, so two targets answering one
+  question set never share it; refusing on it would refuse every comparison the
+  verb exists to make. Targets whose items or sources differ exit `4` naming both
+  question-set digests and both dataset hashes, as does a differing judge
+  configuration.
+
+  Three absences are kept out of the numbers. A suite one target did not score
+  is named and given no delta, rather than a delta of zero. A suite with no
+  score at all yields `delta: null` and `not comparable`, in the type and not
+  only in the prose. And a suite reporting no minimum detectable effect is
+  `not qualifiable`, never `inside noise` -- the latter claims the difference is
+  smaller than the sample can detect, which a suite that computed no MDE has not
+  said.
+
 - **Google Analytics 4 on the published pages, and a privacy page.** Owner
   decision 2026-09-17: GA4 on every public site, with privacy copy changed to
   match. `tools/build_site.py` now writes `site/privacy.html` beside the
