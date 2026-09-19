@@ -5,7 +5,7 @@ group and the group sets `cancel-in-progress: true`. Keyed on `github.ref`
 alone, every commit pushed to `main` enters the same group -- so a second push
 cancels the run that was checking the first one.
 
-The consequence is not a red build. A cancelled run has conclusion
+The consequence is not a red build. A canceled run has conclusion
 `cancelled`, which is neither success nor failure: no check goes red, no
 notification is sent, and the commit stays on `main` having been examined by
 nothing. Measured across this portfolio, a ref-only key silently voided about a
@@ -92,7 +92,7 @@ class ACommitOnMainAlwaysGetsAVerdict(unittest.TestCase):
             {"tests.yml", "security.yml", "scorecard.yml", "pages.yml"}, pushing,
             f"the branch-push scan found {sorted(pushing)}")
 
-    def test_no_branch_push_shares_a_cancelling_group_with_another_commit(self):
+    def test_no_branch_push_shares_a_canceling_group_with_another_commit(self):
         offenders: list[str] = []
         for path in _workflows():
             text = path.read_text(encoding="utf-8")

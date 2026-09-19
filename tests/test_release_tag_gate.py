@@ -18,7 +18,7 @@ passing case proves the script accepts a signature from whichever key the
 allowed-signers file names, and inside the temporary repository that file names
 a throwaway key.
 
-Git configuration is neutralised deliberately. Written on a machine carrying
+Git configuration is neutralized deliberately. Written on a machine carrying
 `tag.gpgSign = true` in `~/.gitconfig`, git silently signed the tag that exists
 to be unsigned, and "an unsigned tag is rejected" passed while testing nothing
 of the kind. A negative control that does not apply reads exactly like a pass,

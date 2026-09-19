@@ -74,21 +74,31 @@ class ThePublishedPageIsCurrent(unittest.TestCase):
 
     def test_it_is_self_contained(self):
         # A strict reader with no network gets the same page: no external
-        # stylesheet, script, font or image.
+        # stylesheet, script, font or image. The one script is the Google
+        # Analytics 4 loader (owner decision 2026-09-17), taken out whole and
+        # by exact text before the scan, so a second script, or the loader
+        # edited by one byte, is still caught. It fetches nothing to render;
+        # tests/test_site_analytics.py holds when it appends gtag.js.
+        loader = build_site.ga4_snippet(build_site.GA4_MEASUREMENT_ID)
+        self.assertTrue(loader)
+        self.assertEqual(self.page.count(loader), 1)
+        rest = self.page.replace(loader, "")
         for external in ("http://", "src=", "@import", "//cdn"):
             with self.subTest(external=external):
-                self.assertNotIn(external, self.page.replace(
+                self.assertNotIn(external, rest.replace(
                     'href="https://github.com', ""))
 
         # `<script` used to be a fifth entry in that list, and it was a
         # substring standing in for the property actually promised. The page
         # now carries a `application/ld+json` block, which fetches nothing and
         # executes nothing -- a browser treats it as data and hands it to no
-        # interpreter -- so the promise is unchanged and the check has to stop
-        # being a string match to say so. It is narrower in what it forbids
-        # and stricter in how it looks: `< script`, `<SCRIPT` and
-        # `type = 'text/javascript'` all slipped past the substring and none
-        # of them slips past a parser.
+        # interpreter -- so the check has to stop being a string match to say
+        # so. It reads `rest`, the page with the GA4 loader already taken out
+        # by exact text above, so the loader is the only code the page runs
+        # and every other script has to be an inert data block. It is
+        # narrower in what it forbids and stricter in how it looks:
+        # `< script`, `<SCRIPT` and `type = 'text/javascript'` all slipped
+        # past the substring and none of them slips past a parser.
         #
         # `tests/test_site_structured_data.py` holds the same line over the
         # committed file, and holds every value in that block to the tag or
@@ -106,7 +116,7 @@ class ThePublishedPageIsCurrent(unittest.TestCase):
                         {k.lower(): (v or "") for k, v in attrs})
 
         scripts = _Scripts()
-        scripts.feed(self.page)
+        scripts.feed(rest)
         scripts.close()
         for element in scripts.found:
             with self.subTest(script=element):

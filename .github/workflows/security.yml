@@ -23,7 +23,7 @@ permissions:
 
 # CI-CD-STANDARD.md 11c: cancel superseded runs on the same ref -- but two commits pushed to
 # `main` share one ref and are not supersessions of each other. Keyed on the ref alone, the
-# second push cancelled the run checking the first, and a cancelled run is not a failure:
+# second push canceled the run checking the first, and a canceled run is not a failure:
 # nothing goes red and the commit sits on `main` with no verdict at all. The SHA separates
 # them; a pull request keeps one group per PR, so a force-push still cancels its predecessor.
 concurrency:
@@ -92,7 +92,7 @@ jobs:
           persist-credentials: false
       # LANE 1 -- every result tier, with the two fixture-matching detectors off.
       - name: TruffleHog (full history, all result tiers)
-        uses: trufflesecurity/trufflehog@cc1fe982afc515d2991365ce8d4d0dd07170fcad # v3.97.2
+        uses: trufflesecurity/trufflehog@363923b901c911a9164f50b6c423f47c15372b1c # v3.97.4
         with:
           path: ./
           # What actually makes this a full-history scan, and what was missing
@@ -121,7 +121,7 @@ jobs:
           # this input the sweep silently tracked whatever upstream published
           # last, and every Dependabot bump of the ref was a no-op because
           # Dependabot never edits a `with:` input.
-          version: "3.97.2"
+          version: "3.97.4"
           # The action's baked-in command already passes --fail; repeating it
           # is a CLI error.
           #
@@ -164,16 +164,16 @@ jobs:
       # and the `--only-verified` it replaces are the same selection; the flag is
       # spelled this way so that no lane of this job can be read as the setting
       # that could not fail. `!cancelled()` so lane 1 failing does not hide this
-      # verdict, while a cancelled run still stops both.
+      # verdict, while a canceled run still stops both.
       - name: TruffleHog (full history, verified results, URI still armed)
         if: ${{ !cancelled() }}
-        uses: trufflesecurity/trufflehog@cc1fe982afc515d2991365ce8d4d0dd07170fcad # v3.97.2
+        uses: trufflesecurity/trufflehog@363923b901c911a9164f50b6c423f47c15372b1c # v3.97.4
         with:
           path: ./
           # Same reason as lane 1: without these the lane scans the event's diff.
           base: ''
           head: HEAD
-          version: "3.97.2"
+          version: "3.97.4"
           extra_args: --results=verified --exclude-detectors=Lob
 
   # A second engine on the same history, matching on pattern rather than on

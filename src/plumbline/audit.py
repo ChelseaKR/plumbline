@@ -137,7 +137,7 @@ def validate_result(result: SuiteResult, *, suite_id: str, floor: float) -> None
     """
     if result.suite_id != suite_id:
         raise ResultError(
-            f"suite '{suite_id}' returned a result labelled "
+            f"suite '{suite_id}' returned a result labeled "
             f"'{result.suite_id}'"
         )
     if result.verdict not in (PASS, FAIL):
@@ -262,7 +262,7 @@ def compute_run_id(
     So is the target. The run id is also the output directory name, so two
     different systems audited against the same evidence, judge and floors used
     to collide: the second run silently overwrote the first, and one report
-    was left standing under an id that named both. Whose behaviour was graded
+    was left standing under an id that named both. Whose behavior was graded
     is part of what a run *is*, so it is part of the run's identity.
     """
     material = canonical_json({

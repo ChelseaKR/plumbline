@@ -11,6 +11,78 @@ may break the interface.
 
 ### Fixed
 
+- **Two spelled figures went stale where the numeral census could not see
+  them.** `tools/check_claims.py` counted `29 of 319 numerals` green while the
+  README said *"Twenty-one cases"* of a defect matrix that holds **twenty-three**,
+  and `DESIGN.md` said *"Thirteen suites reporting PASS on a clean bundle"* of a
+  report that scores **fifteen**. `NUMERAL` matches digits, so every figure this
+  repository writes as a word sat outside both of its numbers.
+
+  - The README sentence now reads *"Twenty-three cases, all fifteen suites
+    covered, including one integrity refusal and two empty-population
+    configuration errors."* The old *"plus"* was wrong as well as the count: the
+    integrity refusal and the two configuration errors are cases in the matrix,
+    not additions to it.
+  - Both sentences are bound, and so is the README's *"Fifteen suites reporting
+    PASS proves nothing"*, which was right. Every figure is read from
+    `proof/matrix.json` or the committed report by `_matrix_figures`, which
+    refuses rather than fills a sentence that would stop being true: a matrix
+    with a suite left uncovered is not *"all N suites covered"*, and a report
+    with a suite that does not PASS is not *"N suites reporting PASS on a clean
+    bundle"*.
+  - `_spell` now writes 0–99, hyphenated above twenty, and `NUMBER_WORD` reads
+    the same words back, so the gate can see exactly what it can assert.
+
+- **The gate states its spelled coverage beside its numeral coverage.** A new
+  `spelled:` line reports number-words bound of number-words in live prose, per
+  document, with those under dated headings named beside it rather than counted
+  in — the same *bound of live* rule the numeral census follows. It is a
+  separate census because the two are different token sets, and one share over
+  both would hide which is unchecked. A shipped claim set that binds no spelled
+  figure at all is refused.
+
+- **Two live figures in `DESIGN.md`, and a denominator that counted 171
+  sentences no gate is allowed to touch.** Six new `Claim` rows take the gate
+  from **15 of 490 numerals** to **29**, and two of the six were stale the moment
+  they were anchored:
+
+  - *"Every one of the fourteen was made to fail on a defect specific to it"* —
+    `proof/matrix.json` records a defect case for **fifteen** suites and none
+    without one. `conversational_integrity` shipped at M10 and the sentence was
+    never revisited, so the design record understated the matrix's own result.
+  - *"Writing 66 refusals for this bundle"* — the bundle carries **70** items with
+    `behavior: refuse`. The four multi-turn escalation probes added at M10 are
+    declines, and the count moved with them.
+
+  The other four were already right and are now held: the attribution suite's
+  coverage line and its restatement in the README, the MDE band restated in
+  `DESIGN.md`, and the refusal-tolerance sentence. Every one reads its figures
+  from `audits/*/report.json`, `proof/matrix.json` or the sealed bundle; none is
+  a number a person maintains. The tolerance is **derived** — the largest `k`
+  with `(n - k) / n >= floor` — rather than written down, because it moves the
+  moment the bundle or the floor does, and it had already moved once.
+
+- **`29 of 490` was a share of a population no gate may cover.** 171 of
+  `DESIGN.md`'s 297 numerals sit under a heading that dates itself — the M9
+  acceptance record, the roadmap — and those are records of what was observed
+  then. A claim anchored in one would rewrite the archive every time the evidence
+  moved. The gate now publishes **bound of live**, with the historical numerals
+  reported beside it rather than folded into either number:
+
+  ```
+  29 of 319 numerals in the live prose of the gated documents are anchored to it
+  (DESIGN.md 13 of 126 live, 171 dated; README.md 16 of 193 live, 0 dated)
+  171 more sit under headings that date themselves and are records, not claims
+  ```
+
+  A fifth structural refusal enforces it: a claim whose sentence exists **only**
+  under a dated heading is refused outright, rather than allowed and regretted.
+
+- **A tolerance over an empty population is refused rather than returned.**
+  `_tolerated(0, 0.90)` has no answer — a suite that scored nothing tolerates
+  nothing, not everything — so it raises instead of handing back a number a
+  sentence would publish.
+
 - **`check_claims` reported eight matching figures and never said what share of
   the documents that was.** The green line `claims: 8 published figures match the
   committed evidence` was true, and the eight claims bind **15 of the 490 numerals**
@@ -26,7 +98,7 @@ may break the interface.
   becomes a hand-maintained number that jams a queue.
 
   The numerator is not a second tally that could drift from the claims: it counts
-  the groups the claims actually captured, tokenised by the same pattern the
+  the groups the claims actually captured, tokenized by the same pattern the
   denominator uses, so a capture that is not a numeral is left out rather than
   inflating the share.
 
@@ -280,11 +352,11 @@ may break the interface.
   wholesale would blind semgrep to the entire published page.
   Measured: 1 finding before, 0 after.
 
-- **The published page's contrast check could not see a colour nobody had
+- **The published page's contrast check could not see a color nobody had
   listed.** `tools/check_site_a11y.py` proves that nine hand-written
   `CONTRAST_PAIRS` meet WCAG AA in both palettes. It said nothing about a
-  colour added to `:root` later and never added to that list: the page would
-  grow a colour, the check would go on reporting "all 9 declared pairs meet
+  color added to `:root` later and never added to that list: the page would
+  grow a color, the check would go on reporting "all 9 declared pairs meet
   WCAG AA", and nothing would say the ninth was not the last one.
 
   That is the same shape this repository refuses one level down. `plumbline
@@ -296,14 +368,14 @@ may break the interface.
   thing a harness holds targets to and never checks about itself is a standard
   that only ever points outward."
 
-  An eighth check, `palette_coverage`, closes it. Every colour the page
+  An eighth check, `palette_coverage`, closes it. Every color the page
   declares is either in a checked pair or in `UNCHECKED_PALETTE_VARS` with a
-  written reason; a colour that is neither fails the gate. It also refuses a
-  stale exemption for a colour the page no longer declares, and palettes whose
-  light and dark halves declare different colours, which would leave one theme
+  written reason; a color that is neither fails the gate. It also refuses a
+  stale exemption for a color the page no longer declares, and palettes whose
+  light and dark halves declare different colors, which would leave one theme
   silently inheriting the other's value.
 
-  Today exactly one colour is exempt: `--rule`, a 1px border never used for
+  Today exactly one color is exempt: `--rule`, a 1px border never used for
   text, whose bar is WCAG 1.4.11's 3:1 for non-text rather than the 4.5:1 this
   check measures. It was already outside the list; the difference is that the
   omission is now a decision on the record instead of a gap.
@@ -394,7 +466,7 @@ may break the interface.
   `action.yml` against a stubbed gate, and all six fail on the previous
   version.
 
-- **An unlabelled `<button>` was invisible to the `accessibility` suite.**
+- **An unlabeled `<button>` was invisible to the `accessibility` suite.**
   `CONTROL_TAGS` held `{"input", "select", "textarea"}`, so `<button>`
   never reached `snapshot.controls` and never reached the
   `control_labels` check. An interface whose only send control was an
@@ -455,6 +527,55 @@ may break the interface.
   `semgrep scan --config auto` locally: 0 findings, 0 blocking.
 
 ### Added
+
+- **`plumbline compare --config a.toml --config b.toml`, for choosing between
+  targets.** One question set graded against several targets, with a table per
+  suite: each target's score, confidence interval and n, and for every pair the
+  delta labeled `distinguishable` or `inside noise`. Targets appear in the
+  order given; there is no ranking column and no composite score.
+
+  The pairwise threshold is derived from both runs rather than taken from one:
+  `sqrt((mde_a^2 + mde_b^2) / 2)`, the root mean square of the two published
+  MDEs, which is the standard error of the difference expressed in the MDEs the
+  reports already carry, and which returns exactly the published MDE when both
+  runs are equally precise. A delta is `distinguishable` only when its magnitude
+  is **above** that threshold; a delta equal to it or smaller is `inside noise`
+  (owner decision, 2026-09-18). The conservative alternative, taking the larger
+  of the two MDEs, was tried and rejected on measurement: a target answering half
+  of a twelve-question set wrong has bimodal per-item scores and so a large MDE of
+  its own, and the maximum rule reported that target as `inside noise` against a
+  perfect one.
+
+  What must match is the QUESTION SET -- the items **and** the sources (the
+  passages) -- not the bundle (owner decision, 2026-09-18). A bundle's
+  `dataset_sha256` covers its recorded responses, so two targets answering one
+  question set never share it; refusing on it would refuse every comparison the
+  verb exists to make. Targets whose items or sources differ exit `4` naming both
+  question-set digests and both dataset hashes, as does a differing judge
+  configuration.
+
+  Three absences are kept out of the numbers. A suite one target did not score
+  is named and given no delta, rather than a delta of zero. A suite with no
+  score at all yields `delta: null` and `not comparable`, in the type and not
+  only in the prose. And a suite reporting no minimum detectable effect is
+  `not qualifiable`, never `inside noise` -- the latter claims the difference is
+  smaller than the sample can detect, which a suite that computed no MDE has not
+  said.
+
+- **Google Analytics 4 on the published pages, and a privacy page.** Owner
+  decision 2026-09-17: GA4 on every public site, with privacy copy changed to
+  match. `tools/build_site.py` now writes `site/privacy.html` beside the
+  evidence page (both held to `--check`), and both carry one guarded loader and
+  a footer "Opt out of analytics" control. The ID is `GA4_MEASUREMENT_ID`
+  (`G-0QFVRX8YYH`); `""` removes all of it. The loader does nothing off
+  `chelseakr.github.io` under `/plumbline/`, under Global Privacy Control or Do
+  Not Track, or after an opt-out (localStorage `plumbline:analytics-opt-out`).
+  Google signals and ad personalization are off; Consent Mode v2 denies the
+  advertising signals everywhere and analytics storage in the EEA, the UK and
+  Switzerland. `tests/test_site.py`'s self-containment check now removes that
+  one loader by exact text before scanning, and `tests/test_site_analytics.py`
+  executes it in Node and deletes each guard as a negative control. Nothing
+  under `src/plumbline/` changed, so the committed audit's run id is untouched.
 
 - **`docs/negative-controls.md`: the procedure behind `proof/matrix.md`, written
   so another project can adopt it.** The matrix has always demonstrated that
@@ -519,7 +640,7 @@ may break the interface.
   suite's whole reason for existing, and until now nothing in the repository
   could produce a live recording that demonstrated it.
 
-- **Two opt-in item declarations, so a correct behaviour and a wrong one stop
+- **Two opt-in item declarations, so a correct behavior and a wrong one stop
   being the same number** (#71, [ADR 0005](docs/adr/0005-item-declarations-that-move-a-score-carry-their-reason.md)).
   Both came from a consumer, and both had the same shape: the harness had no
   way to tell which of two opposite things it was looking at, so their evidence
@@ -600,7 +721,7 @@ may break the interface.
   `prompt` -- and `audit`, `gate` and `record` now **refuse** any bundle that
   still holds one, naming the item ids. The exemption therefore exists only in
   a state that cannot be scored and cannot be recorded against. Without the
-  second half it would be the defect this project catalogues everywhere else:
+  second half it would be the defect this project catalogs everywhere else:
   a blank reference answer scored as though it were content makes an empty
   response look like a perfect match, and a blank prompt sent to a live target
   files whatever comes back as the answer to a question nobody asked.
@@ -816,7 +937,7 @@ may break the interface.
   configuration does not state anywhere. `enabled = 0` switched a suite off
   without a word; `enabled = "false"` is a non-empty string, so it read as
   "off" to a person and left the suite on. Both are refused now, each with
-  a message saying what the silent behaviour was. This will reject
+  a message saying what the silent behavior was. This will reject
   configurations that load today; that is the point, since those
   configurations are not running the gate they appear to describe. Six
   tests in `tests/test_fail_closed.py`, all observed failing on the
@@ -1211,7 +1332,7 @@ underneath them.
   - Nothing bound provenance to the report body, so a FAIL could be edited into
     a PASS with the run id, dataset hash and judge hash all still valid.
     Reports now carry `report_sha256` over their own canonical JSON;
-    `plumbline verify` checks it, and `plumbline baseline` refuses to distil a
+    `plumbline verify` checks it, and `plumbline baseline` refuses to distill a
     report that fails it.
 
 ### Added

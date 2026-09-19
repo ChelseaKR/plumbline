@@ -63,10 +63,10 @@ Neither issue was wrong when filed. PR #38 landed both fixes without a
 
 ## Phases
 
-### Phase 1 — the page's contrast check could not see an unlisted colour — DONE
+### Phase 1 — the page's contrast check could not see an unlisted color — DONE
 
 `tools/check_site_a11y.py` proved that nine hand-written `CONTRAST_PAIRS` meet
-WCAG AA. It was silent about a colour added to `:root` later and never added to
+WCAG AA. It was silent about a color added to `:root` later and never added to
 that list.
 
 This is the same shape the harness refuses one level down: a file present but
@@ -75,11 +75,11 @@ no contrast pairs is a failure, not a vacuous pass. The page that holds targets
 to that standard was not held to it — the objection its own docstring raises
 about a standard that "only ever points outward."
 
-`palette_coverage` is the eighth check. Every declared colour is in a checked
+`palette_coverage` is the eighth check. Every declared color is in a checked
 pair or in `UNCHECKED_PALETTE_VARS` with a written reason. It also refuses a
-stale exemption and palettes whose halves declare different colours.
+stale exemption and palettes whose halves declare different colors.
 
-One colour is exempt today: `--rule`, a 1px border, whose bar is WCAG 1.4.11's
+One color is exempt today: `--rule`, a 1px border, whose bar is WCAG 1.4.11's
 3:1 for non-text rather than the 4.5:1 this check measures. It was already
 outside the list; what changed is that the omission is a decision on the record.
 
@@ -110,7 +110,7 @@ fail `tests/test_ci_parity.py`. Pointing the drill's edit at a string absent
 from the file makes it fail with "expected exit 3 (integrity refusal), got 0" —
 the drill detects a tamper that never landed.
 
-### Phase 3 — documents that did not match behaviour — DONE
+### Phase 3 — documents that did not match behavior — DONE
 
 The README's CI/CD row now says the workflow and the Makefile are one gate and
 names the exemption; the Accessibility row names the eighth check and why it

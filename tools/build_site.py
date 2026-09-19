@@ -35,6 +35,22 @@ a provenance claim nobody can back.
 
 No network, no clock, no randomness: the page is a pure function of the
 repository, which is the same property the reports themselves have.
+
+`site/privacy.html` is written and checked alongside it, from the constants
+below and nothing else.
+
+**The published pages run Google Analytics 4** (owner decision 2026-09-17: GA4
+on every public site, with privacy copy changed to match). `GA4_MEASUREMENT_ID`
+below is the one place the ID goes; empty removes the loader, the footer's
+opt-out control and every reference to Google from both pages. The loader is
+the only script on either page. It returns without loading anything unless the
+page is served from `GA4_HOST` under `GA4_PATH` (so a local build, CI, or any
+other copy never reports to the property), when the browser sends Global
+Privacy Control or Do Not Track, or after the visitor opts out in the footer.
+Otherwise it sets Consent Mode v2 defaults (the three advertising signals
+denied everywhere, analytics storage denied in the EEA, the UK and
+Switzerland), configures gtag with Google signals and ad personalization off,
+and appends gtag.js as an async script.
 """
 
 from __future__ import annotations
@@ -55,6 +71,7 @@ REPO = Path(__file__).resolve().parent.parent
 SITE_DIR = REPO / "site"
 PAGE = SITE_DIR / "index.html"
 PROJECT = REPO / "pyproject.toml"
+PRIVACY_PAGE = SITE_DIR / "privacy.html"
 
 REPO_URL = "https://github.com/ChelseaKR/plumbline"
 
@@ -84,7 +101,7 @@ PAGE_URL = "https://chelseakr.github.io/plumbline/"
 # `semgrep scan --config r/html.security.audit.missing-integrity`: 1 finding before, 0 after.
 #
 # Two details this cost a round trip to learn, so they are written down. The comment must sit
-# on the SAME line as the tag: on the preceding line it is not honoured for this rule, and the
+# on the SAME line as the tag: on the preceding line it is not honored for this rule, and the
 # scan still reported the finding. And the id must be the full, doubled
 # `html.security.audit.missing-integrity.missing-integrity`; the shorter path prefix is not a
 # match, and semgrep does not warn -- it simply does not suppress.
@@ -139,6 +156,172 @@ PAGE_LANG = "en"
 # packaging metadata, and a compound expression (`MIT OR Apache-2.0`) has no
 # single page, so it yields no URL rather than a guessed one.
 SPDX_LICENSE_PAGE = "https://spdx.org/licenses/{}.html"
+
+# --- Google Analytics 4 -----------------------------------------------------
+#
+# The measurement ID is public -- every page that loads GA hands it to the
+# browser -- so it is committed here as configuration. Empty ("") means no
+# analytics anywhere: no <script>, no reference to Google, no opt-out control,
+# and a footer and privacy page that say the site runs none. A malformed ID
+# fails the build instead of shipping a broken tag.
+GA4_MEASUREMENT_ID = "G-0QFVRX8YYH"
+# Must match the property's Admin > Data retention setting; privacy.html says it.
+GA4_DATA_RETENTION = "14 months"
+# Where the loader may run. The origin is shared with sibling projects, so the
+# host alone is not enough: the path has to be this project's too.
+GA4_HOST = "chelseakr.github.io"
+GA4_PATH = "/plumbline/"
+# The footer's opt-out, remembered per browser in localStorage. Every project
+# under chelseakr.github.io shares one origin and so one localStorage; a
+# generic key would opt a visitor out of every sibling site at once, so this
+# one names the project. Renaming it would silently opt every opted-out
+# visitor back in: never rename it.
+GA4_OPT_OUT_KEY = "plumbline:analytics-opt-out"
+# GA4 web-stream measurement IDs. Checked strictly: the value is written into
+# an inline script.
+MEASUREMENT_ID_RE = re.compile(r"G-[A-Z0-9]{4,20}")
+# analytics_storage defaults to denied here (ISO 3166-1 alpha-2): the 27 EU
+# member states, the other three EEA states, the UK and Switzerland.
+EU_MEMBER_STATES = (
+    "AT", "BE", "BG", "HR", "CY", "CZ", "DK", "EE", "FI", "FR", "DE", "GR", "HU", "IE",
+    "IT", "LV", "LT", "LU", "MT", "NL", "PL", "PT", "RO", "SK", "SI", "ES", "SE",
+)
+ANALYTICS_DENIED_REGIONS = (*EU_MEMBER_STATES, "IS", "LI", "NO", "GB", "CH")
+GTAG_JS_URL = "https://www.googletagmanager.com/gtag/js"
+# The footer control's status line after each change, announced through its
+# role="status" live region.
+OPT_OUT_MESSAGES = {
+    "__MSG_OPTED_OUT__": (
+        "Opted out. From the next page you open, this site will not load Google "
+        "Analytics in this browser."),
+    "__MSG_IS_OUT__": (
+        "You have opted out: this site does not load Google Analytics in this "
+        "browser."),
+    "__MSG_BACK_IN__": (
+        "Opted back in. Analytics resumes from the next page you open."),
+    "__MSG_SIGNAL__": (
+        "Analytics is off: your browser sends Global Privacy Control or Do Not "
+        "Track."),
+    "__MSG_NO_STORAGE__": (
+        "This browser is blocking site storage, so an opt-out cannot be "
+        "remembered here. Global Privacy Control or Do Not Track keeps "
+        "analytics off."),
+}
+
+GA4_TEMPLATE = r"""<script>
+(function () {
+  var w = window, n = navigator, d = document, KEY = __OPT_OUT_KEY__, OFF = __GA_DISABLE__;
+  var store = null;
+  try { store = w.localStorage; store.getItem(KEY); } catch (e) { store = null; }
+  function optedOut() {
+    try { return !!store && store.getItem(KEY) === "1"; } catch (e) { return false; }
+  }
+  var dnt = n.doNotTrack || w.doNotTrack || n.msDoNotTrack;
+  var signal = n.globalPrivacyControl === true || dnt === "1" || dnt === "yes";
+  d.addEventListener("DOMContentLoaded", function () {
+    var box = d.querySelector("[data-analytics-choice]");
+    if (!box) return;
+    var button = box.querySelector("button"), status = box.querySelector("[role=status]");
+    function render(message) {
+      button.textContent = optedOut() ? "Opt back in" : "Opt out of analytics";
+      button.hidden = signal || !store;
+      status.textContent = message;
+      box.hidden = false;
+    }
+    button.addEventListener("click", function () {
+      try {
+        if (optedOut()) {
+          store.removeItem(KEY);
+          w[OFF] = false;
+          render(__MSG_BACK_IN__);
+        } else {
+          store.setItem(KEY, "1");
+          w[OFF] = true;
+          render(__MSG_OPTED_OUT__);
+        }
+      } catch (e) {
+        store = null;
+        render(__MSG_NO_STORAGE__);
+      }
+    });
+    render(signal ? __MSG_SIGNAL__ : !store ? __MSG_NO_STORAGE__
+      : optedOut() ? __MSG_IS_OUT__ : "");
+  });
+  if (w.location.hostname !== __HOST__) return;
+  if (w.location.pathname.indexOf(__PATH__) !== 0) return;
+  if (n.globalPrivacyControl === true) return;
+  if (dnt === "1" || dnt === "yes") return;
+  if (optedOut()) return;
+  w.dataLayer = w.dataLayer || [];
+  function gtag() { w.dataLayer.push(arguments); }
+  gtag("consent", "default", {
+    ad_storage: "denied", ad_user_data: "denied", ad_personalization: "denied",
+    analytics_storage: "denied", region: __DENIED_REGIONS__
+  });
+  gtag("consent", "default", {
+    ad_storage: "denied", ad_user_data: "denied", ad_personalization: "denied",
+    analytics_storage: "granted"
+  });
+  gtag("js", new Date());
+  gtag("config", __ID__, {
+    allow_google_signals: false, allow_ad_personalization_signals: false
+  });
+  var s = d.createElement("script");
+  s.async = true;
+  s.src = __GTAG_SRC__;
+  d.head.appendChild(s);
+})();
+</script>
+"""
+
+
+def measurement_id(value: str | None) -> str | None:
+    """None for an unset or blank ID, the ID itself when well formed. Anything
+    else raises rather than being written into a script."""
+    if value is None or not value.strip():
+        return None
+    value = value.strip()
+    if not MEASUREMENT_ID_RE.fullmatch(value):
+        raise ValueError(
+            f"not a GA4 measurement ID (expected G-XXXXXXXXXX): {value!r}")
+    return value
+
+
+def ga4_snippet(ga4_id: str | None) -> str:
+    """The loader for one page's <head>, or "" when no ID is set."""
+    mid = measurement_id(ga4_id)
+    if mid is None:
+        return ""
+    replacements = {
+        "__OPT_OUT_KEY__": json.dumps(GA4_OPT_OUT_KEY),
+        "__GA_DISABLE__": json.dumps(f"ga-disable-{mid}"),
+        "__HOST__": json.dumps(GA4_HOST),
+        "__PATH__": json.dumps(GA4_PATH),
+        "__DENIED_REGIONS__": json.dumps(list(ANALYTICS_DENIED_REGIONS)),
+        "__ID__": json.dumps(mid),
+        "__GTAG_SRC__": json.dumps(f"{GTAG_JS_URL}?id={mid}"),
+        **{token: json.dumps(message)
+           for token, message in OPT_OUT_MESSAGES.items()},
+    }
+    snippet = GA4_TEMPLATE
+    for token, value in replacements.items():
+        snippet = snippet.replace(token, value)
+    return snippet
+
+
+def privacy_footer(ga4_id: str | None) -> str:
+    """The footer's privacy line, true for the build it is in."""
+    if measurement_id(ga4_id) is None:
+        return ('<p class="privacy-note">This site runs no analytics and sets '
+                'no cookies. <a href="privacy.html">Privacy</a>.</p>\n')
+    return (
+        '<p class="privacy-note">This site counts visits with Google Analytics '
+        '4, advertising features off, and does not load it when your browser '
+        'sends Global Privacy Control or Do Not Track. '
+        '<a href="privacy.html">Privacy</a>.\n'
+        '<span data-analytics-choice hidden><button type="button" '
+        'class="link-button">Opt out of analytics</button> '
+        '<span role="status"></span></span></p>\n')
 
 
 class DrillFailed(RuntimeError):
@@ -363,6 +546,8 @@ td.num { text-align: right; font-variant-numeric: tabular-nums; }
         background: var(--code-bg); border: 1px solid var(--rule); }
 footer { margin-top: 4rem; padding-top: 1.5rem; border-top: 1px solid var(--rule);
          color: var(--muted); font-size: .9rem; }
+.link-button { font: inherit; color: var(--accent); background: none; border: 0;
+               padding: 0; text-decoration: underline; cursor: pointer; }
 """
 
 
@@ -370,7 +555,7 @@ def project_metadata() -> dict:
     """The `[project]` table of `pyproject.toml`.
 
     The packaging metadata is where this project already says what it is
-    called, what it does and what licence it is under, for the benefit of a
+    called, what it does and what license it is under, for the benefit of a
     PyPI page nobody has uploaded yet. Restating any of that here would be a
     second copy nobody diffs against the first -- which is the failure this
     repository spent a pull request on in `README.md` and `DESIGN.md` -- so
@@ -470,9 +655,9 @@ def structured_data(card_width: int, card_height: int,
         "sameAs": REPO_URL,
         "inLanguage": PAGE_LANG,
     }
-    licence = license_page(project["license"])
-    if licence is not None:
-        software["license"] = licence
+    license_url = license_page(project["license"])
+    if license_url is not None:
+        software["license"] = license_url
 
     payload = {
         "@context": "https://schema.org",
@@ -557,7 +742,7 @@ def coverage_lines(report: dict) -> str:
     return "\n".join(lines)
 
 
-def render(data: dict) -> str:
+def render(data: dict, ga4_id: str | None = GA4_MEASUREMENT_ID) -> str:
     report = data["report"]
     p = report["provenance"]
     matrix = data["matrix"]
@@ -595,7 +780,7 @@ def render(data: dict) -> str:
     seed = esc(p["seed"])
     rows = suite_rows(report)
     coverage = coverage_lines(report)
-    # Read, not typed. The card's size comes off the card; the licence comes
+    # Read, not typed. The card's size comes off the card; the license comes
     # off the packaging metadata that already declares it.
     card_width, card_height = png_dimensions(SITE_DIR / PAGE_IMAGE)
     license_id = esc(project_metadata()["license"])
@@ -627,7 +812,7 @@ def render(data: dict) -> str:
 <script type="application/ld+json">
 {structured}
 </script>
-<style>{CSS}</style>
+{ga4_snippet(ga4_id)}<style>{CSS}</style>
 </head>
 <body>
 <main>
@@ -773,7 +958,98 @@ suites which should be indifferent stay passing:
 <code>tools/build_site.py</code> from the committed artifacts and rebuilt on
 every run of the test suite; if it disagreed with them by one byte, the build
 would fail rather than publish.</p>
-</footer>
+{privacy_footer(ga4_id)}</footer>
+
+</main>
+</body>
+</html>
+"""
+
+
+def privacy_body(ga4_id: str | None) -> str:
+    """What the privacy page says, which depends on whether the build has an ID."""
+    hosting = """<h2>Hosting</h2>
+
+<p>GitHub Pages serves this site. Like any web host, GitHub receives each
+request, including your IP address; see the
+<a href="https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement">GitHub
+General Privacy Statement</a>.</p>
+"""
+    tool = """<p>This page is about this website only. The Plumbline harness itself
+has no telemetry: it reports nothing about its use to anyone.</p>
+"""
+    if measurement_id(ga4_id) is None:
+        return ("<p>This site runs no analytics, loads no third-party script "
+                "and sets no cookies.</p>\n\n" + tool + "\n" + hosting)
+    return f"""<p>This site, the evidence page and this page, counts visits with
+Google Analytics 4, a service of Google LLC in the United States. Nothing else
+on it tracks you.</p>
+
+{tool}
+<h2>What Google Analytics records</h2>
+
+<p>For each page you open: the page address and the page you came from, the
+time, your browser, device and screen size, your language, and a rough
+location that Google works out from your IP address. Google Analytics 4 does
+not store the IP address itself. By default it also records scrolling and
+clicks on links that leave this site.</p>
+
+<h2>Cookies</h2>
+
+<p>Outside the places listed below, Google Analytics sets two cookies on
+chelseakr.github.io, named <code>_ga</code> and <code>_ga_</code> followed by
+an ID. They let it tell a returning browser from a new one, and last up to two
+years. In the European Economic Area, the United Kingdom and Switzerland it
+sets no analytics cookies. There, Google still receives a cookieless ping for
+each page.</p>
+
+<h2>Advertising features are off</h2>
+
+<p>Google signals and ad personalization are both turned off, and the
+advertising storage, ad user data and ad personalization consent signals are
+denied everywhere. Google keeps the event data for
+{esc(GA4_DATA_RETENTION)}. See
+<a href="https://policies.google.com/privacy">Google's privacy policy</a>.</p>
+
+<h2 id="opt-out">Opting out</h2>
+
+<ul>
+<li><strong>On this device:</strong> use &ldquo;Opt out of analytics&rdquo; at
+the bottom of any page. It stores <code>{esc(GA4_OPT_OUT_KEY)}</code> in this
+browser's local storage and sends it nowhere. From then on this site does not
+load Google Analytics in this browser. The same button then reads &ldquo;Opt
+back in&rdquo;, which removes the setting.</li>
+<li><strong>In any browser:</strong> turn on Global Privacy Control or Do Not
+Track. This site then never loads Google Analytics at all.</li>
+<li>Or install <a href="https://tools.google.com/dlpage/gaoptout">Google's
+Analytics opt-out browser add-on</a>.</li>
+</ul>
+
+{hosting}"""
+
+
+def render_privacy(ga4_id: str | None = GA4_MEASUREMENT_ID) -> str:
+    """`site/privacy.html`: what this site collects, true for the build it is in."""
+    return f"""<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Plumbline: privacy</title>
+<meta name="description" content="What this site collects about visitors, and how to opt out.">
+<link rel="canonical" href="{PAGE_URL}privacy.html"> <!-- nosemgrep: html.security.audit.missing-integrity.missing-integrity -->
+{ga4_snippet(ga4_id)}<style>{CSS}</style>
+</head>
+<body>
+<main>
+
+<h1>Privacy</h1>
+
+{privacy_body(ga4_id)}
+<p><a href="./">Back to the evidence page</a>.</p>
+
+<footer>
+{privacy_footer(ga4_id)}</footer>
 
 </main>
 </body>
@@ -802,19 +1078,24 @@ def main(argv: list[str] | None = None) -> int:
               file=sys.stderr)
         return 1
 
+    pages = {PAGE: page, PRIVACY_PAGE: render_privacy()}
     if args.check:
-        current = PAGE.read_text(encoding="utf-8") if PAGE.is_file() else None
-        if current != page:
-            print(f"{PAGE.relative_to(REPO)} is not what the committed "
-                  f"evidence produces; run `python3 tools/build_site.py`",
-                  file=sys.stderr)
-            return 1
-        print(f"{PAGE.relative_to(REPO)} is current")
-        return 0
+        stale = 0
+        for path, text in pages.items():
+            current = path.read_text(encoding="utf-8") if path.is_file() else None
+            if current != text:
+                print(f"{path.relative_to(REPO)} is not what the committed "
+                      f"evidence produces; run `python3 tools/build_site.py`",
+                      file=sys.stderr)
+                stale += 1
+            else:
+                print(f"{path.relative_to(REPO)} is current")
+        return 1 if stale else 0
 
     SITE_DIR.mkdir(parents=True, exist_ok=True)
-    PAGE.write_text(page, encoding="utf-8")
-    print(f"wrote: {PAGE.relative_to(REPO)}")
+    for path, text in pages.items():
+        path.write_text(text, encoding="utf-8")
+        print(f"wrote: {path.relative_to(REPO)}")
     return 0
 
 

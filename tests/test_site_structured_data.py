@@ -37,6 +37,18 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parent.parent
 SITE_DIR = REPO / "site"
 PAGE = SITE_DIR / "index.html"
+
+# Which published pages carry the graph, decided by name rather than by
+# whatever is under `site/` (owner decision 2026-09-18). The home page is the
+# page that says what this project is, so it is the one that says it to a
+# crawler. `privacy.html` says what the site collects about a visitor, which
+# is not a claim about the project, so it carries no graph. Every page under
+# `site/` has to be in exactly one of the two, so a page added later is a
+# decision somebody makes rather than a page no test reads.
+GRAPH_PAGES = (PAGE,)
+WITHOUT_A_GRAPH = {
+    SITE_DIR / "privacy.html": "says what the site collects, not what it is",
+}
 PROJECT = REPO / "pyproject.toml"
 CITATION = REPO / "CITATION.cff"
 
@@ -107,8 +119,11 @@ class TheStructuredDataIsDerived(unittest.TestCase):
     def setUpClass(cls) -> None:
         # The examinable set is every HTML file `.github/workflows/pages.yml`
         # uploads, which is `path: site`. A page added under `site/` is
-        # covered by the loops below without anyone remembering to add it.
+        # covered by the script and harvest checks below without anyone
+        # remembering to add it, and fails the classification check until
+        # somebody decides whether it carries a graph.
         cls.pages = sorted(SITE_DIR.rglob("*.html"))
+        cls.graph_pages = [page for page in cls.pages if page in GRAPH_PAGES]
         cls.parsed: dict[Path, Head] = {}
         for page in cls.pages:
             head = Head()
@@ -149,33 +164,51 @@ class TheStructuredDataIsDerived(unittest.TestCase):
         self.assertNotEqual(list(self.pages), [],
                             "site/ holds no HTML to examine")
 
-    def test_every_published_page_carries_a_node(self):
+    def test_every_published_page_is_classified(self):
+        # Every page is either one that carries the graph or one named, with
+        # its reason, as carrying none. A page in neither list is a page this
+        # module would otherwise skip without saying so.
+        self.assertEqual(
+            set(self.pages), set(GRAPH_PAGES) | set(WITHOUT_A_GRAPH),
+            "a page under site/ is neither described nor exempted by name")
+        self.assertFalse(set(GRAPH_PAGES) & set(WITHOUT_A_GRAPH))
+
+    def test_every_graph_page_carries_a_node(self):
         # The defect this gate is for. An absent node is invisible in a
         # browser, so nothing else in this repository would ever notice.
-        for page in self.pages:
+        self.assertNotEqual(self.graph_pages, [], "no page carries a graph")
+        for page in self.graph_pages:
             with self.subTest(page=page.name):
                 self.assertNotEqual(
                     self.parsed[page].ld_blocks, [],
                     f"{page.name} carries no application/ld+json block")
 
-    def test_every_examinable_page_was_examined(self):
+    def test_a_page_without_a_graph_carries_none(self):
+        # The exemption is a statement too. A graph that appeared on an
+        # exempted page would be published and read by nobody here.
+        for page in WITHOUT_A_GRAPH:
+            with self.subTest(page=page.name):
+                self.assertIn(page, self.pages, f"{page.name} is not published")
+                self.assertEqual(self.parsed[page].ld_blocks, [])
+
+    def test_every_graph_page_was_examined(self):
         # Coverage stated as two numbers rather than assumed. They are equal
         # or this fails; a page the parser could not read is not a page that
         # passed.
-        examined = [p for p in self.pages if self.parsed[p].ld_blocks]
+        examined = [p for p in self.graph_pages if self.parsed[p].ld_blocks]
         self.assertEqual(
-            len(examined), len(self.pages),
-            f"examined {len(examined)} of {len(self.pages)} examinable pages")
+            len(examined), len(self.graph_pages),
+            f"examined {len(examined)} of {len(self.graph_pages)} graph pages")
 
     # --- the shape ----------------------------------------------------------
 
     def test_every_block_is_valid_json_in_the_schema_org_vocabulary(self):
-        for page in self.pages:
+        for page in self.graph_pages:
             with self.subTest(page=page.name):
                 self.graph(page)
 
     def test_the_graph_describes_the_page_the_site_and_the_software(self):
-        for page in self.pages:
+        for page in self.graph_pages:
             with self.subTest(page=page.name):
                 types = {n["@type"] for n in self.graph(page).values()}
                 self.assertEqual(
@@ -187,7 +220,7 @@ class TheStructuredDataIsDerived(unittest.TestCase):
         # `"about": {"@id": ...}` naming a node that is not in the graph is a
         # reference to nothing, and consumers drop it silently rather than
         # complaining. It reads as a described page and is an empty one.
-        for page in self.pages:
+        for page in self.graph_pages:
             with self.subTest(page=page.name):
                 nodes = self.graph(page)
                 for node in nodes.values():
@@ -201,7 +234,7 @@ class TheStructuredDataIsDerived(unittest.TestCase):
     def test_no_property_is_present_but_empty(self):
         # A tag that exists carrying an empty string is absence rendered as a
         # value: it satisfies "the node has a name" and says nothing.
-        for page in self.pages:
+        for page in self.graph_pages:
             with self.subTest(page=page.name):
                 for node in self.graph(page).values():
                     for key, value in node.items():
@@ -222,7 +255,7 @@ class TheStructuredDataIsDerived(unittest.TestCase):
         # three characters that can start markup; this is the check that it
         # still does, stated over the served bytes rather than over the
         # generator's intent.
-        for page in self.pages:
+        for page in self.graph_pages:
             with self.subTest(page=page.name):
                 raw = page.read_text(encoding="utf-8")
                 start = raw.index('<script type="application/ld+json">')
@@ -233,27 +266,33 @@ class TheStructuredDataIsDerived(unittest.TestCase):
                         character, body,
                         f"an unescaped {character!r} in the block")
 
-    def test_the_only_scripts_are_inert_data_blocks(self):
+    def test_the_only_scripts_are_inert_data_blocks_and_the_ga4_loader(self):
         # The page promises a reader with no network the same document. A
         # `application/ld+json` block is data: the browser does not execute it
-        # and does not fetch anything for it. An executable script, or any
-        # script with a `src`, would be a different promise, so it fails here
-        # rather than being noticed later.
+        # and does not fetch anything for it. The one script that runs code is
+        # the Google Analytics 4 loader (owner decision 2026-09-17): one inline
+        # `<script>` with no type and no `src`, which `tests/test_site.py` and
+        # `tests/test_site_analytics.py` hold to the generator's loader by
+        # exact text. Any other executable script, or any script with a
+        # `src`, would be a different promise, so it fails here rather than
+        # being noticed later.
         for page in self.pages:
             with self.subTest(page=page.name):
+                code = []
                 for script in self.parsed[page].scripts:
-                    self.assertEqual(
-                        script.get("type", "").strip(),
-                        "application/ld+json",
-                        f"{page.name} carries an executable script")
                     self.assertNotIn(
                         "src", script,
                         f"{page.name} carries a script that fetches")
+                    if script.get("type", "").strip() != "application/ld+json":
+                        code.append(script)
+                self.assertEqual(
+                    code, [{}],
+                    f"{page.name} runs code other than the one GA4 loader")
 
     # --- the derivations ----------------------------------------------------
 
     def test_the_page_node_repeats_the_pages_own_head(self):
-        for page in self.pages:
+        for page in self.graph_pages:
             with self.subTest(page=page.name):
                 head = self.parsed[page]
                 webpage = self.node(page, "WebPage")
@@ -264,7 +303,7 @@ class TheStructuredDataIsDerived(unittest.TestCase):
                 self.assertEqual(webpage["inLanguage"], head.lang)
 
     def test_the_site_node_repeats_the_pages_own_site_name(self):
-        for page in self.pages:
+        for page in self.graph_pages:
             with self.subTest(page=page.name):
                 head = self.parsed[page]
                 website = self.node(page, "WebSite")
@@ -272,7 +311,7 @@ class TheStructuredDataIsDerived(unittest.TestCase):
                 self.assertEqual(website["inLanguage"], head.lang)
 
     def test_the_image_node_repeats_the_card_the_head_names(self):
-        for page in self.pages:
+        for page in self.graph_pages:
             with self.subTest(page=page.name):
                 head = self.parsed[page]
                 image = self.node(page, "ImageObject")
@@ -306,7 +345,7 @@ class TheStructuredDataIsDerived(unittest.TestCase):
         self.assertEqual(
             software["license"],
             SPDX_LICENSE_PAGE.format(self.project["license"]),
-            "the licence page is not the one the packaging metadata names")
+            "the license page is not the one the packaging metadata names")
 
     def test_the_software_version_is_the_committed_runs_own(self):
         # Not `pyproject.toml`'s. The version this page may state is the one
@@ -336,7 +375,7 @@ class TheStructuredDataIsDerived(unittest.TestCase):
         # This page is served under a project PATH on an origin it shares with
         # five other project sites, so a node claiming the origin would be
         # claiming a document that is not this one.
-        for page in self.pages:
+        for page in self.graph_pages:
             with self.subTest(page=page.name):
                 for node in self.graph(page).values():
                     url = node.get("url")
@@ -380,8 +419,9 @@ class TheStructuredDataIsDerived(unittest.TestCase):
                 for word in forbidden_words:
                     self.assertNotIn(word, raw,
                                      f"{word!r} is harvest vocabulary")
-                for node in self.graph(page).values():
-                    self.assertNotIn(node["@type"], forbidden_types)
+                if page in self.graph_pages:
+                    for node in self.graph(page).values():
+                        self.assertNotIn(node["@type"], forbidden_types)
 
 
 if __name__ == "__main__":
