@@ -15,7 +15,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from . import __version__, bundle as bundle_mod
+from . import __version__, bundle as bundle_mod, lexicons
 from .baseline import (
     baseline_digest,
     compare as compare_to_baseline,
@@ -298,6 +298,16 @@ def run_audit(config: TargetConfig, *, seed: int = DEFAULT_SEED, out_dir: Path,
     # response look like a perfect match, so this refuses before any suite
     # sees the bundle rather than scoring around it.
     bundle_mod.refuse_drafts(bundle, "scored")
+    # A suite cannot report a number about a language its lexicons cannot read.
+    # `refusal` detects a refusal by matching phrases; run it over a bundle in
+    # a language with no phrases in force and every refusal in it scores as an
+    # answer, silently, with a number that reads as a finding about the target.
+    # Refused here, before anything is scored, naming the exact table to add.
+    lexicons.require_lexicon_coverage(
+        judge.language_rules(),
+        sorted({item.lang for item in bundle.items}),
+        suites,
+    )
 
     # 3. Warnings: visible on every run, never fatal, never suppressed. A
     #    model judge's notice rides the same channel, so a reader who only
