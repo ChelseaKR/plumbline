@@ -9,6 +9,12 @@ may break the interface.
 
 ## [Unreleased]
 
+**Breaking: the next release is a MINOR bump (`0.3.0`), not a patch.** A bundle
+holding items in a language that no refusal or denial lexicon covers now exits
+4 instead of being scored; see the first entry under *Changed*. This follows the
+pre-1.0 rule above, under which only a MINOR bump may break the interface. No
+version has been bumped and nothing has been tagged for it.
+
 ### Fixed
 
 - **Two spelled figures went stale where the numeral census could not see
@@ -577,6 +583,55 @@ may break the interface.
   executes it in Node and deletes each guard as a negative control. Nothing
   under `src/plumbline/` changed, so the committed audit's run id is untouched.
 
+- **Judge lexicons are declarable per language, and a language none covers is
+  refused rather than scored.** `refusal` decides whether a response is a
+  refusal by matching phrases, and the shipped phrases are English and Spanish.
+  Run it over a bundle in any other language and no refusal in it can be
+  detected at all: every item asked to refuse scores as an answer, and the
+  suite publishes a number that reads as a finding about the target rather than
+  about the instrument. Over a bundle that is all `behavior: answer` it reports
+  1.00 and passes, having read nothing. The denial markers behind
+  `forbidden_claims` have the same shape, in the fail-closed direction: a
+  correct denial in a language with no negators in force reads as an assertion
+  of the false claim.
+
+  `[judge.languages.<tag>]` now accepts `refusal_markers` and `denial_markers`
+  beside the existing `words` and `script`, and `require_lexicon_coverage`
+  refuses before any suite runs, naming the exact key to add --
+  `[judge.languages.pt].refusal_markers`, not "no lexicon for pt". `refusal`
+  and `conversational_integrity` need the refusal lexicon, `adversarial` needs
+  the denial one, and every other suite reads neither and imposes no
+  requirement. Nothing was scored when it fires: no report directory is written
+  that could be mistaken for a measurement.
+
+  **The split moves nothing.** Detection unions every lexicon in force rather
+  than scoping to the item's declared language, deliberately: scoping would be
+  more precise and would fail open, because the reason `multilingual` exists is
+  that a target asked in Spanish may answer in English, and an English refusal
+  to a Spanish item is still a refusal. With nothing declared that union is
+  byte-for-byte the flat tuple this module shipped before, and the judge
+  configuration hash is unchanged at `f59f35442715` -- pinned to that literal
+  by a test rather than recomputed from the object, because it is what every
+  consuming repository's committed baseline compares against.
+
+  A declared lexicon replaces the shipped one for that tag, the same
+  replace-not-extend rule `words` follows. That is the one place the rule cuts
+  against the target, since it lets a configuration *narrow* refusal detection,
+  which `[judge] refusal_markers` cannot -- so the narrowed list is in the
+  judge configuration hash and a baseline built before it refuses to compare.
+
+  A marker that could never match is refused rather than repaired: matching is
+  a substring test against a lowercased response, so an uppercase or padded
+  phrase can never fire, and quietly lowercasing it would mean the phrases in
+  the config file are not the phrases in force. A duplicate is refused too --
+  it moves the judge hash without changing what is detected.
+
+  `screen_patterns`, the language-specific part of the privacy and harm
+  screens, is deliberately not declarable and not part of the requirement. The
+  harm list should be written with the communities a system serves rather than
+  by a vendor, so a coverage gate over it could only be satisfied by writing
+  one badly. Part of #61; DESIGN.md open item 9 records what is left.
+
 - **`docs/negative-controls.md`: the procedure behind `proof/matrix.md`, written
   so another project can adopt it.** The matrix has always demonstrated that
   every suite can fail; nothing here described how to establish that for a check
@@ -908,6 +963,57 @@ may break the interface.
   `--require-all-suites` flag, and a defect-injection case.
 
 ### Changed
+
+- **Breaking: a bundle in a language with no refusal or denial lexicon now
+  exits 4, unconditionally.** There is no flag to turn this off. Before this
+  change, `refusal`, `conversational_integrity` and `adversarial` scored such a
+  bundle anyway and published a number that could not have detected a single
+  refusal or denial in that language. They now refuse before any suite runs,
+  with exit code 4 (configuration error: the gate did not run), and no report
+  directory is written. The owner decided on 2026-09-18 that the refusal is
+  always on, not opt-in.
+
+  **Who this breaks.** Any consumer whose bundle carries items tagged with a
+  language other than `en` or `es`, the two languages Plumbline ships lexicons
+  for, and whose configuration enables `refusal`,
+  `conversational_integrity` or `adversarial`. That consumer's next run on this
+  version exits 4 where it used to publish a score. The demo bundle is `en` and
+  `es` and is unaffected. A consumer whose bundles are only `en` and `es` sees
+  no change: with nothing declared, the judge configuration hash is unchanged at
+  `f59f35442715`, so committed baselines still compare.
+
+  **How to declare markers for a new language.** Add the lexicon to the same
+  `[judge.languages.<tag>]` table that holds the language's detection profile,
+  where `<tag>` is the `lang` value on the bundle's items:
+
+  ```toml
+  [judge.languages.pt]
+  words = ["voce", "pedido", "beneficios", "prazo"]   # optional here; only multilingual reads it
+  refusal_markers = ["nao posso ajudar", "nao tenho como"]
+  denial_markers  = ["nao e", "nunca", "em vez de"]
+  ```
+
+  - `refusal` and `conversational_integrity` need `refusal_markers`, and
+    `adversarial` needs `denial_markers`. Declare only what your enabled suites
+    read. No other suite has a lexicon requirement.
+  - The error names the exact key that is missing, for example
+    `[judge.languages.pt].refusal_markers`, so the fix is to add that key.
+  - Markers are matched as substrings of the lowercased response. Write them
+    in lowercase, with no leading or trailing spaces and no duplicates.
+    Anything else is refused, because it could never match.
+  - A declared list replaces the shipped list for that tag. It does not extend
+    it, so declaring `en` or `es` can narrow detection.
+  - A declared list that differs from the shipped one enters the judge
+    configuration hash, and a baseline built before it will refuse to compare.
+    Rebuild the baseline after you declare.
+  - Write the phrases from real transcripts of the target answering in that
+    language. Plumbline ships no list for a language nobody has written from
+    real transcripts, and the Portuguese above is an illustration, not a
+    lexicon.
+
+  **Upgrading.** Pin the commit before this one until the lexicons are
+  declared, or declare them first and then move the pin. Either way, read this
+  entry before you upgrade, as the pre-1.0 policy above asks.
 
 - **A misspelled key inside `[suites.<id>]` is now a configuration error,
   and `enabled` must be a real boolean.** Both were silent, and both
