@@ -28,7 +28,7 @@ from typing import Any
 # the list by language is what lets `lexicon_gaps` ask the question, and
 # `require_lexicon_coverage` refuse to run rather than report that.
 #
-# The split changes no behaviour. Detection unions every lexicon in force,
+# The split changes no behavior. Detection unions every lexicon in force,
 # deliberately — see `LanguageRules.refusal_marker_union`.
 BUILTIN_REFUSAL_MARKERS: dict[str, tuple[str, ...]] = {
     "en": (
@@ -82,7 +82,7 @@ REFUSAL_MARKERS = tuple(
 # denial rather than missing a false claim.
 #
 # Held per language for the same reason the refusal markers are: a bundle in a
-# language with no negators in force cannot have a denial recognised, so every
+# language with no negators in force cannot have a denial recognized, so every
 # correct denial in it reads as an assertion of the false claim. That direction
 # is fail-closed rather than fail-open, but it is still a suite reporting a
 # number about a language it could not read.
@@ -150,7 +150,7 @@ usted ustedes yo mi mis tu tus nos nuestro nuestra
 """.split())
 
 # --- Language identification ------------------------------------------------
-# Two ways to recognise a language, because the two questions are different.
+# Two ways to recognize a language, because the two questions are different.
 #
 # **Vocabulary** separates languages that share a script. `en` and `es` are
 # both Latin, so nothing but the words tells them apart, and the profiles below
@@ -239,7 +239,7 @@ class LanguageRules:
     #: language is this*; these answer *can this harness read that language at
     #: all*. They are separate questions and a tag may carry either without the
     #: other: a target not running `multilingual` needs no detection profile for
-    #: a language whose refusals it still wants recognised.
+    #: a language whose refusals it still wants recognized.
     refusal_markers: dict[str, tuple[str, ...]] = field(default_factory=dict)
     denial_markers: dict[str, tuple[str, ...]] = field(default_factory=dict)
 
@@ -266,7 +266,7 @@ class LanguageRules:
         and would be wrong here: the whole reason `multilingual` exists is that
         a target asked in Spanish may answer in English, and a target that
         answers "I cannot help with that" to a Spanish item is refusing. Under
-        a per-item scoping that refusal would go unrecognised and score as an
+        a per-item scoping that refusal would go unrecognized and score as an
         answer, which is the failure this module is being changed to prevent,
         arriving from the other side.
 
@@ -403,7 +403,7 @@ def rules_from_config(declared: object, *, normalizer: Callable[[str], str]
       An entry declaring only a *lexicon* is allowed, and is not that failure.
       Detection and lexicons answer different questions, and a target not
       running `multilingual` has no need of a detection profile for a language
-      whose refusals it still wants recognised. Such a tag is absent from
+      whose refusals it still wants recognized. Such a tag is absent from
       `tags()` and present in `lexicon_tags()`, so neither report line
       overstates what is in force.
 
@@ -460,7 +460,7 @@ def rules_from_config(declared: object, *, normalizer: Callable[[str], str]
                 LEXICON_FAMILIES & set(entry)):
             raise LanguageRulesError(
                 f"[judge.languages.{tag}] declares nothing at all, so it "
-                f"changes no behaviour; it is refused rather than ignored"
+                f"changes no behavior; it is refused rather than ignored"
             )
 
     merged = LanguageRules(words=words, scripts=scripts,

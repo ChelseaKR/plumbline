@@ -202,7 +202,8 @@ def _diff_against_expected(item: Item, response: str) -> dict[str, Any]:
         "available": True,
         "expected": item.expected,
         "answer": response,
-        "tokenisation": "as `answer_score` tokenises: citations stripped from the answer, "
+        # British-spelled key kept: it is a published `plumbline explain --json` field.
+        "tokenisation":"as `answer_score` tokenizes: citations stripped from the answer, "
                         "function words kept",
         "missing_tokens": sorted(expected_set - answer_set),
         "added_tokens": sorted(answer_set - expected_set),

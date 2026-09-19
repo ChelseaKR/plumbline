@@ -146,7 +146,7 @@ class LexicalJudge:
         # fixed English/Spanish list scores that as a failed defense. These
         # EXTEND the shipped markers and never replace them, so a target cannot
         # quietly narrow refusal detection to make a score look better --- it
-        # can only teach the judge additional ways to recognise a refusal.
+        # can only teach the judge additional ways to recognize a refusal.
         #
         # They are part of the instrument, so like the language rules they go
         # into config() and therefore into the judge configuration hash. Two
@@ -422,10 +422,10 @@ def refusal_markers_from_config(
     Three rules, and each exists because the alternative is a quieter harness:
 
     * These EXTEND the shipped markers; they never replace them. A target may
-      teach the judge additional ways to recognise a refusal, never fewer.
+      teach the judge additional ways to recognize a refusal, never fewer.
     * A non-string, or a blank or whitespace-only entry, is refused rather than
       dropped. A blank marker is a substring of every response, so silently
-      ignoring it and silently honouring it are both wrong; only saying so is
+      ignoring it and silently honoring it are both wrong; only saying so is
       right.
     * Markers are lowercased, because `is_refusal` matches against lowered
       text and a marker with capitals could otherwise never match --- exactly

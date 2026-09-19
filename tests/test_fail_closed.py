@@ -790,7 +790,7 @@ class UnrecognizedVerdictsAreNotPasses(_Tmp):
                     validate_result(self._result(score=score, floor=0.0),
                                     suite_id="smoke", floor=0.0)
 
-    def test_a_result_labelled_for_another_suite_stops_the_run(self):
+    def test_a_result_labeled_for_another_suite_stops_the_run(self):
         with self.assertRaises(ResultError):
             validate_result(self._result(suite_id="refusal"),
                             suite_id="smoke", floor=1.0)

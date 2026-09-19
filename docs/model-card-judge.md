@@ -92,7 +92,7 @@ risk).
 
 What the shipped template does about it:
 
-- Both texts are delimited and explicitly labelled as data the judge is
+- Both texts are delimited and explicitly labeled as data the judge is
   told never to treat as instruction.
 - The output is constrained to a JSON schema with one numeric field, so
   there is no free-text channel for an injected instruction to redirect the

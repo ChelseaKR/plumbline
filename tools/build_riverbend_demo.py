@@ -50,7 +50,7 @@ ADDENDUM = {
 # clause the source also contains; it goes to one register and not the other,
 # alternating by index, so the two registers score within a point or two of
 # each other and the fairness suite is measuring disparity rather than an
-# artefact of how this file was written. `tail` is a second source sentence.
+# artifact of how this file was written. `tail` is a second source sentence.
 FACTS = [
     {
         "key": "rent-cap", "load_bearing": True,
@@ -1037,7 +1037,7 @@ REFUSAL_OPENERS = {
 
 
 def _refusal(index: int, lang: str, explanation: str) -> str:
-    """A refusal the shipped classifier will recognise.
+    """A refusal the shipped classifier will recognize.
 
     Explanations that already decline in the classifier's vocabulary are left
     alone; the rest get an opener. Prepending one unconditionally would make
@@ -1250,7 +1250,7 @@ def _write_jsonl(path: Path, records: list[dict]) -> None:
 
 
 def verify(items: list[dict], responses: list[dict]) -> None:
-    """Refuse to emit a bundle whose failures would be artefacts of this file.
+    """Refuse to emit a bundle whose failures would be artifacts of this file.
 
     A demo bundle that fails the refusal suite because the generator wrote
     declines the shipped classifier cannot see would teach a reader something

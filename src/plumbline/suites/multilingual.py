@@ -21,9 +21,9 @@ An item may declare `expected_response_lang`, and then that is what this suite
 scores against instead of the language the question was written in. The case it
 exists for was reported by a consumer: an English-only corpus, an Arabic
 question, and a product that answers by quoting the English passage under an
-Arabic notice saying it did so. That is the correct behaviour for that corpus
+Arabic notice saying it did so. That is the correct behavior for that corpus
 and this suite scored it 0.0000 — the same number a system that simply ignored
-the question's language gets. Two opposite behaviours are not one score.
+the question's language gets. Two opposite behaviors are not one score.
 
 The declaration is not an inference and is never made here. Only the bundle can
 say that an English answer to an Arabic question was intended, it must say why,

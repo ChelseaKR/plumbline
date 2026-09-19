@@ -6,10 +6,17 @@ Plumbline audit of target `riverbend-demo`.
 
 | Field | Value |
 |---|---|
+<<<<<<<< HEAD:audits/3c2ab8d2405e7e51/report.md
 | Run id | `3c2ab8d2405e7e51` |
 | Harness version | `0.2.0` |
 | Harness source | `59d6d0052df7fa0b275bac2db342e9f3213b2f70e7c9c213e0de4a107210d1ac` |
 | Report seal | `3bc9f77c544cabe6e62cf450476c77925bc7c8053cae43c353f5d94a4d5a0c54` (sha256 of this report's own body; check it with `plumbline verify`) |
+========
+| Run id | `34ee270002c28e11` |
+| Harness version | `0.2.0` |
+| Harness source | `e2363e4195e06d697c6f6b2b668e32b0d2a129bf877fedcdb524870dad913fed` |
+| Report seal | `66cbb407f74cb296fd9f72434cae762f3e384e56c8599653513541a9c3801dfc` (sha256 of this report's own body; check it with `plumbline verify`) |
+>>>>>>>> origin/main:audits/34ee270002c28e11/report.md
 | Seed | `1729` |
 | Dataset hash | `949197da4dd6960e3998e9b50b01fca7a48345639e85494dd2a0e666e296e130` (short: `949197da4dd6`) |
 | Judge | `lexical` (deterministic), config hash `f59f35442715bb2f5994035c7049438b893938922013e993950dcb393a79e13c` |
@@ -47,8 +54,8 @@ All **15** implemented suites were scored by this run.
 
 - `passage_attribution` scored **48 of 108** eligible items. 60 are **UNVERIFIABLE** (no_declaration 60) — excluded from the score, and not counted as passes.
 
-- `accessibility` measured contrast for `interface.html` from **declared** colour pairs.
-  - self-declared pairs: the colour pairs came from a block the snapshot writes about itself, so the ratios are measured but the population is not verified — a pair that fails can be left out of the list.
+- `accessibility` measured contrast for `interface.html` from **declared** color pairs.
+  - self-declared pairs: the color pairs came from a block the snapshot writes about itself, so the ratios are measured but the population is not verified — a pair that fails can be left out of the list.
 
 - `accessibility` reports no interval: the checks are an exhaustive census, not a sample: there is no sampling error to report, and a wider checklist would not narrow one.
 

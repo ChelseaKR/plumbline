@@ -71,7 +71,7 @@ CEILING_MAX_ITEMS = 100_000
 # a typo that reached a live target would produce evidence of nothing.
 TEMPLATE_KEYS = ("prompt", "lang", "item_id")
 
-# Every key this adapter understands. An unrecognised key is refused rather
+# Every key this adapter understands. An unrecognized key is refused rather
 # than ignored: `timout_seconds` silently ignored is a bound that is not
 # there, which is exactly the class of failure this harness exists to catch.
 KNOWN_KEYS = frozenset({

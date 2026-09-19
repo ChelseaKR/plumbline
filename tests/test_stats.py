@@ -116,7 +116,7 @@ class ComputeTests(unittest.TestCase):
         self.assertGreater(first.ci["upper"], sum(sample) / len(sample))
 
     def test_bootstrap_resample_count_is_enough_to_be_seed_insensitive(self):
-        # A reported figure that swings with the seed would be theatre. At
+        # A reported figure that swings with the seed would be theater. At
         # 2000 resamples the interval and the MDE agree across seeds to well
         # inside any floor decision; only the same-seed case is byte-exact.
         sample = [0.9, 0.8, 1.0, 0.6, 0.95, 0.7, 0.85, 0.75]

@@ -9,7 +9,135 @@ may break the interface.
 
 ## [Unreleased]
 
+**Breaking: the next release is a MINOR bump (`0.3.0`), not a patch.** A bundle
+holding items in a language that no refusal or denial lexicon covers now exits
+4 instead of being scored; see the first entry under *Changed*. This follows the
+pre-1.0 rule above, under which only a MINOR bump may break the interface. No
+version has been bumped and nothing has been tagged for it.
+
 ### Fixed
+
+- **Two spelled figures went stale where the numeral census could not see
+  them.** `tools/check_claims.py` counted `29 of 319 numerals` green while the
+  README said *"Twenty-one cases"* of a defect matrix that holds **twenty-three**,
+  and `DESIGN.md` said *"Thirteen suites reporting PASS on a clean bundle"* of a
+  report that scores **fifteen**. `NUMERAL` matches digits, so every figure this
+  repository writes as a word sat outside both of its numbers.
+
+  - The README sentence now reads *"Twenty-three cases, all fifteen suites
+    covered, including one integrity refusal and two empty-population
+    configuration errors."* The old *"plus"* was wrong as well as the count: the
+    integrity refusal and the two configuration errors are cases in the matrix,
+    not additions to it.
+  - Both sentences are bound, and so is the README's *"Fifteen suites reporting
+    PASS proves nothing"*, which was right. Every figure is read from
+    `proof/matrix.json` or the committed report by `_matrix_figures`, which
+    refuses rather than fills a sentence that would stop being true: a matrix
+    with a suite left uncovered is not *"all N suites covered"*, and a report
+    with a suite that does not PASS is not *"N suites reporting PASS on a clean
+    bundle"*.
+  - `_spell` now writes 0–99, hyphenated above twenty, and `NUMBER_WORD` reads
+    the same words back, so the gate can see exactly what it can assert.
+
+- **The gate states its spelled coverage beside its numeral coverage.** A new
+  `spelled:` line reports number-words bound of number-words in live prose, per
+  document, with those under dated headings named beside it rather than counted
+  in — the same *bound of live* rule the numeral census follows. It is a
+  separate census because the two are different token sets, and one share over
+  both would hide which is unchecked. A shipped claim set that binds no spelled
+  figure at all is refused.
+
+- **Two live figures in `DESIGN.md`, and a denominator that counted 171
+  sentences no gate is allowed to touch.** Six new `Claim` rows take the gate
+  from **15 of 490 numerals** to **29**, and two of the six were stale the moment
+  they were anchored:
+
+  - *"Every one of the fourteen was made to fail on a defect specific to it"* —
+    `proof/matrix.json` records a defect case for **fifteen** suites and none
+    without one. `conversational_integrity` shipped at M10 and the sentence was
+    never revisited, so the design record understated the matrix's own result.
+  - *"Writing 66 refusals for this bundle"* — the bundle carries **70** items with
+    `behavior: refuse`. The four multi-turn escalation probes added at M10 are
+    declines, and the count moved with them.
+
+  The other four were already right and are now held: the attribution suite's
+  coverage line and its restatement in the README, the MDE band restated in
+  `DESIGN.md`, and the refusal-tolerance sentence. Every one reads its figures
+  from `audits/*/report.json`, `proof/matrix.json` or the sealed bundle; none is
+  a number a person maintains. The tolerance is **derived** — the largest `k`
+  with `(n - k) / n >= floor` — rather than written down, because it moves the
+  moment the bundle or the floor does, and it had already moved once.
+
+- **`29 of 490` was a share of a population no gate may cover.** 171 of
+  `DESIGN.md`'s 297 numerals sit under a heading that dates itself — the M9
+  acceptance record, the roadmap — and those are records of what was observed
+  then. A claim anchored in one would rewrite the archive every time the evidence
+  moved. The gate now publishes **bound of live**, with the historical numerals
+  reported beside it rather than folded into either number:
+
+  ```
+  29 of 319 numerals in the live prose of the gated documents are anchored to it
+  (DESIGN.md 13 of 126 live, 171 dated; README.md 16 of 193 live, 0 dated)
+  171 more sit under headings that date themselves and are records, not claims
+  ```
+
+  A fifth structural refusal enforces it: a claim whose sentence exists **only**
+  under a dated heading is refused outright, rather than allowed and regretted.
+
+- **A tolerance over an empty population is refused rather than returned.**
+  `_tolerated(0, 0.90)` has no answer — a suite that scored nothing tolerates
+  nothing, not everything — so it raises instead of handing back a number a
+  sentence would publish.
+
+- **`check_claims` reported eight matching figures and never said what share of
+  the documents that was.** The green line `claims: 8 published figures match the
+  committed evidence` was true, and the eight claims bind **15 of the 490 numerals**
+  in `README.md` and `DESIGN.md` — 9 of 193 in the README, 6 of 297 in `DESIGN.md`.
+  A gate that does not carry its own denominator reads exactly like one that
+  examined everything, which is the defect this repository exists to argue against.
+
+  The census is now printed on every passing run, per document, and four
+  structural refusals sit under it: a claim anchored in a document that
+  `GATED_DOCUMENTS` does not declare, a declared document that no claim binds a
+  figure in, a claim whose pattern captures no figure at all, and a document the
+  numeral scan reads as empty. None of the four is a count, so none of them
+  becomes a hand-maintained number that jams a queue.
+
+  The numerator is not a second tally that could drift from the claims: it counts
+  the groups the claims actually captured, tokenized by the same pattern the
+  denominator uses, so a capture that is not a numeral is left out rather than
+  inflating the share.
+
+- **The GitHub Action published no outputs at all on every gate exit but zero.**
+  `shell: bash` means `bash --noprofile --norc -eo pipefail`. The step ran the gate
+  as `... | tee "$captured"` and read `${PIPESTATUS[0]}` on the next line, so under
+  pipefail the pipeline carried the gate's non-zero status and errexit ended the
+  script there, before `code` was read and before one line reached
+  `$GITHUB_OUTPUT`. Measured against this repository's own `action.yml` body, with
+  the gate stubbed at each documented exit code:
+
+  | gate exit | outputs written |
+  |---|---|
+  | 0 | `exit-code`, `verdict`, `report-json`, `report-md` |
+  | 1, 3, 4, 5 | none |
+
+  So `verdict` was empty on exactly the runs a consuming workflow branches on, and
+  `exit-code`, documented as `0 pass / 1 fail / 3 integrity refusal / 4
+  configuration error / 5 internal error`, could only ever be `0`. A `FAIL` reached
+  a caller as an absent value, which is this harness's own dominant defect class
+  inside the thing it ships to other repositories. The step's own exit code was
+  correct throughout, so the job still went red and nothing pointed at the gap. The
+  gate now runs as an `if` condition, which is exempt from errexit by rule rather
+  than by toggling a shell option, and `PIPESTATUS` still describes it in the
+  branch taken.
+
+- **The tests that covered that step ran a different shell from the one that
+  ships.** `GitHubActionStepTests` lifts the real step body out of `action.yml` and
+  executes it, precisely so a grep cannot pass over a script that no longer works.
+  It then ran it under a plain `bash` -- no `-e`, no `-o pipefail` -- so the script
+  continued past the pipeline and the class asserted `exit-code=1`, `exit-code=3`
+  and a `FAIL` verdict that a runner never produced. The shell is part of what
+  ships, so it is now part of what is executed.
 
 - **The TruffleHog history scan still could not fail on a revoked credential.**
   #76 added the `gitleaks` job beside it, on the argument that widening
@@ -230,11 +358,11 @@ may break the interface.
   wholesale would blind semgrep to the entire published page.
   Measured: 1 finding before, 0 after.
 
-- **The published page's contrast check could not see a colour nobody had
+- **The published page's contrast check could not see a color nobody had
   listed.** `tools/check_site_a11y.py` proves that nine hand-written
   `CONTRAST_PAIRS` meet WCAG AA in both palettes. It said nothing about a
-  colour added to `:root` later and never added to that list: the page would
-  grow a colour, the check would go on reporting "all 9 declared pairs meet
+  color added to `:root` later and never added to that list: the page would
+  grow a color, the check would go on reporting "all 9 declared pairs meet
   WCAG AA", and nothing would say the ninth was not the last one.
 
   That is the same shape this repository refuses one level down. `plumbline
@@ -246,14 +374,14 @@ may break the interface.
   thing a harness holds targets to and never checks about itself is a standard
   that only ever points outward."
 
-  An eighth check, `palette_coverage`, closes it. Every colour the page
+  An eighth check, `palette_coverage`, closes it. Every color the page
   declares is either in a checked pair or in `UNCHECKED_PALETTE_VARS` with a
-  written reason; a colour that is neither fails the gate. It also refuses a
-  stale exemption for a colour the page no longer declares, and palettes whose
-  light and dark halves declare different colours, which would leave one theme
+  written reason; a color that is neither fails the gate. It also refuses a
+  stale exemption for a color the page no longer declares, and palettes whose
+  light and dark halves declare different colors, which would leave one theme
   silently inheriting the other's value.
 
-  Today exactly one colour is exempt: `--rule`, a 1px border never used for
+  Today exactly one color is exempt: `--rule`, a 1px border never used for
   text, whose bar is WCAG 1.4.11's 3:1 for non-text rather than the 4.5:1 this
   check measures. It was already outside the list; the difference is that the
   omission is now a decision on the record instead of a gap.
@@ -344,7 +472,7 @@ may break the interface.
   `action.yml` against a stubbed gate, and all six fail on the previous
   version.
 
-- **An unlabelled `<button>` was invisible to the `accessibility` suite.**
+- **An unlabeled `<button>` was invisible to the `accessibility` suite.**
   `CONTROL_TAGS` held `{"input", "select", "textarea"}`, so `<button>`
   never reached `snapshot.controls` and never reached the
   `control_labels` check. An interface whose only send control was an
@@ -405,6 +533,21 @@ may break the interface.
   `semgrep scan --config auto` locally: 0 findings, 0 blocking.
 
 ### Added
+
+- **Google Analytics 4 on the published pages, and a privacy page.** Owner
+  decision 2026-09-17: GA4 on every public site, with privacy copy changed to
+  match. `tools/build_site.py` now writes `site/privacy.html` beside the
+  evidence page (both held to `--check`), and both carry one guarded loader and
+  a footer "Opt out of analytics" control. The ID is `GA4_MEASUREMENT_ID`
+  (`G-0QFVRX8YYH`); `""` removes all of it. The loader does nothing off
+  `chelseakr.github.io` under `/plumbline/`, under Global Privacy Control or Do
+  Not Track, or after an opt-out (localStorage `plumbline:analytics-opt-out`).
+  Google signals and ad personalization are off; Consent Mode v2 denies the
+  advertising signals everywhere and analytics storage in the EEA, the UK and
+  Switzerland. `tests/test_site.py`'s self-containment check now removes that
+  one loader by exact text before scanning, and `tests/test_site_analytics.py`
+  executes it in Node and deletes each guard as a negative control. Nothing
+  under `src/plumbline/` changed, so the committed audit's run id is untouched.
 
 - **Judge lexicons are declarable per language, and a language none covers is
   refused rather than scored.** `refusal` decides whether a response is a
@@ -518,7 +661,7 @@ may break the interface.
   suite's whole reason for existing, and until now nothing in the repository
   could produce a live recording that demonstrated it.
 
-- **Two opt-in item declarations, so a correct behaviour and a wrong one stop
+- **Two opt-in item declarations, so a correct behavior and a wrong one stop
   being the same number** (#71, [ADR 0005](docs/adr/0005-item-declarations-that-move-a-score-carry-their-reason.md)).
   Both came from a consumer, and both had the same shape: the harness had no
   way to tell which of two opposite things it was looking at, so their evidence
@@ -599,7 +742,7 @@ may break the interface.
   `prompt` -- and `audit`, `gate` and `record` now **refuse** any bundle that
   still holds one, naming the item ids. The exemption therefore exists only in
   a state that cannot be scored and cannot be recorded against. Without the
-  second half it would be the defect this project catalogues everywhere else:
+  second half it would be the defect this project catalogs everywhere else:
   a blank reference answer scored as though it were content makes an empty
   response look like a perfect match, and a blank prompt sent to a live target
   files whatever comes back as the answer to a question nobody asked.
@@ -787,6 +930,57 @@ may break the interface.
 
 ### Changed
 
+- **Breaking: a bundle in a language with no refusal or denial lexicon now
+  exits 4, unconditionally.** There is no flag to turn this off. Before this
+  change, `refusal`, `conversational_integrity` and `adversarial` scored such a
+  bundle anyway and published a number that could not have detected a single
+  refusal or denial in that language. They now refuse before any suite runs,
+  with exit code 4 (configuration error: the gate did not run), and no report
+  directory is written. The owner decided on 2026-09-18 that the refusal is
+  always on, not opt-in.
+
+  **Who this breaks.** Any consumer whose bundle carries items tagged with a
+  language other than `en` or `es`, the two languages Plumbline ships lexicons
+  for, and whose configuration enables `refusal`,
+  `conversational_integrity` or `adversarial`. That consumer's next run on this
+  version exits 4 where it used to publish a score. The demo bundle is `en` and
+  `es` and is unaffected. A consumer whose bundles are only `en` and `es` sees
+  no change: with nothing declared, the judge configuration hash is unchanged at
+  `f59f35442715`, so committed baselines still compare.
+
+  **How to declare markers for a new language.** Add the lexicon to the same
+  `[judge.languages.<tag>]` table that holds the language's detection profile,
+  where `<tag>` is the `lang` value on the bundle's items:
+
+  ```toml
+  [judge.languages.pt]
+  words = ["voce", "pedido", "beneficios", "prazo"]   # optional here; only multilingual reads it
+  refusal_markers = ["nao posso ajudar", "nao tenho como"]
+  denial_markers  = ["nao e", "nunca", "em vez de"]
+  ```
+
+  - `refusal` and `conversational_integrity` need `refusal_markers`, and
+    `adversarial` needs `denial_markers`. Declare only what your enabled suites
+    read. No other suite has a lexicon requirement.
+  - The error names the exact key that is missing, for example
+    `[judge.languages.pt].refusal_markers`, so the fix is to add that key.
+  - Markers are matched as substrings of the lowercased response. Write them
+    in lowercase, with no leading or trailing spaces and no duplicates.
+    Anything else is refused, because it could never match.
+  - A declared list replaces the shipped list for that tag. It does not extend
+    it, so declaring `en` or `es` can narrow detection.
+  - A declared list that differs from the shipped one enters the judge
+    configuration hash, and a baseline built before it will refuse to compare.
+    Rebuild the baseline after you declare.
+  - Write the phrases from real transcripts of the target answering in that
+    language. Plumbline ships no list for a language nobody has written from
+    real transcripts, and the Portuguese above is an illustration, not a
+    lexicon.
+
+  **Upgrading.** Pin the commit before this one until the lexicons are
+  declared, or declare them first and then move the pin. Either way, read this
+  entry before you upgrade, as the pre-1.0 policy above asks.
+
 - **A misspelled key inside `[suites.<id>]` is now a configuration error,
   and `enabled` must be a real boolean.** Both were silent, and both
   produced a gate weaker than the reviewable file that configures it says
@@ -815,7 +1009,7 @@ may break the interface.
   configuration does not state anywhere. `enabled = 0` switched a suite off
   without a word; `enabled = "false"` is a non-empty string, so it read as
   "off" to a person and left the suite on. Both are refused now, each with
-  a message saying what the silent behaviour was. This will reject
+  a message saying what the silent behavior was. This will reject
   configurations that load today; that is the point, since those
   configurations are not running the gate they appear to describe. Six
   tests in `tests/test_fail_closed.py`, all observed failing on the
@@ -1210,7 +1404,7 @@ underneath them.
   - Nothing bound provenance to the report body, so a FAIL could be edited into
     a PASS with the run id, dataset hash and judge hash all still valid.
     Reports now carry `report_sha256` over their own canonical JSON;
-    `plumbline verify` checks it, and `plumbline baseline` refuses to distil a
+    `plumbline verify` checks it, and `plumbline baseline` refuses to distill a
     report that fails it.
 
 ### Added

@@ -18,6 +18,70 @@
 <meta property="og:image:alt" content="Plumbline, and the line: a fail-closed evaluation harness for government-facing chat systems.">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:image" content="https://chelseakr.github.io/plumbline/social-card.png">
+<script>
+(function () {
+  var w = window, n = navigator, d = document, KEY = "plumbline:analytics-opt-out", OFF = "ga-disable-G-0QFVRX8YYH";
+  var store = null;
+  try { store = w.localStorage; store.getItem(KEY); } catch (e) { store = null; }
+  function optedOut() {
+    try { return !!store && store.getItem(KEY) === "1"; } catch (e) { return false; }
+  }
+  var dnt = n.doNotTrack || w.doNotTrack || n.msDoNotTrack;
+  var signal = n.globalPrivacyControl === true || dnt === "1" || dnt === "yes";
+  d.addEventListener("DOMContentLoaded", function () {
+    var box = d.querySelector("[data-analytics-choice]");
+    if (!box) return;
+    var button = box.querySelector("button"), status = box.querySelector("[role=status]");
+    function render(message) {
+      button.textContent = optedOut() ? "Opt back in" : "Opt out of analytics";
+      button.hidden = signal || !store;
+      status.textContent = message;
+      box.hidden = false;
+    }
+    button.addEventListener("click", function () {
+      try {
+        if (optedOut()) {
+          store.removeItem(KEY);
+          w[OFF] = false;
+          render("Opted back in. Analytics resumes from the next page you open.");
+        } else {
+          store.setItem(KEY, "1");
+          w[OFF] = true;
+          render("Opted out. From the next page you open, this site will not load Google Analytics in this browser.");
+        }
+      } catch (e) {
+        store = null;
+        render("This browser is blocking site storage, so an opt-out cannot be remembered here. Global Privacy Control or Do Not Track keeps analytics off.");
+      }
+    });
+    render(signal ? "Analytics is off: your browser sends Global Privacy Control or Do Not Track." : !store ? "This browser is blocking site storage, so an opt-out cannot be remembered here. Global Privacy Control or Do Not Track keeps analytics off."
+      : optedOut() ? "You have opted out: this site does not load Google Analytics in this browser." : "");
+  });
+  if (w.location.hostname !== "chelseakr.github.io") return;
+  if (w.location.pathname.indexOf("/plumbline/") !== 0) return;
+  if (n.globalPrivacyControl === true) return;
+  if (dnt === "1" || dnt === "yes") return;
+  if (optedOut()) return;
+  w.dataLayer = w.dataLayer || [];
+  function gtag() { w.dataLayer.push(arguments); }
+  gtag("consent", "default", {
+    ad_storage: "denied", ad_user_data: "denied", ad_personalization: "denied",
+    analytics_storage: "denied", region: ["AT", "BE", "BG", "HR", "CY", "CZ", "DK", "EE", "FI", "FR", "DE", "GR", "HU", "IE", "IT", "LV", "LT", "LU", "MT", "NL", "PL", "PT", "RO", "SK", "SI", "ES", "SE", "IS", "LI", "NO", "GB", "CH"]
+  });
+  gtag("consent", "default", {
+    ad_storage: "denied", ad_user_data: "denied", ad_personalization: "denied",
+    analytics_storage: "granted"
+  });
+  gtag("js", new Date());
+  gtag("config", "G-0QFVRX8YYH", {
+    allow_google_signals: false, allow_ad_personalization_signals: false
+  });
+  var s = d.createElement("script");
+  s.async = true;
+  s.src = "https://www.googletagmanager.com/gtag/js?id=G-0QFVRX8YYH";
+  d.head.appendChild(s);
+})();
+</script>
 <style>
 :root {
   color-scheme: light dark;
@@ -77,6 +141,8 @@ td.num { text-align: right; font-variant-numeric: tabular-nums; }
         background: var(--code-bg); border: 1px solid var(--rule); }
 footer { margin-top: 4rem; padding-top: 1.5rem; border-top: 1px solid var(--rule);
          color: var(--muted); font-size: .9rem; }
+.link-button { font: inherit; color: var(--accent); background: none; border: 0;
+               padding: 0; text-decoration: underline; cursor: pointer; }
 </style>
 </head>
 <body>
@@ -99,8 +165,8 @@ evidence when this page was built.</p>
 <p>One score improved by hand — <code>accuracy</code>
 0.8638 → 0.9638 — and nothing else touched:</p>
 
-<pre><code>$ plumbline verify audits/3c2ab8d2405e7e51/report.json
-INTEGRITY REFUSAL: audits/3c2ab8d2405e7e51/report.json does not match its own seal: it records 3bc9f77c544c but its contents hash to e4bce5b815dd. The report was edited after it was written. Re-run the audit; a verdict is a record, not a draft.</code></pre>
+<pre><code>$ plumbline verify audits/34ee270002c28e11/report.json
+INTEGRITY REFUSAL: audits/34ee270002c28e11/report.json does not match its own seal: it records 66cbb407f74c but its contents hash to cc835b9ce0a3. The report was edited after it was written. Re-run the audit; a verdict is a record, not a draft.</code></pre>
 
 <p>Exit <span class="exit">3</span>: integrity refusal.</p>
 
@@ -110,8 +176,8 @@ INTEGRITY REFUSAL: audits/3c2ab8d2405e7e51/report.json does not match its own se
 recompute it. Here the target name is changed and the seal is recomputed over
 the change — the seal now matches the contents perfectly:</p>
 
-<pre><code>$ plumbline verify audits/3c2ab8d2405e7e51/report.json
-INTEGRITY REFUSAL: audits/3c2ab8d2405e7e51/report.json records run id &#x27;3c2ab8d2405e7e51&#x27;, but its own contents generate &#x27;dc282dee731651b0&#x27;. The run id is a hash of the target, the harness version, the seed, the dataset hash, the judge configuration hash, the enabled floors and the baseline — so one of those was edited after the run, or this provenance block came from a different run. Re-run the audit.</code></pre>
+<pre><code>$ plumbline verify audits/34ee270002c28e11/report.json
+INTEGRITY REFUSAL: audits/34ee270002c28e11/report.json records run id &#x27;34ee270002c28e11&#x27;, but its own contents generate &#x27;74e7e975bfc421c6&#x27;. The run id is a hash of the target, the harness version, the seed, the dataset hash, the judge configuration hash, the enabled floors and the baseline — so one of those was edited after the run, or this provenance block came from a different run. Re-run the audit.</code></pre>
 
 <p>Exit <span class="exit">3</span>. The run id is a hash of the
 run's inputs, and every one of them is written in the report, so the report
@@ -166,20 +232,20 @@ wrong.</p>
 <h2>The committed verdict</h2>
 
 <p>Reproduced from a clean copy while this page was built: the documented
-command wrote run <code>3c2ab8d2405e7e51</code>, byte for byte the report committed at
-<a href="https://github.com/ChelseaKR/plumbline/blob/main/audits/3c2ab8d2405e7e51/report.json"><code>audits/3c2ab8d2405e7e51/report.json</code></a>.</p>
+command wrote run <code>34ee270002c28e11</code>, byte for byte the report committed at
+<a href="https://github.com/ChelseaKR/plumbline/blob/main/audits/34ee270002c28e11/report.json"><code>audits/34ee270002c28e11/report.json</code></a>.</p>
 
 <div class="card">
 <dl class="kv">
 <dt>Verdict</dt><dd class="pass">PASS</dd>
 <dt>Target</dt><dd><code>riverbend-demo</code></dd>
-<dt>Run id</dt><dd><code>3c2ab8d2405e7e51</code></dd>
+<dt>Run id</dt><dd><code>34ee270002c28e11</code></dd>
 <dt>Harness</dt><dd><code>0.2.0</code>, source
-  <code>59d6d0052df7</code></dd>
+  <code>e2363e4195e0</code></dd>
 <dt>Dataset</dt><dd><code>949197da4dd6</code> (178 items)</dd>
 <dt>Judge</dt><dd><code>lexical</code>, config
   <code>f59f35442715</code></dd>
-<dt>Report seal</dt><dd><code>3bc9f77c544c</code></dd>
+<dt>Report seal</dt><dd><code>66cbb407f74c</code></dd>
 <dt>Seed</dt><dd><code>1729</code></dd>
 </dl>
 </div>
@@ -239,6 +305,8 @@ suites which should be indifferent stay passing:
 <code>tools/build_site.py</code> from the committed artifacts and rebuilt on
 every run of the test suite; if it disagreed with them by one byte, the build
 would fail rather than publish.</p>
+<p class="privacy-note">This site counts visits with Google Analytics 4, advertising features off, and does not load it when your browser sends Global Privacy Control or Do Not Track. <a href="privacy.html">Privacy</a>.
+<span data-analytics-choice hidden><button type="button" class="link-button">Opt out of analytics</button> <span role="status"></span></span></p>
 </footer>
 
 </main>
