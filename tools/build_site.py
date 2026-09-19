@@ -64,11 +64,13 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import tomllib
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
 SITE_DIR = REPO / "site"
 PAGE = SITE_DIR / "index.html"
+PROJECT = REPO / "pyproject.toml"
 PRIVACY_PAGE = SITE_DIR / "privacy.html"
 
 REPO_URL = "https://github.com/ChelseaKR/plumbline"
@@ -132,6 +134,28 @@ PAGE_DESCRIPTION = (
     "and the harness refusing to score tampered evidence."
 )
 BLANK_RESPONSE_FIX = "5caf8e5"
+
+# The name of the site, which is not the title of the page: the page is one
+# document about the project, and `PAGE_TITLE` says which document. This word
+# was written out three times -- in the `<h1>`, in `og:site_name`, and now in
+# the structured data -- and three copies of one word is three chances for a
+# rename to land in two of them.
+SITE_NAME = "Plumbline"
+
+# The language of the document. `<html lang>` is what a screen reader switches
+# voice on and what `tools/check_site_a11y.py` checks for; the `inLanguage` of
+# every structured-data node has to be the same answer, so it reads this
+# rather than restating it. `og:locale` stays its own string: a locale is not
+# a language tag and the two are not interchangeable.
+PAGE_LANG = "en"
+
+# schema.org's `license` wants a URL or a CreativeWork, and `pyproject.toml`
+# holds an SPDX *identifier*. The SPDX registry publishes one page per
+# identifier at a fixed address, so this is a namespace prefix rather than a
+# second copy of anything -- the identifier itself is still read out of the
+# packaging metadata, and a compound expression (`MIT OR Apache-2.0`) has no
+# single page, so it yields no URL rather than a guessed one.
+SPDX_LICENSE_PAGE = "https://spdx.org/licenses/{}.html"
 
 # --- Google Analytics 4 -----------------------------------------------------
 #
@@ -527,6 +551,158 @@ footer { margin-top: 4rem; padding-top: 1.5rem; border-top: 1px solid var(--rule
 """
 
 
+def project_metadata() -> dict:
+    """The `[project]` table of `pyproject.toml`.
+
+    The packaging metadata is where this project already says what it is
+    called, what it does and what license it is under, for the benefit of a
+    PyPI page nobody has uploaded yet. Restating any of that here would be a
+    second copy nobody diffs against the first -- which is the failure this
+    repository spent a pull request on in `README.md` and `DESIGN.md` -- so
+    the page reads it instead.
+    """
+    return tomllib.loads(PROJECT.read_text(encoding="utf-8"))["project"]
+
+
+def png_dimensions(path: Path) -> tuple[int, int]:
+    """The card's width and height, read out of the PNG's own IHDR chunk.
+
+    The head states the card's size so a preview consumer can reserve space
+    before the image arrives. Those two numbers were typed into the template,
+    which made them a claim *about* a file rather than a reading *of* it:
+    re-render the card at another size and the page would go on announcing the
+    old one, every gate staying green because nothing here had ever opened the
+    file. A hand-kept number sitting next to a file that already knows the
+    answer is the shape this repository exists to refuse.
+
+    IHDR is the first chunk of every PNG and its width and height are
+    big-endian 32-bit fields at fixed offsets 16 and 20.
+    """
+    header = path.read_bytes()[:24]
+    if header[:8] != b"\x89PNG\r\n\x1a\n":
+        raise DrillFailed(
+            f"{path} is not a PNG, so the head cannot state its size")
+    return (int.from_bytes(header[16:20], "big"),
+            int.from_bytes(header[20:24], "big"))
+
+
+def license_page(identifier: str) -> str | None:
+    """The SPDX registry page for a bare SPDX identifier, or nothing.
+
+    A compound expression has no single page, and inventing one would be the
+    generator filling a slot rather than reading a value. Nothing is the
+    honest answer, and an absent property is how structured data says it.
+    """
+    if not re.fullmatch(r"[A-Za-z0-9.+-]+", identifier):
+        return None
+    return SPDX_LICENSE_PAGE.format(identifier)
+
+
+def structured_data(card_width: int, card_height: int,
+                    harness_version: str) -> str:
+    """A schema.org description of what this page is and what it is about.
+
+    Every value is read back out of the same constants and files that render
+    the visible head, so the machine-readable claim and the human-readable one
+    cannot disagree: the node's `name` is the `<title>`, its `description` is
+    the `<meta name=description>`, its `url` is the canonical, the image's
+    dimensions are the ones read off the committed PNG, and the software's
+    name and description are the packaging metadata's.
+
+    What is deliberately absent is as much the point as what is here. There is
+    no `Dataset` node and no DCAT vocabulary, and `datasets/riverbend-demo/`
+    is not described here at all. A dataset descriptor is not a description --
+    it is an invitation. It exists so that dataset search engines and state
+    open-data catalogs harvest the thing it names and list it as a dataset of
+    record, and a catalog listing is far easier to acquire than to withdraw.
+    This repository publishes an invented county's invented answers, and the
+    page already says in as many words that the bundle is a demonstration and
+    not a benchmark; soliciting its indexing as data would contradict that
+    sentence in a vocabulary the reader of that sentence never sees. Whether
+    any of this portfolio's corpora should ask for that indexing is an open
+    question with an owner's name on it, and it is not answered by adding the
+    markup quietly. Saying "this page is about a piece of software" asks for
+    none of it. `tests/test_site_structured_data.py` keeps it that way.
+
+    `softwareVersion` *is* here, where the sibling repository this shape came
+    from left it out. The reasoning there was that binding a committed,
+    staleness-checked page to the package version makes every release a
+    version bump plus a page regeneration with a red build in between. That
+    cost is already fully paid here and cannot be avoided: the run id in the
+    committed report is a hash that includes `harness_source_sha256`, a digest
+    of `src/plumbline/`, and `__version__` lives in `src/plumbline/__init__.py`
+    -- so a version bump already invalidates the committed audit, the
+    baseline, `proof/matrix.md` and this page in one motion. The version is
+    also already on the page, in the "Harness" row a person reads. Taking it
+    from the committed report's provenance rather than from `pyproject.toml`
+    is what makes it free: it is the same number the visible row states, from
+    the same read.
+    """
+    project = project_metadata()
+    page = PAGE_URL
+    website_id = page + "#website"
+    image_id = PAGE_IMAGE_URL
+    software_id = REPO_URL + "#software"
+
+    software = {
+        "@type": "SoftwareApplication",
+        "@id": software_id,
+        "name": SITE_NAME,
+        "alternateName": project["name"],
+        "description": project["description"],
+        "softwareVersion": harness_version,
+        "url": page,
+        "sameAs": REPO_URL,
+        "inLanguage": PAGE_LANG,
+    }
+    license_url = license_page(project["license"])
+    if license_url is not None:
+        software["license"] = license_url
+
+    payload = {
+        "@context": "https://schema.org",
+        "@graph": [
+            {
+                "@type": "WebSite",
+                "@id": website_id,
+                "url": page,
+                "name": SITE_NAME,
+                "inLanguage": PAGE_LANG,
+            },
+            {
+                "@type": "WebPage",
+                "@id": page + "#webpage",
+                "url": page,
+                "name": PAGE_TITLE,
+                "description": PAGE_DESCRIPTION,
+                "inLanguage": PAGE_LANG,
+                "isPartOf": {"@id": website_id},
+                "primaryImageOfPage": {"@id": image_id},
+                "about": {"@id": software_id},
+            },
+            {
+                "@type": "ImageObject",
+                "@id": image_id,
+                "url": PAGE_IMAGE_URL,
+                "width": card_width,
+                "height": card_height,
+                "caption": PAGE_IMAGE_ALT,
+            },
+            software,
+        ],
+    }
+    # `</script` inside a JSON string ends the element as far as an HTML parser
+    # is concerned, whatever JSON thinks. Escaping the three characters that
+    # can start markup keeps the block inert without changing what it decodes
+    # to, which is what every consumer of this actually reads.
+    return (
+        json.dumps(payload, ensure_ascii=False, indent=2)
+        .replace("<", "\\u003c")
+        .replace(">", "\\u003e")
+        .replace("&", "\\u0026")
+    )
+
+
 def esc(value) -> str:
     return html.escape(str(value), quote=True)
 
@@ -604,12 +780,17 @@ def render(data: dict, ga4_id: str | None = GA4_MEASUREMENT_ID) -> str:
     seed = esc(p["seed"])
     rows = suite_rows(report)
     coverage = coverage_lines(report)
+    # Read, not typed. The card's size comes off the card; the license comes
+    # off the packaging metadata that already declares it.
+    card_width, card_height = png_dimensions(SITE_DIR / PAGE_IMAGE)
+    license_id = esc(project_metadata()["license"])
+    structured = structured_data(card_width, card_height, p["harness_version"])
     suite_count = len(report["suites"])
     cases_held = sum(1 for c in matrix["cases"] if c["held"])
     cases_total = len(matrix["cases"])
 
     return f"""<!doctype html>
-<html lang="en">
+<html lang="{PAGE_LANG}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -617,23 +798,26 @@ def render(data: dict, ga4_id: str | None = GA4_MEASUREMENT_ID) -> str:
 <meta name="description" content="{PAGE_DESCRIPTION}">
 <link rel="canonical" href="{PAGE_URL}"> <!-- nosemgrep: html.security.audit.missing-integrity.missing-integrity -->
 <meta property="og:type" content="website">
-<meta property="og:site_name" content="Plumbline">
+<meta property="og:site_name" content="{SITE_NAME}">
 <meta property="og:title" content="{PAGE_TITLE}">
 <meta property="og:description" content="{PAGE_DESCRIPTION}">
 <meta property="og:url" content="{PAGE_URL}">
 <meta property="og:locale" content="en_US">
 <meta property="og:image" content="{PAGE_IMAGE_URL}">
-<meta property="og:image:width" content="1200">
-<meta property="og:image:height" content="630">
+<meta property="og:image:width" content="{card_width}">
+<meta property="og:image:height" content="{card_height}">
 <meta property="og:image:alt" content="{PAGE_IMAGE_ALT}">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:image" content="{PAGE_IMAGE_URL}">
+<script type="application/ld+json">
+{structured}
+</script>
 {ga4_snippet(ga4_id)}<style>{CSS}</style>
 </head>
 <body>
 <main>
 
-<h1>Plumbline</h1>
+<h1>{SITE_NAME}</h1>
 <p class="lede">A fail-closed evaluation harness for government-facing chat
 systems. This page is not a description of it: every exit code and transcript
 below was produced by running it, and the page cannot be built if any of them
@@ -770,7 +954,7 @@ suites which should be indifferent stay passing:
 
 <footer>
 <p>Source, and everything above as files you can check yourself:
-<a href="{repo}">{repo_label}</a>. Apache-2.0. This page is generated by
+<a href="{repo}">{repo_label}</a>. {license_id}. This page is generated by
 <code>tools/build_site.py</code> from the committed artifacts and rebuilt on
 every run of the test suite; if it disagreed with them by one byte, the build
 would fail rather than publish.</p>
