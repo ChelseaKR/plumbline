@@ -92,7 +92,7 @@ jobs:
           persist-credentials: false
       # LANE 1 -- every result tier, with the two fixture-matching detectors off.
       - name: TruffleHog (full history, all result tiers)
-        uses: trufflesecurity/trufflehog@363923b901c911a9164f50b6c423f47c15372b1c # v3.97.4
+        uses: trufflesecurity/trufflehog@f714bf454f350590f4a24c3ddb1aef02c35bf5b6 # v3.97.5
         with:
           path: ./
           # What actually makes this a full-history scan, and what was missing
@@ -167,7 +167,7 @@ jobs:
       # verdict, while a canceled run still stops both.
       - name: TruffleHog (full history, verified results, URI still armed)
         if: ${{ !cancelled() }}
-        uses: trufflesecurity/trufflehog@363923b901c911a9164f50b6c423f47c15372b1c # v3.97.4
+        uses: trufflesecurity/trufflehog@f714bf454f350590f4a24c3ddb1aef02c35bf5b6 # v3.97.5
         with:
           path: ./
           # Same reason as lane 1: without these the lane scans the event's diff.
