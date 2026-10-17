@@ -16,7 +16,7 @@
 # `tests/test_ci_parity.py` holds that open: every `run:` step in tests.yml
 # must be a make target, and `verify` must reach it.
 
-.PHONY: verify lint test test-bare coverage site-check claims-check clean reproduce tamper-drill sast
+.PHONY: verify lint test test-bare coverage site-check claims-check clean reproduce tamper-drill sast dist-check
 
 verify: lint test site-check claims-check reproduce tamper-drill
 	@echo "make verify: all local gates passed."
@@ -129,3 +129,20 @@ tamper-drill:
 SEMGREP_VERSION ?= 1.168.0
 sast:
 	uvx --from semgrep==$(SEMGREP_VERSION) semgrep scan --error --metrics off --config auto .
+
+# Build the sdist and wheel, run PyPI's own metadata check on them, install the
+# wheel into a throwaway virtual environment and run the installed CLI against
+# the repository's bundled demo. Everything happens in a temporary directory, so
+# the working tree is untouched, and nothing is uploaded. Deliberately not part
+# of `verify`: `uvx twine` needs the network to resolve, and `verify` is offline.
+# The steps and what each one proves are in docs/publishing-to-pypi.md.
+dist-check:
+	@set -e; work="$$(mktemp -d)"; trap 'rm -rf "$$work"' EXIT; \
+	uv build --out-dir "$$work/dist"; \
+	uvx twine check --strict "$$work"/dist/*; \
+	python3 -m venv "$$work/venv"; \
+	"$$work/venv/bin/pip" install --quiet "$$work"/dist/*.whl; \
+	cd "$$work"; \
+	./venv/bin/plumbline --version; \
+	./venv/bin/plumbline validate "$(CURDIR)/datasets/riverbend-demo" | grep -q "integrity: OK"; \
+	echo "make dist-check: sdist and wheel build, pass twine --strict, and the installed CLI runs."

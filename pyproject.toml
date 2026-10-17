@@ -23,10 +23,29 @@ authors = [{ name = "Chelsea Kelly-Reif" }]
 keywords = ["evaluation", "audit", "llm", "civic-tech", "ci-gate"]
 classifiers = [
   "Development Status :: 2 - Pre-Alpha",
+  "Environment :: Console",
   "Intended Audience :: Developers",
+  "Operating System :: OS Independent",
   "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
   "Topic :: Software Development :: Quality Assurance",
 ]
+
+# Declared before the first upload on purpose. A published release on PyPI is
+# immutable, so a wheel uploaded without these keeps a page with no links to
+# the repository, the issue tracker or the changelog for as long as that
+# version exists. The sibling project gauntlet-evals learned this the hard
+# way: 0.2.0 shipped with no Project-URL metadata because `[project.urls]`
+# merged after the tag was cut, and only a new version could repair it.
+# `tests/test_packaging_metadata.py` keeps these from going missing.
+[project.urls]
+Homepage = "https://chelseakr.github.io/plumbline/"
+Repository = "https://github.com/ChelseaKR/plumbline"
+Issues = "https://github.com/ChelseaKR/plumbline/issues"
+Changelog = "https://github.com/ChelseaKR/plumbline/blob/main/CHANGELOG.md"
 
 [project.scripts]
 plumbline = "plumbline.cli:main"

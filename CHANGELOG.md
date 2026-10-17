@@ -534,6 +534,24 @@ version has been bumped and nothing has been tagged for it.
 
 ### Added
 
+- **The package is checked for PyPI before its first upload.** The wheel carried
+  no `Project-URL` entries, which `twine check` accepts and PyPI would have
+  displayed as a page with no links for as long as that version existed.
+  `[project.urls]` now names the homepage, repository, issue tracker and
+  changelog, and `tests/test_packaging_metadata.py` fails if they go missing,
+  if the declared version differs from `plumbline.__version__`, or if the
+  README or distribution name changes, with a negative control for each rule.
+  `make dist-check` builds both files, runs `twine check --strict`, installs
+  the wheel into a clean virtual environment and runs the installed CLI;
+  `publish-pypi.yml` runs the same `twine check` before it uploads anything.
+  [`docs/publishing-to-pypi.md`](docs/publishing-to-pypi.md) records what was
+  checked and the steps only the maintainer can take. Nothing was published and
+  no version was bumped.
+- **ADR 0006 proposes asymmetric report signing.** A proposal only: no code
+  changes. It sets out OpenSSH (Ed25519) and Sigstore signatures over the
+  existing seal digest, called across a process boundary so the runtime stays
+  dependency-free, and what each would and would not prove.
+
 - **`plumbline compare --config a.toml --config b.toml`, for choosing between
   targets.** One question set graded against several targets, with a table per
   suite: each target's score, confidence interval and n, and for every pair the

@@ -130,6 +130,17 @@ jobs:
           python3 -m pip install --quiet build
           python3 -m build
 
+      # PyPI's own metadata check, run on the files that will be uploaded. It
+      # fails on a README that PyPI cannot render and on malformed metadata,
+      # which are cheaper to learn about here than from a rejected upload.
+      # `--strict` makes warnings fail too. The check for missing Project-URL
+      # entries lives in tests/test_packaging_metadata.py, because twine does
+      # not treat their absence as an error.
+      - name: Check distribution metadata
+        run: |
+          python3 -m pip install --quiet twine
+          python3 -m twine check --strict dist/*
+
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: pypi-dist
