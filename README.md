@@ -82,7 +82,8 @@ taken by an unrelated, long-dormant package — via
 a manual-only workflow using PyPI's keyless Trusted Publishing. It has not
 been run; publishing needs a human to register the trusted publisher on
 PyPI first, which is not something this repository or its automation can do
-on its own.)
+on its own. The checks done so far and the maintainer's steps are in
+[`docs/publishing-to-pypi.md`](docs/publishing-to-pypi.md).)
 
 Re-running the audit with identical inputs writes byte-identical reports to
 the identical path — reports carry no timestamps by design; git history is the
@@ -165,7 +166,7 @@ minimum detectable effect, baseline regression comparison, a pinned
 fail-closed CI gate, live-target recording over HTTP or against a local
 program, and an optional model judge — none of which the gate can reach. Every
 suite has been **observed failing** on a defect it exists to catch; see
-[`proof/matrix.md`](proof/matrix.md). 971 tests, standard library only,
+[`proof/matrix.md`](proof/matrix.md). 984 tests, standard library only,
 offline.
 
 The fourteenth and fifteenth suites are beyond the specification. The
